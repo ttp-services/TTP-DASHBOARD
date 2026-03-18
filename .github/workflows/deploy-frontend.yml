@@ -16,8 +16,9 @@ jobs:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: upload
-          app_location: /frontend
+          app_location: frontend
           api_location: ""
           output_location: dist
         env:
           VITE_API_URL: https://ttp-dashboard-api-dpczbed3bvhchxe9.belgiumcentral-01.azurewebsites.net
+          NODE_VERSION: "20"
