@@ -1,0 +1,33 @@
+-- Example schema the dashboard API expects.
+-- Either create a view named "bookings" with these columns, or rename your table to "bookings"
+-- and ensure these column names (or adapt the queries in src/routes/dashboard.js to match your names).
+--
+-- Required columns (conceptual):
+--   year           INT
+--   month          INT
+--   departure_date DATE
+--   return_date    DATE
+--   booking_date   DATE
+--   transport_type NVARCHAR(100)
+--   destination    NVARCHAR(200)
+--   region         NVARCHAR(100)
+--   num_bookings   INT      (count of bookings per row if aggregated, or 1 per booking)
+--   pax            INT      (passengers)
+--   revenue        DECIMAL  (revenue amount)
+--
+-- Example view if your raw table is "tbl_Bookings" with one row per booking:
+--
+-- CREATE VIEW bookings AS
+-- SELECT
+--   YEAR(DepartureDate) AS year,
+--   MONTH(DepartureDate) AS month,
+--   DepartureDate AS departure_date,
+--   ReturnDate AS return_date,
+--   BookingDate AS booking_date,
+--   TransportType AS transport_type,
+--   Destination AS destination,
+--   Region AS region,
+--   1 AS num_bookings,
+--   Pax AS pax,
+--   Revenue AS revenue
+-- FROM tbl_Bookings;

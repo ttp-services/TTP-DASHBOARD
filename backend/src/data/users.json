@@ -1,0 +1,34 @@
+[
+  {
+    "id": 1,
+    "name": "Abdul Rahman",
+    "username": "abdulrahman",
+    "email": "abdrah1264@gmail.com",
+    "password": "abdul23@",
+    "role": "admin"
+  },
+  {
+    "id": 2,
+    "name": "TTP Admin",
+    "username": "ttp_admin",
+    "email": "admin@ttp-services.com",
+    "password": "ttp2026",
+    "role": "admin"
+  },
+  {
+    "id": 3,
+    "name": "Robbert Jan",
+    "username": "robbert",
+    "email": "robbert@ttp-services.com",
+    "password": "robbert2026",
+    "role": "viewer"
+  },
+  {
+    "id": 4,
+    "name": "Samir",
+    "username": "samir",
+    "email": "samir@ttp-services.com",
+    "password": "samir2026",
+    "role": "viewer"
+  }
+]

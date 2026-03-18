@@ -1,0 +1,22 @@
+{
+  "name": "ttp-dashboard-api",
+  "version": "1.0.0",
+  "description": "Secure API for TTP Services dashboard - Azure SQL",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "mssql": "^10.0.2"
+  }
+}
