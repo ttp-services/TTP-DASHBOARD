@@ -1,6 +1,17 @@
-{
+﻿{
+  "mimeTypes": {
+    ".js": "application/javascript",
+    ".jsx": "application/javascript",
+    ".mjs": "application/javascript",
+    ".css": "text/css",
+    ".json": "application/json",
+    ".wasm": "application/wasm"
+  },
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/assets/*", "*.{css,js,png,gif,ico,jpg,svg,woff2}"]
+    "exclude": ["/assets/*", "*.{css,js,png,gif,ico,jpg,svg,woff2,mjs}"]
+  },
+  "globalHeaders": {
+    "Cache-Control": "no-cache"
   }
 }
