@@ -8,7 +8,6 @@ router.post('/chat', async (req, res) => {
     const { message } = req.body;
     if (!message) return res.status(400).json({ error: 'Message required' });
 
-    // Fetch live data from Azure SQL
     let kpiText = '', dsText = '', monthlyText = '';
     try {
       const [kpiResult, dsResult, monthResult] = await Promise.all([
@@ -37,15 +36,15 @@ router.post('/chat', async (req, res) => {
 
       const k = kpiResult.recordset[0] || {};
       const yr = new Date().getFullYear();
-      kpiText = `${yr}: ${k.cb?.toLocaleString()} bookings, ${k.cp?.toLocaleString()} PAX, €${Math.round(k.cr||0).toLocaleString()} revenue. ${yr-1}: ${k.pb?.toLocaleString()} bookings, ${k.pp?.toLocaleString()} PAX, €${Math.round(k.pr||0).toLocaleString()} revenue.`;
-      dsText = dsResult.recordset.map(d => `${d.dataset}: ${d.b} bookings, ${d.p} PAX, €${d.r?.toLocaleString()}`).join(' | ');
+      kpiText = `${yr}: ${k.cb?.toLocaleString()} bookings, ${k.cp?.toLocaleString()} PAX, EUR${Math.round(k.cr||0).toLocaleString()} revenue. ${yr-1}: ${k.pb?.toLocaleString()} bookings, ${k.pp?.toLocaleString()} PAX, EUR${Math.round(k.pr||0).toLocaleString()} revenue.`;
+      dsText = dsResult.recordset.map(d => `${d.dataset}: ${d.b} bookings, ${d.p} PAX, EUR${d.r?.toLocaleString()}`).join(' | ');
       monthlyText = JSON.stringify(monthResult.recordset);
     } catch (e) {
       console.error('DB fetch error:', e.message);
       kpiText = 'Data temporarily unavailable';
     }
 
-    const systemPrompt = `You are TTP Analytics AI — a smart data analyst for TTP Services, a Belgian travel company specializing in ski and beach holidays.
+    const systemPrompt = `You are TTP Analytics AI - a smart data analyst for TTP Services, a Belgian travel company specializing in ski and beach holidays.
 
 LIVE KPI DATA:
 ${kpiText}
@@ -57,78 +56,95 @@ MONTHLY DATA (last 2 years):
 ${monthlyText}
 
 KEY FACTS:
-- Snowtravel = ski/winter holidays via TravelNote API. Bus classes: Dream Class (most popular), First Class, Sleep/Royal Class
-- Solmar = beach holidays in Spain (Costa Brava CBR, Benidorm BEN, Salou SAL, Lloret LLO, Costa Blanca COB, Sierra Nevada SSE)
+- Snowtravel = ski/winter holidays via TravelNote API. Bus classes: Dream Class, First Class, Sleep/Royal Class
+- Solmar = beach holidays in Spain (Costa Brava, Benidorm, Salou, Lloret, Costa Blanca, Sierra Nevada)
 - Interbus = bus transport partner for Solmar routes
 - Solmar DE = German market beach holidays
 - Bus classes for Solmar/Interbus: RC=Royal Class, FC=First Class, PRE=Premium
 - All data covers 2023-2026, status: ok (confirmed) or cancelled
-- Revenue in EUR (€), company based in Belgium
-- Dashboard built on Azure SQL (TTPDatabase on ttpserver.database.windows.net)
+- Revenue in EUR, company based in Belgium
 
 INSTRUCTIONS:
 - Answer concisely and directly using the live data provided
-- Format numbers nicely: €1.2M, 12,345 bookings, etc.
-- If exact data not available in context, say so and suggest which dashboard filter to use
+- Format numbers nicely: EUR 1.2M, 12,345 bookings, etc.
+- If exact data not available, say so and suggest which dashboard filter to use
 - Compare years when asked about trends
 - Be professional and helpful`;
 
-    const apiKey = process.env.ANTHROPIC_API_KEY || '';
+    const openaiKey = process.env.OPENAI_API_KEY || '';
+    const anthropicKey = process.env.ANTHROPIC_API_KEY || '';
 
-    // If no API key, return smart data-based reply
-    if (!apiKey || apiKey.trim() === '') {
-      const msg = message.toLowerCase();
-      let reply = '';
-      if (msg.includes('revenue')) {
-        reply = `Based on live data: ${kpiText}\n\nDataset breakdown: ${dsText}\n\nFor detailed revenue analysis, use the date filters in the Overview tab.`;
-      } else if (msg.includes('booking')) {
-        reply = `Booking summary: ${kpiText}\n\nBy dataset: ${dsText}`;
-      } else if (msg.includes('pax') || msg.includes('passenger')) {
-        reply = `PAX summary: ${kpiText}\n\nCheck the PAX by Year chart in the Overview tab for monthly breakdown.`;
-      } else if (msg.includes('solmar')) {
-        const solmar = dsText.split('|').find(d => d.includes('Solmar') && !d.includes('DE'));
-        reply = `Solmar data: ${solmar || 'Use the Dataset filter to see Solmar-specific data.'}\n\nFor monthly breakdown, filter by Dataset=Solmar in the Overview tab.`;
-      } else if (msg.includes('bus') || msg.includes('class')) {
-        reply = `Bus occupancy data is available in the Bus Occupancy tab. Snowtravel uses Dream Class, First Class, and Sleep/Royal Class. Solmar/Interbus uses Royal Class (RC), First Class (FC), and Premium (PRE).`;
-      } else {
-        reply = `Here is the current data summary:\n\n${kpiText}\n\nBy dataset: ${dsText}\n\nTo add AI analysis, set ANTHROPIC_API_KEY in the backend .env file. For now, use the dashboard filters for detailed analysis.`;
+    // Try OpenAI first
+    if (openaiKey && openaiKey.startsWith('sk-')) {
+      try {
+        const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${openaiKey}`
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            max_tokens: 800,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: message }
+            ]
+          })
+        });
+        const data = await openaiRes.json();
+        if (data.choices?.[0]?.message?.content) {
+          return res.json({ reply: data.choices[0].message.content });
+        }
+      } catch (e) {
+        console.error('OpenAI error:', e.message);
       }
-      return res.json({ reply });
     }
 
-    // Call Anthropic Claude
-    const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 800,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: message }]
-      })
-    });
-
-    if (!anthropicRes.ok) {
-      const errText = await anthropicRes.text();
-      console.error('Anthropic API error:', errText);
-      return res.json({
-        reply: `Here is the current data summary:\n\n${kpiText}\n\nBy dataset: ${dsText}\n\n(AI service temporarily unavailable. Check ANTHROPIC_API_KEY in .env)`
-      });
+    // Try Anthropic Claude as fallback
+    if (anthropicKey && anthropicKey.startsWith('sk-ant-')) {
+      try {
+        const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': anthropicKey,
+            'anthropic-version': '2023-06-01'
+          },
+          body: JSON.stringify({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 800,
+            system: systemPrompt,
+            messages: [{ role: 'user', content: message }]
+          })
+        });
+        const data = await anthropicRes.json();
+        if (data.content?.[0]?.text) {
+          return res.json({ reply: data.content[0].text });
+        }
+      } catch (e) {
+        console.error('Anthropic error:', e.message);
+      }
     }
 
-    const data = await anthropicRes.json();
-    const reply = data.content?.[0]?.text || 'No response generated.';
+    // Fallback: smart DB-based reply
+    const msg = message.toLowerCase();
+    let reply = '';
+    if (msg.includes('revenue')) {
+      reply = `Based on live data:\n${kpiText}\n\nDataset breakdown: ${dsText}`;
+    } else if (msg.includes('booking')) {
+      reply = `Booking summary: ${kpiText}\n\nBy dataset: ${dsText}`;
+    } else if (msg.includes('solmar')) {
+      const solmar = dsText.split('|').find(d => d.includes('Solmar') && !d.includes('DE'));
+      reply = `Solmar data: ${solmar || 'Use the Dataset filter to see Solmar-specific data.'}`;
+    } else {
+      reply = `Current data summary:\n${kpiText}\n\nBy dataset: ${dsText}`;
+    }
     res.json({ reply });
 
   } catch (err) {
     console.error('AI chat error:', err.message);
-    res.json({
-      reply: 'Sorry, I could not process your request. The backend is running but encountered an error. Please try again.'
-    });
+    res.json({ reply: 'Sorry, I could not process your request. Please try again.' });
   }
 });
 
@@ -146,10 +162,9 @@ router.get('/status', async (req, res) => {
       ORDER BY total_bookings DESC
     `);
     const datasets = result.recordset || [];
-    const lastUpdate = datasets.length ? datasets[0].last_booking_date : null;
     res.json({
       datasets,
-      lastUpdate,
+      lastUpdate: datasets.length ? datasets[0].last_booking_date : null,
       checkedAt: new Date().toISOString(),
       dubaiTime: new Date().toLocaleString('en-AE', { timeZone: 'Asia/Dubai' })
     });

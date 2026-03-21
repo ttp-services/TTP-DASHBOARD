@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+﻿import { useState, useEffect, useRef, useCallback } from "react";
 import Login from "./components/Login.jsx";
 
 // ── CONSTANTS ─────────────────────────────────────────────────────────────────
@@ -11,10 +11,10 @@ const THEME = {
   card: "#0a1628",
   cardHover: "#0d1f3c",
   border: "#0e2040",
-  accent: "#38bdf8",
-  text: "#f1f5f9",
-  muted: "#64748b",
-  muted2: "#475569",
+  accent: "#0033cc",
+  text: "#f8fafc",
+  muted: "#94a3b8",
+  muted2: "#64748b",
   success: "#34d399",
   danger: "#f87171",
   warning: "#fbbf24",
