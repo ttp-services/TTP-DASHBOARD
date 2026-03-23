@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Login from "./components/Login.jsx";
 
 // ── CONSTANTS ─────────────────────────────────────────────────────────────────
@@ -1103,7 +1103,8 @@ export default function App() {
         fetch_("/api/dashboard/bustrips", p).catch(() => []),
         fetch_("/api/dashboard/bus-class-summary", {}).catch(() => []),
       ]).then(([bt, bc]) => {
-        const btRows = Array.isArray(bt) ? bt : (bt.rows || []); if (btRows.length > 0) setBusTrips(btRows);
+        const btRows = Array.isArray(bt) ? bt : (bt?.rows || []);
+        if (btRows.length > 0) setBusTrips([...btRows]);
         if (Array.isArray(bc)) setBusClass(bc);
       }).finally(() => setBLoad(false));
     } else {
@@ -1118,11 +1119,17 @@ export default function App() {
   }, [token, busView, busApplied]);
 
   useEffect(() => { if (token) loadBus(); }, [token, busView, busApplied]);
-  // Load bustrips on mount directly
+
+  // Load bustrips immediately on mount
   useEffect(() => {
     if (!token) return;
-    fetch_("/api/dashboard/bustrips", {}).then(d => { const rows = Array.isArray(d) ? d : (d.rows || []); if (rows.length > 0) setBusTrips([...rows]); }).catch(() => {});
-    fetch_("/api/dashboard/bus-class-summary", {}).then(d => { if (Array.isArray(d)) setBusClass(d); }).catch(() => {});
+    fetch_("/api/dashboard/bustrips", {}).then(d => {
+      const rows = Array.isArray(d) ? d : (d?.rows || []);
+      if (rows.length > 0) setBusTrips([...rows]);
+    }).catch(() => {});
+    fetch_("/api/dashboard/bus-class-summary", {}).then(d => {
+      if (Array.isArray(d)) setBusClass(d);
+    }).catch(() => {});
   }, [token]);
 
   // Load data table
@@ -1291,34 +1298,14 @@ export default function App() {
         {/* ══ OVERVIEW ══ */}
         {tab === "overview" && (
           <div>
-            {/* Summary row — DataHub style */}
-            {kpis && !oLoad && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 18 }}>
-                {[
-                  { label: "Current period", bkg: kpis.currentBookings, pax: kpis.currentPax, rev: kpis.currentRevenue },
-                  { label: "Previous period", bkg: kpis.previousBookings, pax: kpis.previousPax, rev: kpis.previousRevenue },
-                  { label: "Difference", bkg: kpis.differenceBookings, pax: kpis.differencePax, rev: kpis.differenceRevenue, isDiff: true },
-                ].map((col, ci) => (
-                  <div key={ci} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "18px 20px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.06em" }}>{col.label}</div>
-                    {[["Turnover", col.rev, true], ["Pax", col.pax, false], ["Bookings", col.bkg, false]].map(([l, v, isCurr]) => (
-                      <div key={l} style={{ marginBottom: 8 }}>
-                        <div style={{ fontSize: 11, color: T.muted2, marginBottom: 2 }}>{l}</div>
-                        <div style={{ fontSize: 18, fontWeight: 700, color: col.isDiff ? (v >= 0 ? T.success : T.danger) : T.text }}>
-                          {col.isDiff && v >= 0 ? "+" : ""}{isCurr ? fmtEur(v) : fmtNum(v)}
-                          {col.isDiff && ci === 2 && (
-                            <span style={{ fontSize: 12, marginLeft: 8, color: v >= 0 ? T.success : T.danger }}>
-                              {fmtPct(isCurr ? (kpis.percentRevenue) : l === "Pax" ? kpis.percentPax : kpis.percentBookings)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            )}
+            {/* Row 1: 3 KPI cards */}
+            <div className="kpi-row" style={{ display: "flex", gap: 14, marginBottom: 14 }}>
+              <KpiCard title="Bookings" current={kpis?.currentBookings} previous={kpis?.previousBookings} diff={kpis?.differenceBookings} pct={kpis?.percentBookings} loading={oLoad} icon={<SvgBkg />} T={T} />
+              <KpiCard title="PAX" current={kpis?.currentPax} previous={kpis?.previousPax} diff={kpis?.differencePax} pct={kpis?.percentPax} loading={oLoad} icon={<SvgPax />} T={T} />
+              <KpiCard title="Revenue" current={kpis?.currentRevenue} previous={kpis?.previousRevenue} diff={kpis?.differenceRevenue} pct={kpis?.percentRevenue} isCurrency loading={oLoad} icon={<SvgRev />} T={T} />
+            </div>
 
+            {/* Row 2: Line chart + Bar chart */}
             <div className="chart-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
               <LineChart data={revData} title="Revenue by Year" metric="revenue" isCurrency T={T} />
               <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "16px 18px" }}>
@@ -1332,25 +1319,15 @@ export default function App() {
                 </div>
                 <BarChart data={revData} metric={barMetric} T={T} />
               </div>
-              <DonutChart data={trData} title="Transport Type Breakdown" T={T} />
-              <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "16px 18px" }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4 }}>KPI Cards</div>
-                <div className="kpi-row" style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
-                  <KpiCard title="Bookings" current={kpis?.currentBookings} previous={kpis?.previousBookings} diff={kpis?.differenceBookings} pct={kpis?.percentBookings} loading={oLoad} icon={<SvgBkg />} T={T} />
-                </div>
-                <div className="kpi-row" style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
-                  <KpiCard title="PAX" current={kpis?.currentPax} previous={kpis?.previousPax} diff={kpis?.differencePax} pct={kpis?.percentPax} loading={oLoad} icon={<SvgPax />} T={T} />
-                </div>
-                <div className="kpi-row" style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
-                  <KpiCard title="Revenue" current={kpis?.currentRevenue} previous={kpis?.previousRevenue} diff={kpis?.differenceRevenue} pct={kpis?.percentRevenue} isCurrency loading={oLoad} icon={<SvgRev />} T={T} />
-                </div>
-              </div>
             </div>
 
-            {/* DataHub-style comparison table */}
-            <div style={{ marginBottom: 4 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10 }}>Year-Month Comparison</div>
-              <ComparisonTable data={ymData} T={T} />
+            {/* Row 3: Year-Month table (wide) + Donut chart */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 14, marginBottom: 14 }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10 }}>Year-Month Comparison</div>
+                <ComparisonTable data={ymData} T={T} />
+              </div>
+              <DonutChart data={trData} title="Transport Type Breakdown" T={T} />
             </div>
           </div>
         )}
