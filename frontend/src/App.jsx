@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+﻿import { useState, useEffect, useRef, useCallback } from "react";
 import Login from "./components/Login.jsx";
 
 // ── CONSTANTS ─────────────────────────────────────────────────────────────────
@@ -1103,7 +1103,7 @@ export default function App() {
         fetch_("/api/dashboard/bustrips", p).catch(() => []),
         fetch_("/api/dashboard/bus-class-summary", {}).catch(() => []),
       ]).then(([bt, bc]) => {
-        if (Array.isArray(bt)) setBusTrips(bt);
+        const btRows = Array.isArray(bt) ? bt : (bt.rows || []); if (btRows.length > 0) setBusTrips(btRows);
         if (Array.isArray(bc)) setBusClass(bc);
       }).finally(() => setBLoad(false));
     } else {
@@ -1121,7 +1121,7 @@ export default function App() {
   // Load bustrips on mount directly
   useEffect(() => {
     if (!token) return;
-    fetch_("/api/dashboard/bustrips", {}).then(d => { if (Array.isArray(d) && d.length > 0) setBusTrips([...d]); }).catch(() => {});
+    fetch_("/api/dashboard/bustrips", {}).then(d => { const rows = Array.isArray(d) ? d : (d.rows || []); if (rows.length > 0) setBusTrips([...rows]); }).catch(() => {});
     fetch_("/api/dashboard/bus-class-summary", {}).then(d => { if (Array.isArray(d)) setBusClass(d); }).catch(() => {});
   }, [token]);
 
