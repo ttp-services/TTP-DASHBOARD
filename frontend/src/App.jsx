@@ -1,735 +1,901 @@
-﻿import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Login from "./components/Login.jsx";
 
 // ── CONSTANTS ─────────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const YEAR_COLORS = ["#4f8ef7","#f59e0b","#34d399","#f87171"];
+const YEAR_COLORS = { 2023:"#8b5cf6", 2024:"#f59e0b", 2025:"#10b981", 2026:"#0033cc" };
 const BASE = (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) || "http://localhost:3001";
 
-const THEME = {
-  bg: "#050d1a",
-  card: "#0a1628",
-  cardHover: "#0d1f3c",
-  border: "#0e2040",
-  accent: "#0033cc",
-  text: "#f8fafc",
-  muted: "#94a3b8",
-  muted2: "#64748b",
-  success: "#34d399",
-  danger: "#f87171",
-  warning: "#fbbf24",
+// ── THEMES ────────────────────────────────────────────────────────────────────
+const THEMES = {
+  gray: {
+    name: "Professional Gray",
+    bg: "#f4f5f7",
+    card: "#ffffff",
+    cardHover: "#f8f9fb",
+    border: "#e2e5ea",
+    accent: "#0033cc",
+    accentLt: "#eef1ff",
+    text: "#1a1d23",
+    muted: "#6b7280",
+    muted2: "#9ca3af",
+    success: "#059669",
+    successLt: "#ecfdf5",
+    danger: "#dc2626",
+    dangerLt: "#fef2f2",
+    warning: "#d97706",
+    warningLt: "#fffbeb",
+    header: "#ffffff",
+    rowAlt: "#f8f9fb",
+    gridLine: "#f0f1f3",
+    inputBg: "#f9fafb",
+  },
+  dark: {
+    name: "Dark Navy",
+    bg: "#050d1a",
+    card: "#0a1628",
+    cardHover: "#0d1f3c",
+    border: "#0e2040",
+    accent: "#60a5fa",
+    accentLt: "#1e3a8a",
+    text: "#f8fafc",
+    muted: "#94a3b8",
+    muted2: "#64748b",
+    success: "#34d399",
+    successLt: "#064e3b",
+    danger: "#f87171",
+    dangerLt: "#7f1d1d",
+    warning: "#fbbf24",
+    warningLt: "#78350f",
+    header: "#07111f",
+    rowAlt: "#07111f",
+    gridLine: "#0e2040",
+    inputBg: "#070e1c",
+  },
 };
 
+// ── CITY COORDINATES ──────────────────────────────────────────────────────────
 const CITY_COORDS = {
-  "Antwerpen":[51.2194,4.4025],"Gent":[51.0543,3.7174],"Brugge":[51.2093,3.2247],
-  "Brussel":[50.8503,4.3517],"Leuven":[50.8798,4.7005],"Hasselt":[50.9307,5.3378],
-  "Genk":[50.9651,5.4989],"Kortrijk":[50.8280,3.2648],"Mechelen":[51.0259,4.4776],
-  "Turnhout":[51.3220,4.9510],"Geel":[51.1619,4.9870],"Lommel":[51.2289,5.3142],
-  "Pelt":[51.2350,5.4160],"Dendermonde":[51.0280,4.1010],"Ieper":[50.8503,2.8768],
-  "Waregem":[50.8827,3.4288],"Aalst":[50.9370,4.0390],"Puurs":[51.0720,4.2780],
-  "Sint-Truiden":[50.8180,5.1870],"Thor Park Genk":[50.9651,5.4989],
-  "Groot-Bijgaarden":[50.8790,4.2580],"Grimbergen":[50.9360,4.3730],
-  "Wijnegem":[51.2280,4.5230],"Wevelgem":[50.8050,3.1810],
-  "Lummen":[50.9870,5.2760],"Maasmechelen":[50.9670,5.6970],
-  "Houthalen-Helchteren":[51.0330,5.3780],"Herentals":[51.1760,4.8370],
-  "Zaventem":[50.8980,4.4670],"Sint-Niklaas":[51.1586,4.1427],
-  "Roeselare":[50.9460,3.1220],"Kortemark":[51.0090,3.0380],
+  "Maarheeze":[51.3167,5.6000],"Genk":[50.9651,5.4989],"Maastricht":[50.8514,5.6909],
+  "Antwerpen":[51.2194,4.4025],"Gent":[51.0543,3.7174],"Rotterdam":[51.9244,4.4777],
+  "Amsterdam":[52.3676,4.9041],"Zwolle":[52.5168,6.0830],"Pelt":[51.2350,5.4160],
+  "Arnhem":[51.9851,5.8987],"Utrecht":[52.0907,5.1214],"Breda":[51.5719,4.7683],
+  "Leuven":[50.8798,4.7005],"Den Haag":[52.0705,4.3007],"Thor Park Genk":[50.9651,5.4989],
+  "Brugge":[51.2093,3.2247],"Groot-Bijgaarden":[50.8790,4.2580],"Geel":[51.1619,4.9870],
+  "Den Bosch":[51.6978,5.3037],"Lummen":[50.9870,5.2760],"Tilburg":[51.5555,5.0913],
+  "Nijmegen":[51.8126,5.8372],"Apeldoorn":[52.2112,5.9699],"Eindhoven":[51.4416,5.4697],
+  "Enschede":[52.2215,6.8937],"Heerlen":[50.8878,5.9800],"Groningen":[53.2194,6.5665],
+  "Hoogeveen":[52.7255,6.4761],"Deventer":[52.2550,6.1583],"Meppel":[52.6961,6.1942],
+  "Amersfoort":[52.1561,5.3878],"Wevelgem":[50.8050,3.1810],"Alkmaar":[52.6324,4.7534],
+  "Leiden":[52.1601,4.4970],"Dordrecht":[51.8133,4.6901],"Bergen op Zoom":[51.4942,4.2882],
+  "Almere":[52.3508,5.2647],"Ieper":[50.8503,2.8768],"Brussel":[50.8503,4.3517],
+  "Sint-Truiden":[50.8180,5.1870],"Helmond":[51.4826,5.6613],"Lelystad":[52.5185,5.4714],
+  "Harderwijk":[52.3428,5.6219],"Sittard":[51.0000,5.8667],"Roermond":[51.1940,5.9878],
+  "Assen":[52.9925,6.5642],"Haarlem":[52.3874,4.6462],"Roosendaal":[51.5333,4.4667],
+  "Turnhout":[51.3220,4.9510],"Lommel":[51.2289,5.3142],"Wijnegem":[51.2280,4.5230],
+  "Grimbergen":[50.9360,4.3730],"Venlo":[51.3700,6.1683],"Maasmechelen":[50.9670,5.6970],
+  "Aalst":[50.9370,4.0390],"Kortrijk":[50.8280,3.2648],"Hasselt":[50.9307,5.3378],
+  "Herentals":[51.1760,4.8370],"Dendermonde":[51.0280,4.1010],"Houthalen-Helchteren":[51.0330,5.3780],
+  "Zaandam":[52.4394,4.8153],"Oss":[51.7667,5.5167],"Aachen":[50.7753,6.0839],
+  "Luik":[50.6450,5.5730],"Dortmund":[51.5136,7.4653],"Düsseldorf":[51.2217,6.7762],
+  "Hechtel":[51.1167,5.3667],"Zandhoven":[51.2333,4.6667],"Bonheiden":[51.0167,4.5333],
+  "Sint-Andries":[51.2167,4.4500],"Sint-Niklaas":[51.1586,4.1427],"Namen":[50.4667,4.8667],
+  "Nieuwerkerken":[50.8833,5.1167],"Sprimont":[50.4833,5.6667],"Kontich":[51.1333,4.4500],
 };
 
-const PENDEL_MAP = {
-  BEN:"Benidorm",CBR:"Costa Brava",SAL:"Salou",SSE:"Sierra Nevada",
-  LLO:"Lloret de Mar",COB:"Costa Blanca",CSE:"Costa del Sol",PEN:"Peniscola"
-};
+function findCity(dest) {
+  if (!dest) return null;
+  const d = dest.toLowerCase().trim();
+  for (const [city, coords] of Object.entries(CITY_COORDS)) {
+    if (d === city.toLowerCase()) return { city, coords };
+  }
+  for (const [city, coords] of Object.entries(CITY_COORDS)) {
+    const c = city.toLowerCase();
+    if (d.startsWith(c) || c.startsWith(d.split(" ")[0])) return { city, coords };
+  }
+  return null;
+}
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
-const fmt = (n, cur=false) => {
-  if (n==null||isNaN(n)) return "—";
-  return cur ? "€"+Number(n).toLocaleString("nl-BE",{maximumFractionDigits:0}) : Number(n).toLocaleString("nl-BE");
+const fmtEur = v => {
+  const n = Math.round(v || 0);
+  if (n >= 1000000) return `€ ${(n / 1000000).toFixed(2)}M`;
+  if (n >= 1000) return `€ ${(n / 1000).toFixed(0)}K`;
+  return `€ ${n.toLocaleString("nl-BE")}`;
 };
-const fmtPct = n => { if(n==null||isNaN(n))return"—"; const v=parseFloat(n); return(v>0?"+":"")+v.toFixed(1)+"%"; };
-const diffClr = v => (v==null||isNaN(v))?"#94a3b8":parseFloat(v)>=0?THEME.success:THEME.danger;
-const arw = v => (v==null||isNaN(v))?"":parseFloat(v)>=0?"▲":"▼";
-const dubaiTime = () => new Date().toLocaleTimeString("en-AE",{timeZone:"Asia/Dubai",hour:"2-digit",minute:"2-digit"});
+const fmtNum = v => Math.round(v || 0).toLocaleString("nl-BE");
+const fmtPct = (v, showSign = true) => {
+  if (v == null || isNaN(v)) return "—";
+  const n = parseFloat(v);
+  return `${showSign && n > 0 ? "+" : ""}${n.toFixed(2)} %`;
+};
+const dubaiTime = () => new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Dubai", hour: "2-digit", minute: "2-digit" });
+const normTransport = t => (t || "").toLowerCase().replace("owntransport", "own transport").trim();
 
-// ── API FETCH ─────────────────────────────────────────────────────────────────
-function apiFetch(url, params={}, onUnauth=()=>{}) {
-  const t = localStorage.getItem("ttp_token");
-  const sp = new URLSearchParams();
-  Object.entries(params).forEach(([k,v])=>{
-    if(v==null||v==="")return;
-    if(Array.isArray(v))v.forEach(x=>sp.append(k,x));
-    else sp.set(k,v);
+async function apiFetch(path, params = {}, token) {
+  const tk = token || localStorage.getItem("ttp_token");
+  const qs = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    if (Array.isArray(v)) v.forEach(i => qs.append(k, i));
+    else if (v !== undefined && v !== "") qs.set(k, v);
   });
-  const qs = sp.toString();
-  return fetch(`${BASE}${url}${qs?"?"+qs:""}`,{
-    headers:{"Authorization":`Bearer ${t}`,"Content-Type":"application/json"}
-  }).then(r=>{
-    if(r.status===401){onUnauth();throw new Error("Unauthorized");}
-    return r.json();
-  });
+  const url = `${BASE}${path}${qs.toString() ? "?" + qs.toString() : ""}`;
+  const r = await fetch(url, { headers: { Authorization: `Bearer ${tk}` } });
+  if (r.status === 401) throw new Error("UNAUTH");
+  return r.json();
+}
+
+function buildParams(f = {}) {
+  const p = {};
+  if (f.departureDateFrom) p.departureDateFrom = f.departureDateFrom;
+  if (f.departureDateTo) p.departureDateTo = f.departureDateTo;
+  if (f.bookingDateFrom) p.bookingDateFrom = f.bookingDateFrom;
+  if (f.bookingDateTo) p.bookingDateTo = f.bookingDateTo;
+  if (f.datasets?.length) p.dataset = f.datasets;
+  if (f.statuses?.length) p.status = f.statuses;
+  if (f.transports?.length) p.transportType = f.transports;
+  return p;
 }
 
 // ── TOOLTIP ───────────────────────────────────────────────────────────────────
-function ChartTooltip({tooltip}) {
-  if(!tooltip) return null;
+function ChartTooltip({ x, y, title, value, T }) {
+  if (!x || !y) return null;
   return (
     <div style={{
-      position:"fixed",left:tooltip.x+14,top:tooltip.y-52,
-      background:THEME.card,border:`1px solid ${THEME.accent}`,
-      borderRadius:8,padding:"8px 14px",fontSize:12,
-      color:THEME.text,pointerEvents:"none",zIndex:9999,
-      boxShadow:"0 4px 20px rgba(0,0,0,0.6)",whiteSpace:"nowrap"
+      position: "fixed", left: x + 14, top: y - 54, pointerEvents: "none", zIndex: 9999,
+      background: T.card, border: `1px solid ${T.border}`, borderRadius: 8,
+      padding: "8px 14px", fontSize: 12, color: T.text,
+      boxShadow: "0 4px 16px rgba(0,0,0,0.12)", whiteSpace: "nowrap",
     }}>
-      <div style={{color:THEME.accent,fontWeight:700,marginBottom:2}}>{tooltip.label}</div>
-      <div>{tooltip.value}</div>
+      <div style={{ color: T.accent, fontWeight: 700, marginBottom: 2, fontSize: 11 }}>{title}</div>
+      <div style={{ fontWeight: 600 }}>{value}</div>
     </div>
   );
 }
 
-// ── MULTI-SELECT ──────────────────────────────────────────────────────────────
-function MultiSelect({label,options=[],value=[],onChange,placeholder="All"}) {
-  const [open,setOpen] = useState(false);
+// ── MULTI SELECT ──────────────────────────────────────────────────────────────
+function MultiSelect({ label, options = [], value = [], onChange, T, placeholder = "All" }) {
+  const [open, setOpen] = useState(false);
   const ref = useRef(null);
-  useEffect(()=>{
-    const h = e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
-    document.addEventListener("mousedown",h);
-    return()=>document.removeEventListener("mousedown",h);
-  },[]);
-  const sel = Array.isArray(value)?value:[];
-  const toggle = o => onChange(sel.includes(o)?sel.filter(x=>x!==o):[...sel,o]);
-  const lbl = sel.length===0?placeholder:sel.length===1?sel[0]:`${sel.length} selected`;
+  useEffect(() => {
+    const h = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+  const sel = Array.isArray(value) ? value : [];
+  const display = sel.length === 0 ? placeholder : sel.length === 1 ? sel[0] : `${sel.length} selected`;
   return (
-    <div ref={ref} style={{position:"relative",minWidth:140}}>
-      {label&&<div style={{fontSize:11,color:THEME.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em"}}>{label}</div>}
-      <button onClick={()=>setOpen(o=>!o)} style={{
-        width:"100%",background:"#111827",border:`1px solid ${THEME.border}`,
-        borderRadius:6,color:sel.length?THEME.text:THEME.muted,
-        padding:"7px 10px",fontSize:13,cursor:"pointer",
-        display:"flex",justifyContent:"space-between",alignItems:"center",gap:4
+    <div ref={ref} style={{ position: "relative", minWidth: 130 }}>
+      {label && <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</div>}
+      <button onClick={() => setOpen(o => !o)} style={{
+        width: "100%", background: T.inputBg, border: `1px solid ${open ? T.accent : T.border}`,
+        borderRadius: 6, color: sel.length ? T.text : T.muted2, padding: "7px 10px", fontSize: 12,
+        cursor: "pointer", textAlign: "left", display: "flex", justifyContent: "space-between", alignItems: "center", outline: "none",
       }}>
-        <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{lbl}</span>
-        <span style={{fontSize:9,opacity:0.5}}>{open?"▲":"▼"}</span>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{display}</span>
+        <span style={{ color: T.muted2, fontSize: 9, marginLeft: 4 }}>{open ? "▲" : "▼"}</span>
       </button>
-      {open&&(
+      {open && (
         <div style={{
-          position:"absolute",top:"calc(100% + 4px)",left:0,right:0,
-          background:"#0f1623",border:`1px solid ${THEME.border}`,
-          borderRadius:6,zIndex:9999,maxHeight:220,overflowY:"auto",
-          boxShadow:"0 10px 30px rgba(0,0,0,0.6)"
+          position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 1000,
+          background: T.card, border: `1px solid ${T.border}`, borderRadius: 6,
+          maxHeight: 200, overflowY: "auto", boxShadow: "0 8px 24px rgba(0,0,0,0.1)",
         }}>
-          {sel.length>0&&<div onClick={()=>onChange([])} style={{padding:"7px 12px",fontSize:12,color:THEME.danger,cursor:"pointer",borderBottom:`1px solid ${THEME.border}`}}>✕ Clear</div>}
-          {options.map(o=>(
-            <div key={o} onClick={()=>toggle(o)} style={{
-              padding:"7px 12px",fontSize:13,cursor:"pointer",
-              display:"flex",alignItems:"center",gap:8,
-              background:sel.includes(o)?"#1a2a4a":"transparent",
-              color:sel.includes(o)?"#93c5fd":THEME.text
-            }}>
-              <span style={{
-                width:14,height:14,border:`1px solid ${THEME.accent}`,
-                borderRadius:3,flexShrink:0,
-                background:sel.includes(o)?THEME.accent:"transparent",
-                display:"flex",alignItems:"center",justifyContent:"center",fontSize:10
-              }}>{sel.includes(o)?"✓":""}</span>
-              {o}
-            </div>
-          ))}
+          <div onClick={() => onChange([])} style={{ padding: "8px 12px", fontSize: 12, cursor: "pointer", color: sel.length === 0 ? T.accent : T.muted, background: sel.length === 0 ? T.accentLt : "transparent", fontWeight: sel.length === 0 ? 600 : 400 }}>All</div>
+          {options.map(opt => {
+            const active = sel.includes(opt);
+            return (
+              <div key={opt} onClick={() => onChange(active ? sel.filter(v => v !== opt) : [...sel, opt])}
+                style={{ padding: "8px 12px", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, background: active ? T.accentLt : "transparent", color: active ? T.accent : T.text }}>
+                <span style={{ width: 14, height: 14, border: `1.5px solid ${active ? T.accent : T.border}`, borderRadius: 3, background: active ? T.accent : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  {active && <span style={{ color: "#fff", fontSize: 9, fontWeight: 700 }}>✓</span>}
+                </span>
+                {opt}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
 
-// ── KPI CARD ──────────────────────────────────────────────────────────────────
-function KpiCard({title,icon,current,previous,diff,pct,isCurrency,loading}) {
-  return (
-    <div style={{
-      background:THEME.card,border:`1px solid ${THEME.border}`,
-      borderRadius:12,padding:"20px 22px",flex:1,minWidth:200,
-      boxShadow:"0 4px 24px rgba(0,0,0,0.4)",transition:"all 0.2s"
-    }}>
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-        {icon}
-        <span style={{fontSize:11,color:THEME.muted,textTransform:"uppercase",letterSpacing:"0.08em",fontWeight:600}}>{title}</span>
-      </div>
-      {loading ? (
-        <div style={{height:40,background:"#0e2040",borderRadius:6,animation:"pulse 1.5s infinite"}}/>
-      ) : (
-        <div style={{fontSize:28,fontWeight:800,color:THEME.accent,letterSpacing:"-0.02em"}}>
-          {isCurrency?fmt(current,true):fmt(current)}
-        </div>
-      )}
-      <div style={{fontSize:12,color:THEME.muted2,marginTop:4}}>prev year: {isCurrency?fmt(previous,true):fmt(previous)}</div>
-      <div style={{display:"flex",alignItems:"center",gap:8,marginTop:10}}>
-        <span style={{color:diffClr(diff),fontSize:13,fontWeight:700}}>
-          {arw(diff)} {isCurrency?fmt(Math.abs(diff||0),true):fmt(Math.abs(diff||0))}
-        </span>
-        <span style={{
-          background:parseFloat(pct)>=0?"rgba(52,211,153,0.15)":"rgba(248,113,113,0.15)",
-          color:diffClr(pct),fontSize:11,padding:"2px 8px",borderRadius:20,fontWeight:700
-        }}>{fmtPct(pct)}</span>
-      </div>
-    </div>
-  );
+// ── RESIZE HOOK ───────────────────────────────────────────────────────────────
+function useWidth(ref) {
+  const [w, setW] = useState(0);
+  useEffect(() => {
+    if (!ref.current) return;
+    const obs = new ResizeObserver(e => setW(Math.round(e[0].contentRect.width)));
+    obs.observe(ref.current);
+    return () => obs.disconnect();
+  }, [ref]);
+  return w;
 }
 
-// ── SVG ICONS ─────────────────────────────────────────────────────────────────
-const IconBookings = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={THEME.accent} strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>;
-const IconPax = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={THEME.accent} strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
-const IconRevenue = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={THEME.accent} strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>;
+function drawGrid(ctx, pad, W, H, maxV, isCurrency, T) {
+  ctx.strokeStyle = T.gridLine; ctx.lineWidth = 1;
+  [0, 0.25, 0.5, 0.75, 1].forEach(t => {
+    const y = pad.top + t * (H - pad.top - pad.bottom);
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right, y); ctx.stroke();
+    const v = maxV * (1 - t);
+    ctx.fillStyle = T.muted2; ctx.font = "10px Inter,system-ui,sans-serif"; ctx.textAlign = "right";
+    const lbl = isCurrency ? (v >= 1e6 ? `€${(v / 1e6).toFixed(1)}M` : v >= 1000 ? `€${Math.round(v / 1000)}K` : `€${Math.round(v)}`) : fmtNum(v);
+    ctx.fillText(lbl, pad.left - 5, y + 3);
+  });
+}
 
-// ── CANVAS CHARTS ─────────────────────────────────────────────────────────────
-function LineChart({data,title,yIsCurrency,metricKey="revenue"}) {
-  const canvasRef = useRef(null);
-  const pointsRef = useRef([]);
-  const [tooltip,setTooltip] = useState(null);
+// ── LINE CHART ────────────────────────────────────────────────────────────────
+function LineChart({ data, title, metric = "revenue", isCurrency = false, T }) {
+  const wrap = useRef(null); const ref = useRef(null);
+  const pts = useRef([]); const [tt, setTt] = useState(null);
+  const w = useWidth(wrap);
 
-  useEffect(()=>{
-    if(!canvasRef.current||!data||!data.length)return;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    const dpr = window.devicePixelRatio||1;
+  useEffect(() => {
+    const canvas = ref.current; if (!canvas || !data?.length) return;
+    const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width*dpr; canvas.height = rect.height*dpr;
-    ctx.scale(dpr,dpr);
-    const W=rect.width, H=rect.height;
-    const pad={top:28,right:16,bottom:44,left:yIsCurrency?76:52};
-    ctx.clearRect(0,0,W,H);
-    pointsRef.current=[];
+    const W = rect.width || 500, H = 200;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    const ctx = canvas.getContext("2d"); ctx.scale(dpr, dpr); ctx.clearRect(0, 0, W, H);
+    const pad = { top: 28, right: 16, bottom: 36, left: isCurrency ? 66 : 52 };
 
-    const years=[...new Set(data.map(d=>d.year))].sort();
-    const byY={};
-    years.forEach(y=>{byY[y]={};});
-    data.forEach(d=>{if(byY[d.year])byY[d.year][d.month]=d[metricKey];});
-    const vals=data.map(d=>d[metricKey]).filter(v=>v!=null&&v>0);
-    if(!vals.length)return;
-    const maxV=Math.max(...vals)*1.12;
-    const sx=m=>pad.left+((m-1)/11)*(W-pad.left-pad.right);
-    const sy=v=>H-pad.bottom-(v/maxV)*(H-pad.top-pad.bottom);
+    const years = [...new Set(data.map(d => +d.year))].sort();
+    const byY = {}; years.forEach(y => { byY[y] = {}; });
+    data.forEach(d => { if (byY[+d.year]) byY[+d.year][+d.month] = (+d[metric] || 0); });
+    const allV = data.map(d => +d[metric] || 0).filter(Boolean);
+    if (!allV.length) return;
+    const maxV = Math.max(...allV) * 1.12;
+    const scX = m => pad.left + (m - 1) * (W - pad.left - pad.right) / 11;
+    const scY = v => pad.top + (1 - v / maxV) * (H - pad.top - pad.bottom);
 
-    ctx.strokeStyle="#0e2040"; ctx.lineWidth=1;
-    for(let i=0;i<=4;i++){
-      const yy=sy(maxV*i/4);
-      ctx.beginPath();ctx.moveTo(pad.left,yy);ctx.lineTo(W-pad.right,yy);ctx.stroke();
-      ctx.fillStyle=THEME.muted;ctx.font="10px sans-serif";ctx.textAlign="right";
-      const v=maxV*i/4;
-      ctx.fillText(yIsCurrency?(v>=1e6?(v/1e6).toFixed(1)+"M":Math.round(v/1000)+"k"):Math.round(v),pad.left-4,yy+3);
-    }
-    ctx.fillStyle=THEME.muted;ctx.font="10px sans-serif";ctx.textAlign="center";
-    [1,2,3,4,5,6,7,8,9,10,11,12].forEach(m=>ctx.fillText(MONTHS[m-1],sx(m),H-pad.bottom+13));
+    drawGrid(ctx, pad, W, H, maxV, isCurrency, T);
+    ctx.fillStyle = T.muted2; ctx.font = "10px Inter,system-ui,sans-serif"; ctx.textAlign = "center";
+    MONTHS.forEach((m, i) => ctx.fillText(m, scX(i + 1), H - pad.bottom + 14));
 
-    years.forEach((y,i)=>{
-      const col=YEAR_COLORS[i%YEAR_COLORS.length];
-      ctx.strokeStyle=col;ctx.lineWidth=2;ctx.beginPath();let started=false;
-      [1,2,3,4,5,6,7,8,9,10,11,12].forEach(m=>{
-        const v=byY[y][m];if(v==null)return;
-        if(!started){ctx.moveTo(sx(m),sy(v));started=true;}else ctx.lineTo(sx(m),sy(v));
-      });
+    pts.current = [];
+    years.forEach((y, yi) => {
+      const color = YEAR_COLORS[y] || ["#0033cc","#10b981","#f59e0b","#8b5cf6"][yi % 4];
+      ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.lineJoin = "round";
+      ctx.beginPath(); let first = true;
+      for (let m = 1; m <= 12; m++) {
+        const v = byY[y][m]; if (!v) continue;
+        if (first) { ctx.moveTo(scX(m), scY(v)); first = false; } else ctx.lineTo(scX(m), scY(v));
+      }
       ctx.stroke();
-      [1,2,3,4,5,6,7,8,9,10,11,12].forEach(m=>{
-        const v=byY[y][m];if(v==null)return;
-        ctx.beginPath();ctx.arc(sx(m),sy(v),3,0,Math.PI*2);
-        ctx.fillStyle=col;ctx.fill();
-        pointsRef.current.push({x:sx(m),y:sy(v),year:y,month:MONTHS[m-1],value:v});
-      });
+      for (let m = 1; m <= 12; m++) {
+        const v = byY[y][m]; if (!v) continue;
+        const x = scX(m), yy = scY(v);
+        ctx.beginPath(); ctx.arc(x, yy, 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = color; ctx.fill();
+        pts.current.push({ x, y: yy, year: y, month: MONTHS[m - 1], value: v });
+      }
     });
 
-    let lx=pad.left;
-    years.forEach((y,i)=>{
-      ctx.fillStyle=YEAR_COLORS[i%YEAR_COLORS.length];ctx.fillRect(lx,8,14,3);
-      ctx.fillStyle="#94a3b8";ctx.font="11px sans-serif";ctx.textAlign="left";
-      ctx.fillText(y,lx+18,13);lx+=54;
+    let lx = pad.left;
+    years.forEach((y, yi) => {
+      const color = YEAR_COLORS[y] || ["#0033cc","#10b981","#f59e0b","#8b5cf6"][yi % 4];
+      ctx.fillStyle = color; ctx.fillRect(lx, 6, 14, 4);
+      ctx.fillStyle = T.muted; ctx.font = "10px Inter,system-ui,sans-serif"; ctx.textAlign = "left";
+      ctx.fillText(String(y), lx + 18, 13); lx += 54;
     });
-  },[data,metricKey]);
+  }, [data, metric, w, T]);
 
-  const handleMouseMove = e => {
-    const rect=e.target.getBoundingClientRect();
-    const dpr=window.devicePixelRatio||1;
-    const mx=(e.clientX-rect.left)*(e.target.width/rect.width/dpr);
-    const my=(e.clientY-rect.top)*(e.target.height/rect.height/dpr);
-    let nearest=null,minDist=25;
-    pointsRef.current.forEach(p=>{
-      const d=Math.sqrt((p.x-mx)**2+(p.y-my)**2);
-      if(d<minDist){minDist=d;nearest=p;}
-    });
-    if(nearest) setTooltip({x:e.clientX,y:e.clientY,label:`${nearest.month} ${nearest.year}`,value:yIsCurrency?fmt(nearest.value,true):fmt(nearest.value)});
-    else setTooltip(null);
-  };
+  const onMove = useCallback(e => {
+    const c = ref.current; if (!c) return;
+    const r = c.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const mx = (e.clientX - r.left) * (c.width / r.width / dpr);
+    const my = (e.clientY - r.top) * (c.height / r.height / dpr);
+    let near = null, minD = 28;
+    pts.current.forEach(p => { const d = Math.sqrt((p.x - mx) ** 2 + (p.y - my) ** 2); if (d < minD) { minD = d; near = p; } });
+    if (near) setTt({ x: e.clientX, y: e.clientY, title: `${near.month} ${near.year}`, value: isCurrency ? fmtEur(near.value) : fmtNum(near.value) });
+    else setTt(null);
+  }, [isCurrency]);
 
   return (
-    <div style={{background:THEME.card,border:`1px solid ${THEME.border}`,borderRadius:10,padding:"16px 18px",position:"relative"}}>
-      <div style={{fontSize:12,color:THEME.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:10,fontWeight:600}}>{title}</div>
-      <canvas ref={canvasRef} style={{width:"100%",height:200,display:"block",cursor:"crosshair"}}
-        onMouseMove={handleMouseMove} onMouseLeave={()=>setTooltip(null)}/>
-      <ChartTooltip tooltip={tooltip}/>
+    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "16px 18px" }}>
+      {title && <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 12 }}>{title}</div>}
+      <div ref={wrap} style={{ position: "relative" }}>
+        <canvas ref={ref} style={{ width: "100%", height: 200, display: "block", cursor: "crosshair" }}
+          onMouseMove={onMove} onMouseLeave={() => setTt(null)} />
+        <ChartTooltip {...tt} T={T} />
+      </div>
     </div>
   );
 }
 
-function BarChart({data,title,metric="bookings"}) {
-  const canvasRef = useRef(null);
-  const barsRef = useRef([]);
-  const [tooltip,setTooltip] = useState(null);
+// ── BAR CHART ─────────────────────────────────────────────────────────────────
+function BarChart({ data, title, metric = "bookings", T }) {
+  const wrap = useRef(null); const ref = useRef(null);
+  const bars = useRef([]); const [tt, setTt] = useState(null);
+  const w = useWidth(wrap);
 
-  useEffect(()=>{
-    if(!canvasRef.current||!data||!data.length)return;
-    const canvas=canvasRef.current;
-    const ctx=canvas.getContext("2d");
-    const dpr=window.devicePixelRatio||1;
-    const rect=canvas.getBoundingClientRect();
-    canvas.width=rect.width*dpr;canvas.height=rect.height*dpr;
-    ctx.scale(dpr,dpr);
-    const W=rect.width,H=rect.height;
-    const pad={top:28,right:16,bottom:44,left:52};
-    ctx.clearRect(0,0,W,H);
-    barsRef.current=[];
+  useEffect(() => {
+    const canvas = ref.current; if (!canvas || !data?.length) return;
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    const W = rect.width || 500, H = 200;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    const ctx = canvas.getContext("2d"); ctx.scale(dpr, dpr); ctx.clearRect(0, 0, W, H);
+    const pad = { top: 28, right: 16, bottom: 36, left: 52 };
 
-    const years=[...new Set(data.map(d=>d.year))].sort();
-    const byY={};years.forEach(y=>{byY[y]={};});
-    data.forEach(d=>{if(byY[d.year])byY[d.year][d.month]=d[metric]||0;});
-    const vals=data.map(d=>d[metric]||0);
-    const maxV=Math.max(...vals,1)*1.15;
-    const sy=v=>H-pad.bottom-(v/maxV)*(H-pad.top-pad.bottom);
-    const slotW=(W-pad.left-pad.right)/12;
-    const bW=Math.min((slotW/years.length)-2,13);
+    const years = [...new Set(data.map(d => +d.year))].sort();
+    const byY = {}; years.forEach(y => { byY[y] = {}; });
+    data.forEach(d => { if (byY[+d.year]) byY[+d.year][+d.month] = (+d[metric] || 0); });
+    const allV = data.map(d => +d[metric] || 0);
+    const maxV = Math.max(...allV, 1) * 1.12;
+    const slotW = (W - pad.left - pad.right) / 12;
+    const bW = Math.max(3, (slotW / (years.length + 0.5)) - 2);
+    const sy = v => pad.top + (1 - v / maxV) * (H - pad.top - pad.bottom);
 
-    ctx.strokeStyle="#0e2040";ctx.lineWidth=1;
-    for(let i=0;i<=4;i++){
-      const yy=sy(maxV*i/4);
-      ctx.beginPath();ctx.moveTo(pad.left,yy);ctx.lineTo(W-pad.right,yy);ctx.stroke();
-      ctx.fillStyle=THEME.muted;ctx.font="10px sans-serif";ctx.textAlign="right";
-      ctx.fillText(Math.round(maxV*i/4),pad.left-4,yy+3);
-    }
-    ctx.fillStyle=THEME.muted;ctx.font="10px sans-serif";ctx.textAlign="center";
-    [1,2,3,4,5,6,7,8,9,10,11,12].forEach(m=>ctx.fillText(MONTHS[m-1],pad.left+(m-1)*slotW+slotW/2,H-pad.bottom+13));
+    drawGrid(ctx, pad, W, H, maxV, false, T);
+    ctx.fillStyle = T.muted2; ctx.font = "10px Inter,system-ui,sans-serif"; ctx.textAlign = "center";
+    MONTHS.forEach((m, i) => ctx.fillText(m, pad.left + i * slotW + slotW / 2, H - pad.bottom + 14));
 
-    years.forEach((y,i)=>{
-      ctx.fillStyle=YEAR_COLORS[i%YEAR_COLORS.length]+"cc";
-      [1,2,3,4,5,6,7,8,9,10,11,12].forEach(m=>{
-        const v=byY[y][m]||0;if(!v)return;
-        const x=pad.left+(m-1)*slotW+i*(bW+2)+(slotW-years.length*(bW+2))/2;
-        const barH=(v/maxV)*(H-pad.top-pad.bottom);
-        ctx.fillRect(x,sy(v),bW,barH);
-        barsRef.current.push({x,y:sy(v),width:bW,height:barH,year:y,month:MONTHS[m-1],value:v});
-      });
+    bars.current = [];
+    years.forEach((y, yi) => {
+      const color = YEAR_COLORS[y] || ["#0033cc","#10b981","#f59e0b","#8b5cf6"][yi % 4];
+      for (let m = 1; m <= 12; m++) {
+        const v = byY[y][m] || 0; if (!v) continue;
+        const x = pad.left + (m - 1) * slotW + yi * (bW + 2) + (slotW - years.length * (bW + 2)) / 2;
+        const barH = (v / maxV) * (H - pad.top - pad.bottom);
+        ctx.fillStyle = color + "dd"; ctx.fillRect(x, sy(v), bW, barH);
+        bars.current.push({ x, y: sy(v), width: bW, height: barH, year: y, month: MONTHS[m - 1], value: v });
+      }
     });
 
-    let lx=pad.left;
-    years.forEach((y,i)=>{
-      ctx.fillStyle=YEAR_COLORS[i%YEAR_COLORS.length];ctx.fillRect(lx,8,13,9);
-      ctx.fillStyle="#94a3b8";ctx.font="11px sans-serif";ctx.textAlign="left";
-      ctx.fillText(y,lx+17,15);lx+=52;
+    let lx = pad.left;
+    years.forEach((y, yi) => {
+      const color = YEAR_COLORS[y] || ["#0033cc","#10b981","#f59e0b","#8b5cf6"][yi % 4];
+      ctx.fillStyle = color; ctx.fillRect(lx, 6, 14, 9);
+      ctx.fillStyle = T.muted; ctx.font = "10px Inter,system-ui,sans-serif"; ctx.textAlign = "left";
+      ctx.fillText(String(y), lx + 18, 13); lx += 54;
     });
-  },[data,metric]);
+  }, [data, metric, w, T]);
 
-  const handleMouseMove = e => {
-    const rect=e.target.getBoundingClientRect();
-    const dpr=window.devicePixelRatio||1;
-    const mx=(e.clientX-rect.left)*(e.target.width/rect.width/dpr);
-    const my=(e.clientY-rect.top)*(e.target.height/rect.height/dpr);
-    const bar=barsRef.current.find(b=>mx>=b.x&&mx<=b.x+b.width&&my>=b.y&&my<=b.y+b.height);
-    if(bar) setTooltip({x:e.clientX,y:e.clientY,label:`${bar.month} ${bar.year}`,value:`${fmt(bar.value)} ${metric}`});
-    else setTooltip(null);
-  };
+  const onMove = useCallback(e => {
+    const c = ref.current; if (!c) return;
+    const r = c.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const mx = (e.clientX - r.left) * (c.width / r.width / dpr);
+    const my = (e.clientY - r.top) * (c.height / r.height / dpr);
+    const bar = bars.current.find(b => mx >= b.x && mx <= b.x + b.width && my >= b.y && my <= b.y + b.height);
+    if (bar) setTt({ x: e.clientX, y: e.clientY, title: `${bar.month} ${bar.year}`, value: `${fmtNum(bar.value)} ${metric}` });
+    else setTt(null);
+  }, [metric]);
 
   return (
-    <div style={{background:THEME.card,border:`1px solid ${THEME.border}`,borderRadius:10,padding:"16px 18px",position:"relative"}}>
-      <div style={{fontSize:12,color:THEME.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:10,fontWeight:600}}>{title}</div>
-      <canvas ref={canvasRef} style={{width:"100%",height:195,display:"block",cursor:"crosshair"}}
-        onMouseMove={handleMouseMove} onMouseLeave={()=>setTooltip(null)}/>
-      <ChartTooltip tooltip={tooltip}/>
+    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "16px 18px" }}>
+      {title && <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 12 }}>{title}</div>}
+      <div ref={wrap} style={{ position: "relative" }}>
+        <canvas ref={ref} style={{ width: "100%", height: 200, display: "block", cursor: "crosshair" }}
+          onMouseMove={onMove} onMouseLeave={() => setTt(null)} />
+        <ChartTooltip {...tt} T={T} />
+      </div>
     </div>
   );
 }
 
-function DonutChart({data,title}) {
-  const canvasRef = useRef(null);
-  const segRef = useRef([]);
-  const [tooltip,setTooltip] = useState(null);
+// ── DONUT CHART ───────────────────────────────────────────────────────────────
+function DonutChart({ data, title, T }) {
+  const wrap = useRef(null); const ref = useRef(null);
+  const segs = useRef([]); const [tt, setTt] = useState(null);
+  const w = useWidth(wrap);
 
-  useEffect(()=>{
-    if(!canvasRef.current||!data||!data.length)return;
-    const canvas=canvasRef.current;
-    const ctx=canvas.getContext("2d");
-    const dpr=window.devicePixelRatio||1;
-    const rect=canvas.getBoundingClientRect();
-    canvas.width=rect.width*dpr;canvas.height=rect.height*dpr;
-    ctx.scale(dpr,dpr);
-    const W=rect.width,H=rect.height;
-    ctx.clearRect(0,0,W,H);
-    segRef.current=[];
+  const merged = (data || []).reduce((acc, item) => {
+    const key = normTransport(item.transport_type);
+    const ex = acc.find(x => normTransport(x.transport_type) === key);
+    if (ex) { ex.bookings += (+item.bookings || 0); ex.pax += (+item.pax || 0); ex.revenue += (+item.revenue || 0); }
+    else acc.push({ ...item, transport_type: key });
+    return acc;
+  }, []).filter(d => d.bookings > 0).sort((a, b) => b.bookings - a.bookings);
 
-    const cols=["#4f8ef7","#f59e0b","#34d399","#f87171","#a78bfa","#fb7185","#38bdf8"];
-    const merged=data.reduce((a,item)=>{
-      const key=(item.transport_type||"").toLowerCase().trim();
-      const ex=a.find(x=>(x.transport_type||"").toLowerCase().trim()===key);
-      if(ex){ex.bookings+=(item.bookings||0);}
-      else a.push({...item,transport_type:item.transport_type||"Unknown"});
-      return a;
-    },[]).sort((a,b)=>(b.bookings||0)-(a.bookings||0));
+  const COLORS = ["#0033cc", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
 
-    const total=merged.reduce((s,d)=>s+(d.bookings||0),0);
-    if(!total)return;
-    const cx=W*0.36,cy=H/2,r=Math.min(cy,cx)-14,inn=r*0.55;
-    let ang=-Math.PI/2;
+  useEffect(() => {
+    const canvas = ref.current; if (!canvas || !merged.length) return;
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    const W = rect.width || 300, H = 220;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    const ctx = canvas.getContext("2d"); ctx.scale(dpr, dpr); ctx.clearRect(0, 0, W, H);
 
-    merged.forEach((d,i)=>{
-      const sl=(d.bookings/total)*Math.PI*2;
-      ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,ang,ang+sl);ctx.closePath();
-      ctx.fillStyle=cols[i%cols.length];ctx.fill();
-      segRef.current.push({startAngle:ang,endAngle:ang+sl,label:d.transport_type,value:d.bookings,pct:((d.bookings/total)*100).toFixed(1)});
-      ang+=sl;
+    const total = merged.reduce((s, d) => s + (+d.bookings || 0), 0);
+    const R = Math.min(W * 0.4, H * 0.42) - 8;
+    const cx = W * 0.38, cy = H / 2;
+    let angle = -Math.PI / 2;
+    segs.current = [];
+
+    merged.forEach((d, i) => {
+      const slice = (+d.bookings || 0) / total * Math.PI * 2;
+      ctx.beginPath(); ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, R, angle, angle + slice);
+      ctx.fillStyle = COLORS[i % COLORS.length]; ctx.fill();
+      ctx.strokeStyle = T.card; ctx.lineWidth = 2.5; ctx.stroke();
+      segs.current.push({ start: angle, end: angle + slice, label: d.transport_type, value: +d.bookings, pct: Math.round((+d.bookings || 0) / total * 100) });
+      angle += slice;
     });
 
-    ctx.beginPath();ctx.arc(cx,cy,inn,0,Math.PI*2);ctx.fillStyle=THEME.card;ctx.fill();
-    ctx.fillStyle=THEME.text;ctx.font="bold 14px sans-serif";ctx.textAlign="center";
-    ctx.fillText(total.toLocaleString(),cx,cy+4);
-    ctx.fillStyle=THEME.muted;ctx.font="10px sans-serif";ctx.fillText("bookings",cx,cy+16);
+    ctx.beginPath(); ctx.arc(cx, cy, R * 0.56, 0, Math.PI * 2);
+    ctx.fillStyle = T.card; ctx.fill();
+    ctx.fillStyle = T.text; ctx.font = `bold 15px Inter,system-ui,sans-serif`; ctx.textAlign = "center";
+    ctx.fillText(fmtNum(total), cx, cy + 4);
+    ctx.fillStyle = T.muted2; ctx.font = "10px Inter,system-ui,sans-serif";
+    ctx.fillText("bookings", cx, cy + 17);
 
-    let ly=12;
-    merged.slice(0,7).forEach((d,i)=>{
-      ctx.fillStyle=cols[i%cols.length];ctx.fillRect(W*0.63,ly,10,10);
-      ctx.fillStyle="#94a3b8";ctx.font="11px sans-serif";ctx.textAlign="left";
-      ctx.fillText(`${d.transport_type} (${((d.bookings/total)*100).toFixed(0)}%)`,W*0.63+14,ly+8);
-      ly+=19;
+    const lx = W * 0.62, ly0 = 20;
+    merged.forEach((d, i) => {
+      const pct = Math.round((+d.bookings || 0) / total * 100);
+      const lbl = d.transport_type.replace("own transport", "own").slice(0, 14);
+      const yy = ly0 + i * 22;
+      ctx.fillStyle = COLORS[i % COLORS.length]; ctx.fillRect(lx, yy, 10, 10);
+      ctx.fillStyle = T.muted; ctx.font = "11px Inter,system-ui,sans-serif"; ctx.textAlign = "left";
+      ctx.fillText(`${lbl} (${pct}%)`, lx + 14, yy + 8);
     });
-  },[data]);
+  }, [merged, w, T]);
 
-  const handleMouseMove = e => {
-    const rect=e.target.getBoundingClientRect();
-    const dpr=window.devicePixelRatio||1;
-    const mx=(e.clientX-rect.left)*(e.target.width/rect.width/dpr);
-    const my=(e.clientY-rect.top)*(e.target.height/rect.height/dpr);
-    const W=rect.width,H=rect.height;
-    const cx=W*0.36,cy=H/2;
-    const angle=Math.atan2(my-cy,mx-cx);
-    const normAngle=angle<-Math.PI/2?angle+Math.PI*2:angle;
-    const seg=segRef.current.find(s=>normAngle>=s.startAngle&&normAngle<=s.endAngle);
-    if(seg) setTooltip({x:e.clientX,y:e.clientY,label:seg.label,value:`${fmt(seg.value)} bookings (${seg.pct}%)`});
-    else setTooltip(null);
-  };
+  const onMove = useCallback(e => {
+    const c = ref.current; if (!c) return;
+    const r = c.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const W = c.width / dpr, H = c.height / dpr;
+    const R = Math.min(W * 0.4, H * 0.42) - 8;
+    const cx = W * 0.38, cy = H / 2;
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    const dx = mx - cx, dy = my - cy, rr = Math.sqrt(dx * dx + dy * dy);
+    if (rr < R * 0.56 || rr > R) { setTt(null); return; }
+    let ang = Math.atan2(dy, dx); if (ang < -Math.PI / 2) ang += Math.PI * 2;
+    const seg = segs.current.find(s => ang >= s.start && ang <= s.end);
+    if (seg) setTt({ x: e.clientX, y: e.clientY, title: seg.label, value: `${fmtNum(seg.value)} bookings (${seg.pct}%)` });
+    else setTt(null);
+  }, []);
 
   return (
-    <div style={{background:THEME.card,border:`1px solid ${THEME.border}`,borderRadius:10,padding:"16px 18px",position:"relative"}}>
-      <div style={{fontSize:12,color:THEME.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:10,fontWeight:600}}>{title}</div>
-      <canvas ref={canvasRef} style={{width:"100%",height:190,display:"block",cursor:"crosshair"}}
-        onMouseMove={handleMouseMove} onMouseLeave={()=>setTooltip(null)}/>
-      <ChartTooltip tooltip={tooltip}/>
+    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "16px 18px" }}>
+      {title && <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 12 }}>{title}</div>}
+      <div ref={wrap} style={{ position: "relative" }}>
+        <canvas ref={ref} style={{ width: "100%", height: 220, display: "block", cursor: "crosshair" }}
+          onMouseMove={onMove} onMouseLeave={() => setTt(null)} />
+        <ChartTooltip {...tt} T={T} />
+      </div>
     </div>
   );
 }
 
-function BusClassChart({data,title,metric="bookings"}) {
-  const canvasRef = useRef(null);
-  const barsRef = useRef([]);
-  const [tooltip,setTooltip] = useState(null);
-  const CLASSES=["Royal Class","First Class","Dream Class","Sleep/Royal Class","Premium Class"];
-  const DS_COLORS={Snowtravel:"#4f8ef7",Solmar:"#34d399",Interbus:"#f59e0b","Solmar DE":"#f87171"};
+// ── BUS CLASS CHART ───────────────────────────────────────────────────────────
+function BusClassChart({ data, title, metric = "bookings", T }) {
+  const wrap = useRef(null); const ref = useRef(null);
+  const bars = useRef([]); const [tt, setTt] = useState(null);
+  const w = useWidth(wrap);
+  const DS = { Snowtravel: "#0033cc", Solmar: "#10b981", Interbus: "#f59e0b", "Solmar DE": "#ef4444" };
 
-  useEffect(()=>{
-    if(!canvasRef.current||!data||!data.length)return;
-    const canvas=canvasRef.current;
-    const ctx=canvas.getContext("2d");
-    const dpr=window.devicePixelRatio||1;
-    const rect=canvas.getBoundingClientRect();
-    canvas.width=rect.width*dpr;canvas.height=rect.height*dpr;
-    ctx.scale(dpr,dpr);
-    const W=rect.width,H=rect.height;
-    const pad={top:28,right:20,bottom:60,left:60};
-    ctx.clearRect(0,0,W,H);
-    barsRef.current=[];
+  useEffect(() => {
+    const canvas = ref.current; if (!canvas || !data?.length) return;
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    const W = rect.width || 400, H = 240;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    const ctx = canvas.getContext("2d"); ctx.scale(dpr, dpr); ctx.clearRect(0, 0, W, H);
+    const pad = { top: 28, right: 16, bottom: 58, left: 60 };
 
-    const classes=[...new Set(data.map(d=>d.bus_class))].filter(Boolean);
-    const datasets=[...new Set(data.map(d=>d.dataset))].filter(Boolean);
-    const lookup={};
-    data.forEach(d=>{if(!lookup[d.bus_class])lookup[d.bus_class]={};lookup[d.bus_class][d.dataset]=d[metric]||0;});
+    const classes = [...new Set(data.map(d => d.bus_class))].filter(Boolean);
+    const datasets = [...new Set(data.map(d => d.dataset))].filter(Boolean);
+    const byCD = {};
+    data.forEach(d => { if (!byCD[d.bus_class]) byCD[d.bus_class] = {}; byCD[d.bus_class][d.dataset] = +d[metric] || 0; });
+    const maxV = Math.max(...data.map(d => +d[metric] || 0), 1) * 1.15;
+    const slotW = (W - pad.left - pad.right) / classes.length;
+    const bW = Math.max(6, (slotW / (datasets.length + 0.5)) - 2);
+    const sy = v => pad.top + (1 - v / maxV) * (H - pad.top - pad.bottom);
 
-    const vals=data.map(d=>d[metric]||0);
-    const maxV=Math.max(...vals,1)*1.15;
-    const sy=v=>H-pad.bottom-(v/maxV)*(H-pad.top-pad.bottom);
-    const slotW=(W-pad.left-pad.right)/classes.length;
-    const bW=Math.min((slotW/datasets.length)-3,18);
-
-    ctx.strokeStyle="#0e2040";ctx.lineWidth=1;
-    for(let i=0;i<=4;i++){
-      const yy=sy(maxV*i/4);
-      ctx.beginPath();ctx.moveTo(pad.left,yy);ctx.lineTo(W-pad.right,yy);ctx.stroke();
-      ctx.fillStyle=THEME.muted;ctx.font="10px sans-serif";ctx.textAlign="right";
-      const v=maxV*i/4;
-      ctx.fillText(v>=1e6?(v/1e6).toFixed(1)+"M":v>=1000?Math.round(v/1000)+"k":Math.round(v),pad.left-4,yy+3);
-    }
-
-    classes.forEach((cls,ci)=>{
-      ctx.fillStyle=THEME.muted;ctx.font="10px sans-serif";ctx.textAlign="center";
-      const clsX=pad.left+ci*slotW+slotW/2;
-      const shortCls=cls.replace(" Class","").replace("Sleep/Royal","Slp/Ryl");
-      ctx.fillText(shortCls,clsX,H-pad.bottom+14);
-
-      datasets.forEach((ds,di)=>{
-        const v=lookup[cls]?.[ds]||0;if(!v)return;
-        const x=pad.left+ci*slotW+(slotW-datasets.length*(bW+3))/2+di*(bW+3);
-        const barH=(v/maxV)*(H-pad.top-pad.bottom);
-        ctx.fillStyle=(DS_COLORS[ds]||"#64748b")+"cc";
-        ctx.fillRect(x,sy(v),bW,barH);
-        barsRef.current.push({x,y:sy(v),width:bW,height:barH,cls,ds,value:v});
+    drawGrid(ctx, pad, W, H, maxV, metric === "revenue", T);
+    bars.current = [];
+    classes.forEach((cls, ci) => {
+      datasets.forEach((ds, di) => {
+        const v = byCD[cls]?.[ds] || 0; if (!v) return;
+        const x = pad.left + ci * slotW + di * (bW + 2) + (slotW - datasets.length * (bW + 2)) / 2;
+        const barH = (v / maxV) * (H - pad.top - pad.bottom);
+        ctx.fillStyle = (DS[ds] || "#94a3b8") + "dd"; ctx.fillRect(x, sy(v), bW, barH);
+        bars.current.push({ x, y: sy(v), width: bW, height: barH, cls, ds, value: v });
       });
+      const shortCls = cls.replace(" Class", "").replace("Sleep/Royal", "S/R");
+      ctx.fillStyle = T.muted2; ctx.font = "10px Inter,system-ui,sans-serif"; ctx.textAlign = "center";
+      ctx.fillText(shortCls, pad.left + ci * slotW + slotW / 2, H - pad.bottom + 14);
     });
 
-    let lx=pad.left;
-    datasets.forEach(ds=>{
-      ctx.fillStyle=DS_COLORS[ds]||"#64748b";ctx.fillRect(lx,H-24,12,10);
-      ctx.fillStyle="#94a3b8";ctx.font="10px sans-serif";ctx.textAlign="left";
-      ctx.fillText(ds,lx+15,H-16);lx+=ds.length*6+30;
+    let lx = pad.left;
+    datasets.forEach(ds => {
+      ctx.fillStyle = DS[ds] || "#94a3b8"; ctx.fillRect(lx, H - 22, 10, 10);
+      ctx.fillStyle = T.muted; ctx.font = "10px Inter,system-ui,sans-serif"; ctx.textAlign = "left";
+      ctx.fillText(ds, lx + 14, H - 14); lx += ctx.measureText(ds).width + 26;
     });
-  },[data,metric]);
+  }, [data, metric, w, T]);
 
-  const handleMouseMove = e => {
-    const rect=e.target.getBoundingClientRect();
-    const dpr=window.devicePixelRatio||1;
-    const mx=(e.clientX-rect.left)*(e.target.width/rect.width/dpr);
-    const my=(e.clientY-rect.top)*(e.target.height/rect.height/dpr);
-    const bar=barsRef.current.find(b=>mx>=b.x&&mx<=b.x+b.width&&my>=b.y&&my<=b.y+b.height);
-    if(bar) setTooltip({x:e.clientX,y:e.clientY,label:`${bar.cls} · ${bar.ds}`,value:`${fmt(bar.value)} ${metric}`});
-    else setTooltip(null);
-  };
+  const onMove = useCallback(e => {
+    const c = ref.current; if (!c) return;
+    const r = c.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const mx = (e.clientX - r.left) * (c.width / r.width / dpr);
+    const my = (e.clientY - r.top) * (c.height / r.height / dpr);
+    const bar = bars.current.find(b => mx >= b.x && mx <= b.x + b.width && my >= b.y && my <= b.y + b.height);
+    if (bar) setTt({ x: e.clientX, y: e.clientY, title: `${bar.cls} — ${bar.ds}`, value: metric === "revenue" ? fmtEur(bar.value) : fmtNum(bar.value) + " " + metric });
+    else setTt(null);
+  }, [metric]);
 
   return (
-    <div style={{background:THEME.card,border:`1px solid ${THEME.border}`,borderRadius:10,padding:"16px 18px",position:"relative"}}>
-      <div style={{fontSize:12,color:THEME.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:10,fontWeight:600}}>{title}</div>
-      <canvas ref={canvasRef} style={{width:"100%",height:260,display:"block",cursor:"crosshair"}}
-        onMouseMove={handleMouseMove} onMouseLeave={()=>setTooltip(null)}/>
-      <ChartTooltip tooltip={tooltip}/>
+    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "16px 18px" }}>
+      {title && <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 12 }}>{title}</div>}
+      <div ref={wrap} style={{ position: "relative" }}>
+        <canvas ref={ref} style={{ width: "100%", height: 240, display: "block", cursor: "crosshair" }}
+          onMouseMove={onMove} onMouseLeave={() => setTt(null)} />
+        <ChartTooltip {...tt} T={T} />
+      </div>
     </div>
   );
 }
 
 // ── LEAFLET MAP ───────────────────────────────────────────────────────────────
-function LeafletMap({departureData,metric,appliedFilters}) {
-  const mapRef = useRef(null);
-  const mapInstance = useRef(null);
-  const markersRef = useRef([]);
+function LeafletMap({ departureData, metric, statusFilter, T }) {
+  const mapRef = useRef(null); const mapObj = useRef(null); const mkrs = useRef([]);
 
-  useEffect(()=>{
-    if(!document.getElementById("leaflet-css")){
-      const link=document.createElement("link");
-      link.id="leaflet-css";link.rel="stylesheet";
-      link.href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-      document.head.appendChild(link);
+  useEffect(() => {
+    if (mapObj.current || !mapRef.current) return;
+    if (!document.getElementById("lft-css")) {
+      const l = document.createElement("link"); l.id = "lft-css"; l.rel = "stylesheet";
+      l.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"; document.head.appendChild(l);
     }
-    const initMap=()=>{
-      if(!mapRef.current||mapInstance.current)return;
-      const L=window.L;
-      const map=L.map(mapRef.current,{center:[50.85,4.35],zoom:8});
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{
-        attribution:"© OpenStreetMap © CARTO",maxZoom:19
-      }).addTo(map);
-      mapInstance.current=map;
+    const initMap = () => {
+      if (!mapRef.current) return;
+      const sty = document.createElement("style");
+      sty.textContent = `.ttp-lbl{background:transparent!important;border:none!important;box-shadow:none!important;color:#374151!important;font-size:10px!important;font-weight:600!important;white-space:nowrap!important;padding:0!important;text-shadow:0 1px 2px rgba(255,255,255,0.9)!important}.leaflet-tooltip-top.ttp-lbl::before{display:none!important}.ttp-lbl-dark{color:#94a3b8!important;text-shadow:0 1px 2px rgba(0,0,0,0.8)!important}.leaflet-popup-content-wrapper{border-radius:10px!important;box-shadow:0 4px 16px rgba(0,0,0,0.12)!important}.leaflet-popup-content{margin:12px 16px!important}`;
+      document.head.appendChild(sty);
+      const map = window.L.map(mapRef.current, { center: [51.5, 4.8], zoom: 7 });
+      window.L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", { attribution: "&copy; OpenStreetMap &copy; CARTO", maxZoom: 18 }).addTo(map);
+      mapObj.current = map;
     };
-    if(window.L){initMap();return;}
-    const script=document.createElement("script");
-    script.src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-    script.onload=()=>initMap();
-    document.head.appendChild(script);
-  },[]);
+    if (window.L) { initMap(); return; }
+    const s = document.createElement("script"); s.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+    s.onload = initMap; document.head.appendChild(s);
+  }, []);
 
-  useEffect(()=>{
-    const timer=setTimeout(()=>{if(window.L&&mapInstance.current)updateMarkers();},500);
-    return()=>clearTimeout(timer);
-  },[departureData,metric,appliedFilters]);
+  useEffect(() => {
+    const timer = setTimeout(() => { if (window.L && mapObj.current) updateMarkers(); }, 300);
+    return () => clearTimeout(timer);
+  }, [departureData, metric, statusFilter]);
 
-  function getColor(ratio,status) {
-    if(status==="ok"){
-      if(ratio<0.25)return"#bbf7d0";if(ratio<0.5)return"#4ade80";
-      if(ratio<0.75)return"#16a34a";return"#166534";
+  function getColor(ratio) {
+    if (statusFilter === "ok") {
+      if (ratio < 0.25) return "#bbf7d0"; if (ratio < 0.5) return "#34d399"; if (ratio < 0.75) return "#059669"; return "#065f46";
+    } else if (statusFilter === "cancelled") {
+      if (ratio < 0.25) return "#fecaca"; if (ratio < 0.5) return "#f87171"; if (ratio < 0.75) return "#dc2626"; return "#991b1b";
+    } else {
+      if (ratio < 0.25) return "#bfdbfe"; if (ratio < 0.5) return "#60a5fa"; if (ratio < 0.75) return "#2563eb"; return "#1e40af";
     }
-    if(status==="cancelled"){
-      if(ratio<0.25)return"#fecaca";if(ratio<0.5)return"#f87171";
-      if(ratio<0.75)return"#dc2626";return"#991b1b";
-    }
-    if(ratio<0.25)return"#bfdbfe";if(ratio<0.5)return"#60a5fa";
-    if(ratio<0.75)return"#2563eb";return"#1e3a8a";
   }
 
   function updateMarkers() {
-    const L=window.L;const map=mapInstance.current;
-    if(!map||!L)return;
-    markersRef.current.forEach(m=>map.removeLayer(m));markersRef.current=[];
-    if(!departureData||!departureData.length)return;
-    const vals=departureData.map(d=>d[metric]||0).filter(Boolean);
-    const maxVal=Math.max(...vals,1);
-    const statusFilter=(appliedFilters?.statuses||[])[0]||"";
+    const L = window.L; const map = mapObj.current;
+    mkrs.current.forEach(m => map.removeLayer(m)); mkrs.current = [];
+    if (!departureData?.length) return;
+    const matched = departureData.map(d => { const f = findCity(d.destination); return f ? { ...d, coords: f.coords } : null; }).filter(Boolean);
+    const vals = matched.map(d => +d[metric] || 0).filter(Boolean);
+    const maxVal = Math.max(...vals, 1);
 
-    departureData.forEach(d=>{
-      const key=Object.keys(CITY_COORDS).find(k=>
-        d.destination?.toLowerCase()===k.toLowerCase()||
-        d.destination?.toLowerCase().includes(k.toLowerCase().split(" ")[0].toLowerCase())
-      );
-      if(!key)return;
-      const [lat,lng]=CITY_COORDS[key];
-      const val=d[metric]||0;if(!val)return;
-      const ratio=val/maxVal;
-      const radius=Math.max(8,Math.round(ratio*38));
-
-      const marker=L.circleMarker([lat,lng],{
-        radius,fillColor:getColor(ratio,statusFilter),
-        color:"rgba(255,255,255,0.3)",weight:1,fillOpacity:0.8
+    matched.forEach(d => {
+      const val = +d[metric] || 0; if (!val) return;
+      const ratio = val / maxVal;
+      const radius = Math.max(7, Math.round(ratio * 42));
+      const marker = L.circleMarker(d.coords, {
+        radius, fillColor: getColor(ratio),
+        color: "rgba(255,255,255,0.8)", weight: 1.5, fillOpacity: 0.82,
       }).bindPopup(`
-        <div style="font-family:'Segoe UI',sans-serif;min-width:160px;padding:4px;">
-          <div style="font-size:14px;font-weight:700;color:#38bdf8;margin-bottom:6px;">${d.destination}</div>
-          <div style="font-size:12px;line-height:1.8;color:#e2e8f0;">
-            📋 Bookings: <b>${(d.bookings||0).toLocaleString()}</b><br/>
-            👥 PAX: <b>${(d.pax||0).toLocaleString()}</b><br/>
-            💰 Revenue: <b>€${Math.round(d.revenue||0).toLocaleString()}</b>
+        <div style="font-family:Inter,system-ui,sans-serif;min-width:160px">
+          <div style="font-size:13px;font-weight:700;color:#0033cc;margin-bottom:6px">${d.destination}</div>
+          <div style="font-size:12px;line-height:1.8;color:#374151">
+            Bookings: <b>${fmtNum(d.bookings)}</b><br/>
+            PAX: <b>${fmtNum(d.pax)}</b><br/>
+            Revenue: <b>${fmtEur(d.revenue)}</b>
           </div>
-        </div>
-      `,{maxWidth:220});
-
-      marker.bindTooltip(d.destination,{
-        permanent:true,direction:"top",
-        offset:[0,-radius-4],className:"ttp-map-label"
-      });
-
-      marker.addTo(map);
-      markersRef.current.push(marker);
+        </div>`, { maxWidth: 220 });
+      if (+d.bookings >= 80) {
+        marker.bindTooltip(d.destination, { permanent: true, direction: "top", offset: [0, -radius - 2], className: "ttp-lbl" });
+      }
+      marker.addTo(map); mkrs.current.push(marker);
     });
+    if (matched.length > 0) {
+      try { mapObj.current.fitBounds(matched.map(d => d.coords), { padding: [40, 40], maxZoom: 10 }); } catch (e) {}
+    }
   }
 
-  return <div ref={mapRef} style={{width:"100%",height:420,borderRadius:8,overflow:"hidden"}}/>;
+  return <div ref={mapRef} style={{ width: "100%", height: 440, borderRadius: 10, overflow: "hidden", border: `1px solid ${T.border}` }} />;
 }
 
-// ── YEAR-MONTH TABLE ──────────────────────────────────────────────────────────
-function YMTable({data}) {
-  const [hovered,setHovered] = useState(null);
-  if(!data||!data.length) return <div style={{textAlign:"center",color:THEME.muted,padding:32,fontSize:13}}>Apply filters to load data</div>;
+// ── FILTERS PANEL ─────────────────────────────────────────────────────────────
+function FiltersPanel({ filters, setFilters, onApply, onReset, slicers, T }) {
+  const cy = new Date().getFullYear();
+  const presets = [
+    { label: "This Year", from: `${cy}-01-01`, to: `${cy}-12-31` },
+    { label: "Last Year", from: `${cy - 1}-01-01`, to: `${cy - 1}-12-31` },
+    { label: "Last 3M", from: (() => { const d = new Date(); d.setMonth(d.getMonth() - 3); return d.toISOString().split("T")[0]; })(), to: new Date().toISOString().split("T")[0] },
+    { label: "Last 30D", from: (() => { const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split("T")[0]; })(), to: new Date().toISOString().split("T")[0] },
+    { label: "All", from: "", to: "" },
+  ];
+  const inp = { background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.text, padding: "7px 10px", fontSize: 12, outline: "none", colorScheme: "light" };
+  const lbl = { fontSize: 11, fontWeight: 600, color: T.muted, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em", display: "block" };
+
   return (
-    <div style={{overflowX:"auto"}}>
-      <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-        <thead>
-          <tr style={{background:"#080c14"}}>
-            {["Date","Bookings","Prev","Δ","Δ%","PAX","Prev","Δ","Δ%","Revenue","Prev Revenue","Δ Revenue","Δ%"].map((h,i)=>(
-              <th key={i} style={{padding:"9px 10px",color:THEME.muted,fontWeight:600,fontSize:11,
-                textTransform:"uppercase",letterSpacing:"0.05em",
-                textAlign:i===0?"left":"right",borderBottom:`1px solid ${THEME.border}`,whiteSpace:"nowrap"}}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((row,idx)=>{
-            const bp=row.previousBookings?((row.currentBookings-row.previousBookings)/row.previousBookings*100):null;
-            const pp=row.previousPax?((row.currentPax-row.previousPax)/row.previousPax*100):null;
-            const rp=row.previousRevenue?((row.currentRevenue-row.previousRevenue)/row.previousRevenue*100):null;
-            return (
-              <tr key={idx}
-                onMouseEnter={()=>setHovered(idx)}
-                onMouseLeave={()=>setHovered(null)}
-                style={{background:hovered===idx?THEME.cardHover:idx%2===0?THEME.card:"#080c14",transition:"background 0.15s"}}>
-                <td style={{padding:"7px 10px",color:"#93c5fd",fontWeight:600,whiteSpace:"nowrap"}}>{MONTHS[(row.month||1)-1]}-{row.year}</td>
-                <td style={{padding:"7px 10px",textAlign:"right",color:THEME.text}}>{fmt(row.currentBookings)}</td>
-                <td style={{padding:"7px 10px",textAlign:"right",color:THEME.muted2}}>{fmt(row.previousBookings)}</td>
-                <td style={{padding:"7px 10px",textAlign:"right",color:diffClr(row.diffBookings),fontWeight:600}}>{arw(row.diffBookings)}{fmt(Math.abs(row.diffBookings||0))}</td>
-                <td style={{padding:"7px 10px",textAlign:"right",color:diffClr(bp)}}>{fmtPct(bp)}</td>
-                <td style={{padding:"7px 10px",textAlign:"right",color:THEME.text}}>{fmt(row.currentPax)}</td>
-                <td style={{padding:"7px 10px",textAlign:"right",color:THEME.muted2}}>{fmt(row.previousPax)}</td>
-                <td style={{padding:"7px 10px",textAlign:"right",color:diffClr(row.diffPax),fontWeight:600}}>{arw(row.diffPax)}{fmt(Math.abs(row.diffPax||0))}</td>
-                <td style={{padding:"7px 10px",textAlign:"right",color:diffClr(pp)}}>{fmtPct(pp)}</td>
-                <td style={{padding:"7px 10px",textAlign:"right",color:THEME.text}}>{fmt(row.currentRevenue,true)}</td>
-                <td style={{padding:"7px 10px",textAlign:"right",color:THEME.muted2}}>{fmt(row.previousRevenue,true)}</td>
-                <td style={{padding:"7px 10px",textAlign:"right",color:diffClr(row.diffRevenue),fontWeight:600}}>{arw(row.diffRevenue)}{fmt(Math.abs(row.diffRevenue||0),true)}</td>
-                <td style={{padding:"7px 10px",textAlign:"right",color:diffClr(rp)}}>{fmtPct(rp)}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div style={{ background: T.card, borderBottom: `1px solid ${T.border}`, padding: "12px 20px" }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <span style={{ fontSize: 11, color: T.muted2, marginRight: 2 }}>Quick:</span>
+        {presets.map(p => (
+          <button key={p.label} onClick={() => { setFilters(f => ({ ...f, departureDateFrom: p.from, departureDateTo: p.to })); setTimeout(onApply, 60); }}
+            style={{ background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 14, color: T.muted, padding: "3px 12px", fontSize: 11, cursor: "pointer", fontWeight: 500 }}>
+            {p.label}
+          </button>
+        ))}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10, marginBottom: 10 }}>
+        {[["Departure From", "departureDateFrom"], ["Departure To", "departureDateTo"], ["Booking From", "bookingDateFrom"], ["Booking To", "bookingDateTo"]].map(([l, k]) => (
+          <div key={k}><span style={lbl}>{l}</span><input type="date" lang="en-GB" style={inp} value={filters[k] || ""} onChange={e => setFilters(f => ({ ...f, [k]: e.target.value }))} /></div>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+        <MultiSelect label="Dataset" options={slicers.datasets || []} value={filters.datasets || []} onChange={v => setFilters(f => ({ ...f, datasets: v }))} T={T} />
+        <MultiSelect label="Transport" options={slicers.transportTypes || []} value={filters.transports || []} onChange={v => setFilters(f => ({ ...f, transports: v }))} T={T} />
+        <MultiSelect label="Bus Type" options={slicers.busTypes || []} value={filters.busTypes || []} onChange={v => setFilters(f => ({ ...f, busTypes: v }))} T={T} />
+        <div>
+          <div style={lbl}>Status</div>
+          <div style={{ display: "flex", gap: 6 }}>
+            {[["", "All", T.muted], ["ok", "OK", T.success], ["cancelled", "Cancelled", T.danger]].map(([v, l, c]) => {
+              const active = v === "" ? (filters.statuses || []).length === 0 : (filters.statuses || []).includes(v);
+              return (
+                <button key={v} onClick={() => setFilters(f => ({ ...f, statuses: v ? [v] : [] }))}
+                  style={{ background: active ? (v === "ok" ? T.successLt : v === "cancelled" ? T.dangerLt : T.accentLt) : "transparent", border: `1.5px solid ${active ? c : T.border}`, borderRadius: 6, color: active ? c : T.muted2, padding: "6px 14px", fontSize: 12, cursor: "pointer", fontWeight: active ? 700 : 400 }}>
+                  {l}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+          <button onClick={onApply} style={{ background: T.accent, border: "none", borderRadius: 6, color: "#fff", padding: "8px 20px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Apply</button>
+          <button onClick={onReset} style={{ background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.muted, padding: "8px 16px", fontSize: 12, cursor: "pointer" }}>Reset</button>
+        </div>
+      </div>
     </div>
   );
 }
 
-// ── BUS TRIPS TABLE ───────────────────────────────────────────────────────────
-function BusTripsTable({rows,loading}) {
-  const [page,setPage] = useState(0);
-  const [hovered,setHovered] = useState(null);
-  const PAGE=50;
-  useEffect(()=>setPage(0),[rows]);
-  if(loading) return <div style={{textAlign:"center",color:THEME.muted,padding:32}}>Loading…</div>;
-  if(!rows||!rows.length) return <div style={{textAlign:"center",color:THEME.muted,padding:32}}>No data — apply filters</div>;
-  const pr=rows.slice(page*PAGE,(page+1)*PAGE);
-  const TH=({border,children})=>(<th style={{padding:"8px 9px",color:THEME.muted,fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"center",borderBottom:`1px solid ${THEME.border}`,whiteSpace:"nowrap",borderLeft:border?`2px solid ${border}`:undefined}}>{children}</th>);
-  const TD=({v,bold,border})=>(<td style={{padding:"7px 9px",textAlign:"right",color:bold?THEME.text:THEME.text,fontWeight:bold?700:400,borderLeft:border?`2px solid ${border}`:undefined}}>{v??0}</td>);
-  const DD=({v,border})=>{const n=parseInt(v);return isNaN(n)?<td style={{padding:"7px 9px",textAlign:"right",color:THEME.muted2,borderLeft:border?`2px solid ${border}`:undefined}}>—</td>:<td style={{padding:"7px 9px",textAlign:"right",color:n===0?"#94a3b8":n>0?THEME.success:THEME.danger,fontWeight:700,borderLeft:border?`2px solid ${border}`:undefined}}>{n>0?"+":""}{n}</td>;};
-
+// ── KPI CARD ──────────────────────────────────────────────────────────────────
+function KpiCard({ title, current, previous, diff, pct, isCurrency, loading, icon, T }) {
+  const fmt = v => isCurrency ? fmtEur(v || 0) : fmtNum(v || 0);
+  const up = (diff || 0) >= 0;
   return (
-    <div>
-      <div style={{overflowX:"auto"}}>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-          <thead>
-            <tr style={{background:"#080c14"}}>
-              <th colSpan={2} style={{padding:"8px 9px",color:THEME.muted,fontWeight:600,fontSize:11,textTransform:"uppercase",borderBottom:`1px solid ${THEME.border}`,textAlign:"center"}}>Trip Dates</th>
-              <th colSpan={4} style={{padding:"8px 9px",color:"#93c5fd",fontWeight:600,fontSize:11,textTransform:"uppercase",borderBottom:`1px solid ${THEME.border}`,borderLeft:"2px solid #4f8ef7",textAlign:"center",background:"rgba(79,142,247,0.04)"}}>Outbound ↗</th>
-              <th colSpan={4} style={{padding:"8px 9px",color:THEME.success,fontWeight:600,fontSize:11,textTransform:"uppercase",borderBottom:`1px solid ${THEME.border}`,borderLeft:`2px solid ${THEME.success}`,textAlign:"center",background:"rgba(52,211,153,0.04)"}}>Return ↙</th>
-              <th colSpan={4} style={{padding:"8px 9px",color:THEME.warning,fontWeight:600,fontSize:11,textTransform:"uppercase",borderBottom:`1px solid ${THEME.border}`,borderLeft:`2px solid ${THEME.warning}`,textAlign:"center",background:"rgba(251,191,36,0.04)"}}>Difference</th>
-            </tr>
-            <tr style={{background:"#0a0e18"}}>
-              <TH>Start</TH><TH>End</TH>
-              <TH border="#4f8ef7">RC</TH><TH>FC</TH><TH>PRE</TH><TH>Total</TH>
-              <TH border={THEME.success}>RC</TH><TH>FC</TH><TH>PRE</TH><TH>Total</TH>
-              <TH border={THEME.warning}>RC</TH><TH>FC</TH><TH>PRE</TH><TH>Total</TH>
-            </tr>
-          </thead>
-          <tbody>
-            {pr.map((row,idx)=>(
-              <tr key={idx}
-                onMouseEnter={()=>setHovered(idx)}
-                onMouseLeave={()=>setHovered(null)}
-                style={{background:hovered===idx?THEME.cardHover:idx%2===0?THEME.card:"#080c14",transition:"background 0.15s"}}>
-                <td style={{padding:"7px 9px",color:"#93c5fd",whiteSpace:"nowrap",fontWeight:600}}>{row.StartDate}</td>
-                <td style={{padding:"7px 9px",color:THEME.muted,whiteSpace:"nowrap"}}>{row.EndDate}</td>
-                <TD v={row.ORC} border="#4f8ef7"/><TD v={row.OFC}/><TD v={row.OPRE}/><TD v={row.OTotal} bold/>
-                <TD v={row.RRC} border={THEME.success}/><TD v={row.RFC}/><TD v={row.RPRE}/><TD v={row.RTotal} bold/>
-                <DD v={row.RC_Diff} border={THEME.warning}/><DD v={row.FC_Diff}/><DD v={row.PRE_Diff}/><DD v={row.Total_Difference}/>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "18px 20px", flex: 1, minWidth: 0, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <div style={{ width: 30, height: 30, background: T.accentLt, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{icon}</div>
+        <span style={{ fontSize: 11, fontWeight: 600, color: T.muted, textTransform: "uppercase", letterSpacing: "0.07em" }}>{title}</span>
       </div>
-      {rows.length>PAGE&&(
-        <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderTop:`1px solid ${THEME.border}`,fontSize:12}}>
-          <span style={{color:THEME.muted}}>{page*PAGE+1}–{Math.min((page+1)*PAGE,rows.length)} of {rows.length}</span>
-          <button disabled={page===0} onClick={()=>setPage(p=>p-1)} style={{padding:"4px 12px",background:page===0?"#111827":"#1a2a4a",border:`1px solid ${THEME.border}`,borderRadius:5,color:page===0?THEME.muted:"#93c5fd",cursor:page===0?"default":"pointer"}}>← Prev</button>
-          <button disabled={(page+1)*PAGE>=rows.length} onClick={()=>setPage(p=>p+1)} style={{padding:"4px 12px",background:(page+1)*PAGE>=rows.length?"#111827":"#1a2a4a",border:`1px solid ${THEME.border}`,borderRadius:5,color:(page+1)*PAGE>=rows.length?THEME.muted:"#93c5fd",cursor:(page+1)*PAGE>=rows.length?"default":"pointer"}}>Next →</button>
-        </div>
+      {loading ? (
+        <div style={{ height: 32, background: T.border, borderRadius: 6, marginBottom: 8, animation: "pulse 1.5s infinite" }} />
+      ) : (
+        <>
+          <div style={{ fontSize: 26, fontWeight: 700, color: T.accent, marginBottom: 3, letterSpacing: "-0.5px" }}>{fmt(current)}</div>
+          <div style={{ fontSize: 11, color: T.muted2, marginBottom: 8 }}>prev year: {fmt(previous)}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: up ? T.success : T.danger }}>{up ? "▲" : "▼"} {fmt(Math.abs(diff || 0))}</span>
+            {pct != null && <span style={{ fontSize: 11, background: up ? T.successLt : T.dangerLt, color: up ? T.success : T.danger, borderRadius: 20, padding: "2px 8px", fontWeight: 600 }}>{up ? "+" : ""}{pct}%</span>}
+          </div>
+        </>
       )}
     </div>
   );
 }
 
-// ── SNOWTRAVEL TABLE ──────────────────────────────────────────────────────────
-function SnowTravelTable({rows,loading}) {
-  const [hovered,setHovered] = useState(null);
-  if(loading) return <div style={{textAlign:"center",color:THEME.muted,padding:32}}>Loading…</div>;
-  if(!rows||!rows.length) return <div style={{textAlign:"center",color:THEME.muted,padding:32}}>No data</div>;
+// ── COMPARISON TABLE (DataHub style) ──────────────────────────────────────────
+function ComparisonTable({ data, T }) {
+  const [page, setPage] = useState(0);
+  const [perPage, setPerPage] = useState(15);
+  const [hovered, setHovered] = useState(null);
+
+  const rows = [...(data || [])].sort((a, b) => {
+    if (b.year !== a.year) return b.year - a.year;
+    return b.month - a.month;
+  });
+
+  const total = rows.length;
+  const paged = rows.slice(page * perPage, (page + 1) * perPage);
+  const totalPages = Math.max(1, Math.ceil(total / perPage));
+
+  const TH = ({ children, align = "right" }) => (
+    <th style={{ padding: "9px 12px", color: T.muted, fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", textAlign: align, borderBottom: `1px solid ${T.border}`, background: T.rowAlt, whiteSpace: "nowrap" }}>{children}</th>
+  );
+  const TD = ({ children, color, bold, align = "right" }) => (
+    <td style={{ padding: "8px 12px", textAlign: align, color: color || T.text, fontWeight: bold ? 600 : 400, whiteSpace: "nowrap", fontSize: 12 }}>{children}</td>
+  );
+
   return (
-    <div style={{overflowX:"auto"}}>
-      <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <TH align="left">Period</TH>
+              <TH align="left">Last year</TH>
+              <TH>Bookings</TH>
+              <TH>Prev Bkg</TH>
+              <TH>PAX</TH>
+              <TH>Prev PAX</TH>
+              <TH>Revenue</TH>
+              <TH>Prev Revenue</TH>
+              <TH>Difference</TH>
+              <TH>% Difference</TH>
+            </tr>
+          </thead>
+          <tbody>
+            {paged.map((row, i) => {
+              const diffRev = (row.currentRevenue || 0) - (row.previousRevenue || 0);
+              const pctRev = row.previousRevenue ? (diffRev / row.previousRevenue * 100) : null;
+              const up = diffRev >= 0;
+              return (
+                <tr key={i}
+                  onMouseEnter={() => setHovered(i)} onMouseLeave={() => setHovered(null)}
+                  style={{ background: hovered === i ? T.accentLt : i % 2 === 0 ? T.card : T.rowAlt, borderBottom: `1px solid ${T.border}`, transition: "background 0.1s" }}>
+                  <TD align="left" bold>{MONTHS[(row.month || 1) - 1]}-{row.year}</TD>
+                  <TD align="left" color={T.muted}>{MONTHS[(row.month || 1) - 1]}-{(row.year || 1) - 1}</TD>
+                  <TD bold>{fmtNum(row.currentBookings)}</TD>
+                  <TD color={T.muted}>{fmtNum(row.previousBookings)}</TD>
+                  <TD bold>{fmtNum(row.currentPax)}</TD>
+                  <TD color={T.muted}>{fmtNum(row.previousPax)}</TD>
+                  <TD bold>{fmtEur(row.currentRevenue)}</TD>
+                  <TD color={T.muted}>{fmtEur(row.previousRevenue)}</TD>
+                  <TD color={up ? T.success : T.danger} bold>{up ? "+" : ""}{fmtEur(diffRev)}</TD>
+                  <TD color={up ? T.success : T.danger} bold>{fmtPct(pctRev)}</TD>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {/* Pagination — DataHub style */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderTop: `1px solid ${T.border}`, flexWrap: "wrap", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 12, color: T.muted2 }}>Rows per page:</span>
+          <select value={perPage} onChange={e => { setPerPage(+e.target.value); setPage(0); }}
+            style={{ background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 5, color: T.text, padding: "3px 8px", fontSize: 12, outline: "none" }}>
+            {[10, 15, 25, 50].map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <PagBtn label="«" onClick={() => setPage(0)} disabled={page === 0} T={T} />
+          <PagBtn label="‹" onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} T={T} />
+          {[...Array(Math.min(5, totalPages))].map((_, i) => {
+            const pg = Math.max(0, Math.min(page - 2, totalPages - 5)) + i;
+            return <PagBtn key={pg} label={pg + 1} onClick={() => setPage(pg)} active={pg === page} T={T} />;
+          })}
+          <PagBtn label="›" onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} T={T} />
+          <PagBtn label="»" onClick={() => setPage(totalPages - 1)} disabled={page >= totalPages - 1} T={T} />
+        </div>
+        <span style={{ fontSize: 12, color: T.muted2 }}>{total} rows</span>
+      </div>
+    </div>
+  );
+}
+
+function PagBtn({ label, onClick, disabled, active, T }) {
+  return (
+    <button onClick={onClick} disabled={disabled}
+      style={{ minWidth: 28, height: 28, background: active ? T.accent : "transparent", border: `1px solid ${active ? T.accent : T.border}`, borderRadius: 5, color: active ? "#fff" : disabled ? T.muted2 : T.muted, fontSize: 12, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.4 : 1, padding: "0 6px" }}>
+      {label}
+    </button>
+  );
+}
+
+// ── BUS TRIPS TABLE ───────────────────────────────────────────────────────────
+function BusTripsTable({ rows, loading, T }) {
+  const [page, setPage] = useState(0);
+  const [hovered, setHovered] = useState(null);
+  const PER = 25;
+  useEffect(() => setPage(0), [rows]);
+
+  if (loading) return <div style={{ textAlign: "center", padding: 40, color: T.muted }}>Loading...</div>;
+  if (!rows || !rows.length) return (
+    <div style={{ textAlign: "center", padding: 40, color: T.muted2 }}>
+      <div style={{ fontSize: 32, marginBottom: 10 }}>📋</div>
+      <div style={{ fontWeight: 600, color: T.muted, marginBottom: 6 }}>No bus trip data</div>
+      <div style={{ fontSize: 12 }}>BUStrips table has data from 2022. Click Apply with no date filter to load all.</div>
+    </div>
+  );
+
+  const paged = rows.slice(page * PER, (page + 1) * PER);
+  const totalPages = Math.max(1, Math.ceil(rows.length / PER));
+
+  const TH = ({ children, border, bg }) => (
+    <th style={{ padding: "8px 9px", color: T.muted, fontWeight: 600, fontSize: 10, textTransform: "uppercase", textAlign: "center", borderBottom: `1px solid ${T.border}`, whiteSpace: "nowrap", borderLeft: border ? `2px solid ${border}` : undefined, background: bg || T.rowAlt }}>
+      {children}
+    </th>
+  );
+  const TD = ({ v, border, bold }) => (
+    <td style={{ padding: "7px 9px", textAlign: "right", color: T.text, fontWeight: bold ? 700 : 400, borderLeft: border ? `2px solid ${border}` : undefined, fontSize: 12 }}>
+      {v ?? 0}
+    </td>
+  );
+  const DD = ({ v, border }) => {
+    const n = parseInt(v);
+    return isNaN(n)
+      ? <td style={{ padding: "7px 9px", textAlign: "right", color: T.muted2, borderLeft: border ? `2px solid ${border}` : undefined, fontSize: 12 }}>—</td>
+      : <td style={{ padding: "7px 9px", textAlign: "right", color: n === 0 ? T.muted2 : n > 0 ? T.success : T.danger, fontWeight: 700, borderLeft: border ? `2px solid ${border}` : undefined, fontSize: 12 }}>{n > 0 ? "+" : ""}{n}</td>;
+  };
+
+  return (
+    <div>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <th colSpan={2} style={{ padding: "8px 9px", color: T.muted, fontWeight: 600, fontSize: 10, textTransform: "uppercase", borderBottom: `1px solid ${T.border}`, textAlign: "center", background: T.rowAlt }}>Trip Dates</th>
+              <th colSpan={4} style={{ padding: "8px 9px", color: "#1d4ed8", fontWeight: 700, fontSize: 10, textTransform: "uppercase", borderBottom: `1px solid ${T.border}`, borderLeft: "2px solid #3b82f6", textAlign: "center", background: "#eff6ff" }}>Outbound ↗</th>
+              <th colSpan={4} style={{ padding: "8px 9px", color: "#15803d", fontWeight: 700, fontSize: 10, textTransform: "uppercase", borderBottom: `1px solid ${T.border}`, borderLeft: "2px solid #22c55e", textAlign: "center", background: "#f0fdf4" }}>Return ↙</th>
+              <th colSpan={4} style={{ padding: "8px 9px", color: "#b45309", fontWeight: 700, fontSize: 10, textTransform: "uppercase", borderBottom: `1px solid ${T.border}`, borderLeft: "2px solid #f59e0b", textAlign: "center", background: "#fffbeb" }}>Difference</th>
+            </tr>
+            <tr style={{ background: T.rowAlt }}>
+              <TH>Start</TH><TH>End</TH>
+              <TH border="#3b82f6">RC</TH><TH>FC</TH><TH>PRE</TH><TH>Total</TH>
+              <TH border="#22c55e">RC</TH><TH>FC</TH><TH>PRE</TH><TH>Total</TH>
+              <TH border="#f59e0b">RC</TH><TH>FC</TH><TH>PRE</TH><TH>Total</TH>
+            </tr>
+          </thead>
+          <tbody>
+            {paged.map((row, idx) => (
+              <tr key={idx}
+                onMouseEnter={() => setHovered(idx)} onMouseLeave={() => setHovered(null)}
+                style={{ background: hovered === idx ? T.accentLt : idx % 2 === 0 ? T.card : T.rowAlt, borderBottom: `1px solid ${T.border}`, transition: "background 0.1s" }}>
+                <td style={{ padding: "7px 9px", color: T.accent, fontWeight: 600, whiteSpace: "nowrap", fontSize: 12 }}>{row.StartDate}</td>
+                <td style={{ padding: "7px 9px", color: T.muted, whiteSpace: "nowrap", fontSize: 12 }}>{row.EndDate}</td>
+                <TD v={row.ORC} border="#3b82f6" /><TD v={row.OFC} /><TD v={row.OPRE} /><TD v={row.OTotal} bold />
+                <TD v={row.RRC} border="#22c55e" /><TD v={row.RFC} /><TD v={row.RPRE} /><TD v={row.RTotal} bold />
+                <DD v={row.RC_Diff} border="#f59e0b" /><DD v={row.FC_Diff} /><DD v={row.PRE_Diff} /><DD v={row.Total_Difference} />
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderTop: `1px solid ${T.border}`, fontSize: 12 }}>
+        <span style={{ color: T.muted2 }}>RC=Royal Class · FC=First Class · PRE=Premium · {rows.length} trips</span>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <PagBtn label="‹" onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} T={T} />
+          <span style={{ color: T.muted, fontSize: 11 }}>Page {page + 1} / {totalPages}</span>
+          <PagBtn label="›" onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} T={T} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── SNOWTRAVEL TABLE ──────────────────────────────────────────────────────────
+function SnowTravelTable({ rows, loading, T }) {
+  const [hovered, setHovered] = useState(null);
+  if (loading) return <div style={{ textAlign: "center", padding: 40, color: T.muted }}>Loading...</div>;
+  if (!rows?.length) return <div style={{ textAlign: "center", padding: 40, color: T.muted2 }}>No data</div>;
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
         <thead>
-          <tr style={{background:"#080c14"}}>
-            {["Departure","Return","Dream Class","First Class","Sleep/Royal","Total PAX"].map((h,i)=>(
-              <th key={i} style={{padding:"9px 12px",color:THEME.muted,fontWeight:600,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",textAlign:i<2?"left":"right",borderBottom:`1px solid ${THEME.border}`,whiteSpace:"nowrap"}}>{h}</th>
+          <tr style={{ background: T.rowAlt, borderBottom: `1px solid ${T.border}` }}>
+            {["Departure", "Return", "Dream Class", "First Class", "Sleep/Royal", "Total PAX"].map((h, i) => (
+              <th key={i} style={{ padding: "9px 12px", color: T.muted, fontWeight: 600, fontSize: 11, textTransform: "uppercase", textAlign: i < 2 ? "left" : "right", whiteSpace: "nowrap" }}>{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {rows.map((row,idx)=>(
-            <tr key={idx}
-              onMouseEnter={()=>setHovered(idx)}
-              onMouseLeave={()=>setHovered(null)}
-              style={{background:hovered===idx?THEME.cardHover:idx%2===0?THEME.card:"#080c14",transition:"background 0.15s"}}>
-              <td style={{padding:"7px 12px",color:"#93c5fd",fontWeight:600}}>{row.departure_date}</td>
-              <td style={{padding:"7px 12px",color:THEME.muted}}>{row.return_date}</td>
-              <td style={{padding:"7px 12px",textAlign:"right",color:THEME.text}}>{row.dream_class||0}</td>
-              <td style={{padding:"7px 12px",textAlign:"right",color:THEME.text}}>{row.first_class||0}</td>
-              <td style={{padding:"7px 12px",textAlign:"right",color:THEME.text}}>{row.sleep_royal||"—"}</td>
-              <td style={{padding:"7px 12px",textAlign:"right",color:THEME.text,fontWeight:700}}>{row.total_pax||0}</td>
+          {rows.map((row, idx) => (
+            <tr key={idx} onMouseEnter={() => setHovered(idx)} onMouseLeave={() => setHovered(null)}
+              style={{ background: hovered === idx ? T.accentLt : idx % 2 === 0 ? T.card : T.rowAlt, borderBottom: `1px solid ${T.border}`, transition: "background 0.1s" }}>
+              <td style={{ padding: "7px 12px", color: T.accent, fontWeight: 600 }}>{row.departure_date}</td>
+              <td style={{ padding: "7px 12px", color: T.muted }}>{row.return_date}</td>
+              <td style={{ padding: "7px 12px", textAlign: "right" }}>{row.dream_class || 0}</td>
+              <td style={{ padding: "7px 12px", textAlign: "right" }}>{row.first_class || 0}</td>
+              <td style={{ padding: "7px 12px", textAlign: "right" }}>{row.sleep_royal || 0}</td>
+              <td style={{ padding: "7px 12px", textAlign: "right", fontWeight: 700, color: T.accent }}>{row.total_pax || 0}</td>
             </tr>
           ))}
         </tbody>
@@ -739,545 +905,493 @@ function SnowTravelTable({rows,loading}) {
 }
 
 // ── AI ASSISTANT ──────────────────────────────────────────────────────────────
-const SUGGESTIONS=[
-  "What is the total revenue for Solmar in 2025?",
-  "Compare bookings between 2024 and 2025",
-  "Which departure city has the most PAX?",
-  "What is the bus occupancy for Royal Class?",
-  "Show revenue breakdown by transport type",
-  "Which month has highest bookings in 2026?",
-  "What is the difference between Snowtravel and Solmar revenue?",
-  "How many PAX travelled in February 2025?",
+const QUICK_Q = [
+  "What is total revenue for 2026 so far?",
+  "Compare Solmar vs Snowtravel bookings",
+  "Which month had the most PAX in 2025?",
+  "How many cancellations in 2025?",
+  "Show revenue breakdown by dataset",
+  "Which city has the most bookings?",
+  "What is year-on-year revenue growth?",
+  "What is average revenue per booking?",
 ];
 
-function AiAssistant({onUnauth}) {
-  const [msgs,setMsgs] = useState([{role:"assistant",text:"Hi! I'm TTP AI Assistant. Ask me anything about your booking data — revenue, PAX, trends, or comparisons across Snowtravel, Solmar, and Interbus."}]);
-  const [input,setInput] = useState("");
-  const [loading,setLoading] = useState(false);
-  const bottomRef = useRef(null);
-  useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[msgs]);
-
-  const send = async text => {
-    const q=text||input;if(!q.trim())return;
-    setInput("");setMsgs(m=>[...m,{role:"user",text:q}]);setLoading(true);
-    try {
-      const t=localStorage.getItem("ttp_token");
-      const r=await fetch(`${BASE}/api/ai/chat`,{
-        method:"POST",
-        headers:{"Authorization":`Bearer ${t}`,"Content-Type":"application/json"},
-        body:JSON.stringify({message:q})
-      });
-      if(r.status===401){onUnauth();return;}
-      const d=await r.json();
-      setMsgs(m=>[...m,{role:"assistant",text:d.reply||"No response."}]);
-    } catch(e) {
-      setMsgs(m=>[...m,{role:"assistant",text:"Sorry, I could not connect. Make sure the backend is running."}]);
-    }
-    setLoading(false);
-  };
+// ── USER EDIT MODAL ───────────────────────────────────────────────────────────
+function UserModal({ user, onSave, onClose, T }) {
+  const [form, setForm] = useState({ name: user?.name || "", username: user?.username || "", email: user?.email || "", password: "", role: user?.role || "viewer" });
+  const isNew = !user?.id;
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const inp = { width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.text, padding: "8px 12px", fontSize: 13, outline: "none", boxSizing: "border-box" };
 
   return (
-    <div style={{display:"flex",flexDirection:"column",height:"100%",background:THEME.card,border:`1px solid ${THEME.border}`,borderRadius:10,overflow:"hidden"}}>
-      <div style={{padding:"14px 18px",borderBottom:`1px solid ${THEME.border}`,display:"flex",alignItems:"center",gap:10}}>
-        <div style={{width:32,height:32,background:"linear-gradient(135deg,#4f8ef7,#a78bfa)",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>🤖</div>
-        <div>
-          <div style={{fontSize:13,fontWeight:700,color:THEME.text}}>TTP AI Assistant</div>
-          <div style={{fontSize:11,color:THEME.muted}}>Powered by Claude · Live data</div>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 14, padding: 28, width: 420, boxShadow: "0 20px 60px rgba(0,0,0,0.18)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <span style={{ fontSize: 15, fontWeight: 700, color: T.text }}>{isNew ? "Add User" : "Edit User"}</span>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 20 }}>×</button>
         </div>
-        <div style={{marginLeft:"auto",width:8,height:8,borderRadius:"50%",background:THEME.success}}/>
-      </div>
-      <div style={{flex:1,overflowY:"auto",padding:"14px 16px",display:"flex",flexDirection:"column",gap:12}}>
-        {msgs.map((m,i)=>(
-          <div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start"}}>
-            <div style={{
-              maxWidth:"85%",padding:"10px 14px",
-              borderRadius:m.role==="user"?"10px 10px 2px 10px":"10px 10px 10px 2px",
-              background:m.role==="user"?"#1e3a6e":"#111827",
-              color:m.role==="user"?"#bfdbfe":THEME.text,
-              fontSize:13,lineHeight:1.55,
-              border:m.role==="assistant"?`1px solid ${THEME.border}`:undefined,
-              whiteSpace:"pre-wrap"
-            }}>{m.text}</div>
-          </div>
-        ))}
-        {loading&&<div style={{display:"flex",justifyContent:"flex-start"}}><div style={{background:"#111827",border:`1px solid ${THEME.border}`,borderRadius:"10px 10px 10px 2px",padding:"10px 16px",color:THEME.muted,fontSize:13}}>⟳ Analysing data…</div></div>}
-        <div ref={bottomRef}/>
-      </div>
-      <div style={{padding:"8px 14px",borderTop:`1px solid ${THEME.border}`,display:"flex",gap:6,flexWrap:"wrap"}}>
-        {SUGGESTIONS.slice(0,3).map((s,i)=>(
-          <button key={i} onClick={()=>send(s)} style={{background:"#111827",border:`1px solid ${THEME.border}`,borderRadius:20,color:THEME.muted,fontSize:11,padding:"4px 10px",cursor:"pointer",whiteSpace:"nowrap"}}>{s}</button>
-        ))}
-      </div>
-      <div style={{padding:"10px 14px",borderTop:`1px solid ${THEME.border}`,display:"flex",gap:8}}>
-        <input value={input} onChange={e=>setInput(e.target.value)}
-          onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}
-          placeholder="Ask about revenue, bookings, PAX, trends…"
-          style={{flex:1,background:"#080c14",border:`1px solid ${THEME.border}`,borderRadius:7,color:THEME.text,padding:"9px 12px",fontSize:13,outline:"none"}}/>
-        <button onClick={()=>send()} disabled={!input.trim()||loading} style={{
-          background:input.trim()&&!loading?THEME.accent:"#111827",border:"none",
-          borderRadius:7,color:input.trim()&&!loading?THEME.bg:THEME.muted2,
-          padding:"9px 16px",fontSize:13,cursor:input.trim()&&!loading?"pointer":"default",fontWeight:700
-        }}>Send</button>
-      </div>
-    </div>
-  );
-}
-
-// ── FILTERS PANEL ─────────────────────────────────────────────────────────────
-function FiltersPanel({filters,setFilters,slicers,onApply,onReset}) {
-  const set=(k,v)=>setFilters(p=>({...p,[k]:v}));
-  const inputStyle={background:"#111827",border:`1px solid ${THEME.border}`,borderRadius:6,color:THEME.text,padding:"7px 10px",fontSize:13,width:136};
-  const Group=({label,children})=>(<div><div style={{fontSize:11,color:THEME.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em"}}>{label}</div><div style={{display:"flex",gap:5}}>{children}</div></div>);
-  return (
-    <div style={{background:"#080c14",borderBottom:`1px solid ${THEME.border}`,padding:"12px 24px"}}>
-      <div style={{display:"flex",flexWrap:"wrap",gap:12,alignItems:"flex-end"}}>
-        <Group label="Booking Date">
-          <input type="date" value={filters.bookingDateFrom||""} onChange={e=>set("bookingDateFrom",e.target.value)} style={inputStyle}/>
-          <input type="date" value={filters.bookingDateTo||""} onChange={e=>set("bookingDateTo",e.target.value)} style={inputStyle}/>
-        </Group>
-        <Group label="Departure Date">
-          <input type="date" value={filters.departureDateFrom||""} onChange={e=>set("departureDateFrom",e.target.value)} style={inputStyle}/>
-          <input type="date" value={filters.departureDateTo||""} onChange={e=>set("departureDateTo",e.target.value)} style={inputStyle}/>
-        </Group>
-        <Group label="Return Date">
-          <input type="date" value={filters.returnDateFrom||""} onChange={e=>set("returnDateFrom",e.target.value)} style={inputStyle}/>
-          <input type="date" value={filters.returnDateTo||""} onChange={e=>set("returnDateTo",e.target.value)} style={inputStyle}/>
-        </Group>
-        <MultiSelect label="Dataset" options={slicers.datasets||[]} value={filters.datasets||[]} onChange={v=>set("datasets",v)}/>
-        <MultiSelect label="Transport" options={slicers.transportTypes||[]} value={filters.transportTypes||[]} onChange={v=>set("transportTypes",v)}/>
-        <MultiSelect label="Bus Type" options={slicers.busTypes||[]} value={filters.busTypes||[]} onChange={v=>set("busTypes",v)}/>
-        <MultiSelect label="Status" options={["ok","cancelled"]} value={filters.statuses||[]} onChange={v=>set("statuses",v)} placeholder="All statuses"/>
-        <div style={{display:"flex",gap:8,alignSelf:"flex-end"}}>
-          <button onClick={onApply} style={{background:THEME.accent,border:"none",borderRadius:7,color:THEME.bg,padding:"8px 18px",fontWeight:700,fontSize:13,cursor:"pointer"}}>Apply</button>
-          <button onClick={onReset} style={{background:"#111827",border:`1px solid ${THEME.border}`,borderRadius:7,color:"#94a3b8",padding:"8px 13px",fontSize:13,cursor:"pointer"}}>Reset</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── EXPORT MODAL ──────────────────────────────────────────────────────────────
-function ExportModal({onClose,applied}) {
-  const [datasets,setDatasets] = useState([]);
-  const [status,setStatus] = useState("all");
-  const [bookingFrom,setBookingFrom] = useState("");
-  const [bookingTo,setBookingTo] = useState("");
-  const [departureFrom,setDepartureFrom] = useState("");
-  const [departureTo,setDepartureTo] = useState("");
-
-  const DATASETS=["Snowtravel","Solmar","Interbus","Solmar DE"];
-  const toggleDS=d=>setDatasets(prev=>prev.includes(d)?prev.filter(x=>x!==d):[...prev,d]);
-
-  const buildParams=()=>{
-    const p=new URLSearchParams();
-    p.set("token",localStorage.getItem("ttp_token"));
-    if(datasets.length)datasets.forEach(d=>p.append("dataset",d));
-    if(status!=="all")p.set("status",status);
-    if(bookingFrom)p.set("bookingDateFrom",bookingFrom);
-    if(bookingTo)p.set("bookingDateTo",bookingTo);
-    if(departureFrom)p.set("departureDateFrom",departureFrom);
-    if(departureTo)p.set("departureDateTo",departureTo);
-    return p.toString();
-  };
-
-  const downloadCSV=()=>{window.open(`${BASE}/api/dashboard/export?${buildParams()}`,"_blank");onClose();};
-  const exportPDF=()=>window.print();
-  const exportJPG=async()=>{
-    try{
-      const h2c=(await import("html2canvas")).default;
-      const el=document.getElementById("dashboard-content");
-      if(!el)return;
-      const canvas=await h2c(el,{backgroundColor:THEME.bg,scale:2,useCORS:true});
-      const link=document.createElement("a");
-      link.download=`ttp-dashboard-${new Date().toISOString().split("T")[0]}.jpg`;
-      link.href=canvas.toDataURL("image/jpeg",0.92);link.click();
-    }catch(e){console.error(e);}
-  };
-
-  return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={onClose}>
-      <div style={{background:THEME.card,border:`1px solid ${THEME.border}`,borderRadius:14,padding:28,width:460,maxWidth:"90vw",boxShadow:"0 24px 80px rgba(0,0,0,0.7)"}} onClick={e=>e.stopPropagation()}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-          <div style={{fontSize:16,fontWeight:700,color:THEME.text}}>Export Data</div>
-          <button onClick={onClose} style={{background:"none",border:"none",color:THEME.muted,cursor:"pointer",fontSize:18}}>✕</button>
-        </div>
-
-        <div style={{marginBottom:16}}>
-          <div style={{fontSize:11,color:THEME.muted,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8,fontWeight:600}}>Dataset</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-            {DATASETS.map(d=>(
-              <label key={d} style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:13,color:THEME.text}}>
-                <input type="checkbox" checked={datasets.includes(d)} onChange={()=>toggleDS(d)} style={{accentColor:THEME.accent}}/>
-                {d}
-              </label>
-            ))}
-          </div>
-        </div>
-
-        <div style={{marginBottom:16}}>
-          <div style={{fontSize:11,color:THEME.muted,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:8,fontWeight:600}}>Status</div>
-          <div style={{display:"flex",gap:16}}>
-            {[["all","All"],["ok","OK only"],["cancelled","Cancelled only"]].map(([v,l])=>(
-              <label key={v} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:13,color:THEME.text}}>
-                <input type="radio" name="status" value={v} checked={status===v} onChange={()=>setStatus(v)} style={{accentColor:THEME.accent}}/>
-                {l}
-              </label>
-            ))}
-          </div>
-        </div>
-
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
-          <div>
-            <div style={{fontSize:11,color:THEME.muted,marginBottom:6,textTransform:"uppercase"}}>Booking From</div>
-            <input type="date" value={bookingFrom} onChange={e=>setBookingFrom(e.target.value)} style={{width:"100%",background:"#080c14",border:`1px solid ${THEME.border}`,borderRadius:6,color:THEME.text,padding:"7px 10px",fontSize:13}}/>
-          </div>
-          <div>
-            <div style={{fontSize:11,color:THEME.muted,marginBottom:6,textTransform:"uppercase"}}>Booking To</div>
-            <input type="date" value={bookingTo} onChange={e=>setBookingTo(e.target.value)} style={{width:"100%",background:"#080c14",border:`1px solid ${THEME.border}`,borderRadius:6,color:THEME.text,padding:"7px 10px",fontSize:13}}/>
-          </div>
-          <div>
-            <div style={{fontSize:11,color:THEME.muted,marginBottom:6,textTransform:"uppercase"}}>Departure From</div>
-            <input type="date" value={departureFrom} onChange={e=>setDepartureFrom(e.target.value)} style={{width:"100%",background:"#080c14",border:`1px solid ${THEME.border}`,borderRadius:6,color:THEME.text,padding:"7px 10px",fontSize:13}}/>
-          </div>
-          <div>
-            <div style={{fontSize:11,color:THEME.muted,marginBottom:6,textTransform:"uppercase"}}>Departure To</div>
-            <input type="date" value={departureTo} onChange={e=>setDepartureTo(e.target.value)} style={{width:"100%",background:"#080c14",border:`1px solid ${THEME.border}`,borderRadius:6,color:THEME.text,padding:"7px 10px",fontSize:13}}/>
-          </div>
-        </div>
-
-        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <button onClick={downloadCSV} style={{flex:1,background:THEME.accent,border:"none",borderRadius:8,color:THEME.bg,padding:"11px 16px",fontWeight:700,fontSize:13,cursor:"pointer"}}>↓ Download CSV</button>
-          <button onClick={exportPDF} style={{flex:1,background:"#1e2a4a",border:`1px solid ${THEME.border}`,borderRadius:8,color:THEME.text,padding:"11px 16px",fontSize:13,cursor:"pointer"}}>PDF</button>
-          <button onClick={exportJPG} style={{flex:1,background:"#1e2a4a",border:`1px solid ${THEME.border}`,borderRadius:8,color:THEME.text,padding:"11px 16px",fontSize:13,cursor:"pointer"}}>JPG</button>
-          <button onClick={()=>{window.print();}} style={{flex:1,background:"#1e2a4a",border:`1px solid ${THEME.border}`,borderRadius:8,color:THEME.text,padding:"11px 16px",fontSize:13,cursor:"pointer"}}>Print</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── NOTIFICATION PANEL ────────────────────────────────────────────────────────
-function NotifPanel({dashStatus,onClose}) {
-  const [email,setEmail] = useState("");
-  const [saved,setSaved] = useState(false);
-  const [saving,setSaving] = useState(false);
-
-  const saveEmail=async()=>{
-    if(!email.includes("@"))return;
-    setSaving(true);
-    try{
-      const t=localStorage.getItem("ttp_token");
-      const r=await fetch(`${BASE}/api/ai/notify`,{
-        method:"POST",
-        headers:{"Authorization":`Bearer ${t}`,"Content-Type":"application/json"},
-        body:JSON.stringify({email})
-      });
-      const d=await r.json();
-      if(d.success)setSaved(true);
-    }catch(e){}
-    setSaving(false);
-  };
-
-  return (
-    <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,width:300,background:THEME.card,border:`1px solid ${THEME.border}`,borderRadius:12,padding:18,zIndex:9999,boxShadow:"0 16px 48px rgba(0,0,0,0.6)"}}>
-      <div style={{fontSize:13,fontWeight:700,color:THEME.text,marginBottom:12}}>Dashboard Status</div>
-      {dashStatus&&(
-        <div style={{marginBottom:14}}>
-          <div style={{fontSize:11,color:THEME.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.06em"}}>Last Checked</div>
-          <div style={{fontSize:12,color:THEME.accent,marginBottom:10}}>{dashStatus.dubaiTime}</div>
-          <div style={{fontSize:11,color:THEME.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.06em"}}>Datasets</div>
-          {(dashStatus.datasets||[]).map(d=>(
-            <div key={d.dataset} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:`1px solid ${THEME.border}`,fontSize:12}}>
-              <span style={{color:THEME.text}}>{d.dataset}</span>
-              <span style={{color:THEME.accent}}>{Number(d.total_bookings).toLocaleString()}</span>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {[["Full Name", "name", "text"], ["Username", "username", "text"], ["Email", "email", "email"], ["Password", isNew ? "password" : "password", "password"]].map(([l, k, tp]) => (
+            <div key={k}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.06em" }}>{l}{!isNew && k === "password" ? " (leave blank to keep)" : ""}</div>
+              <input type={tp} value={form[k]} onChange={e => set(k, e.target.value)} style={inp} placeholder={!isNew && k === "password" ? "Leave blank to keep current" : ""} />
             </div>
           ))}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>Role</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {["admin", "viewer"].map(r => (
+                <button key={r} onClick={() => set("role", r)}
+                  style={{ flex: 1, background: form.role === r ? T.accentLt : "transparent", border: `1.5px solid ${form.role === r ? T.accent : T.border}`, borderRadius: 6, color: form.role === r ? T.accent : T.muted, padding: "8px", fontSize: 13, cursor: "pointer", fontWeight: form.role === r ? 700 : 400, textTransform: "capitalize" }}>
+                  {r}
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize: 11, color: T.muted2, marginTop: 5 }}>Admin: full access + export. Viewer: read-only.</div>
+          </div>
         </div>
-      )}
-      <div style={{fontSize:11,color:THEME.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.06em"}}>Email Notifications</div>
-      {saved?(
-        <div style={{fontSize:12,color:THEME.success}}>✓ Notifications enabled for {email}</div>
-      ):(
-        <div style={{display:"flex",gap:6}}>
-          <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="your@email.com"
-            style={{flex:1,background:"#050d1a",border:`1px solid ${THEME.border}`,borderRadius:6,color:THEME.text,padding:"7px 10px",fontSize:12,outline:"none"}}/>
-          <button onClick={saveEmail} disabled={saving||!email.includes("@")} style={{background:THEME.accent,border:"none",borderRadius:6,color:THEME.bg,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>
-            {saving?"...":"Save"}
+        <div style={{ display: "flex", gap: 10, marginTop: 20, justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={{ background: "transparent", border: `1px solid ${T.border}`, borderRadius: 7, color: T.muted, padding: "9px 18px", fontSize: 13, cursor: "pointer" }}>Cancel</button>
+          <button onClick={() => {
+            if (!form.name || !form.username || !form.email) { alert("Name, username and email are required"); return; }
+            if (isNew && !form.password) { alert("Password is required for new users"); return; }
+            onSave({ ...user, ...form, id: user?.id || Date.now(), active: user?.active !== false });
+          }} style={{ background: T.accent, border: "none", borderRadius: 7, color: "#fff", padding: "9px 22px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+            {isNew ? "Add User" : "Save Changes"}
           </button>
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
 // ── MAIN APP ──────────────────────────────────────────────────────────────────
 export default function App() {
-  const [token,setToken] = useState(()=>localStorage.getItem("ttp_token"));
-  const [user,setUser] = useState(()=>{
-    try{
-      const t=localStorage.getItem("ttp_token");if(!t)return null;
-      const p=JSON.parse(atob(t.split(".")[1]));
-      if(p.exp*1000<Date.now()){localStorage.removeItem("ttp_token");return null;}
+  const [token, setToken] = useState(() => localStorage.getItem("ttp_token"));
+  const [user, setUser] = useState(() => {
+    try {
+      const t = localStorage.getItem("ttp_token"); if (!t) return null;
+      const p = JSON.parse(atob(t.split(".")[1]));
+      if (p.exp * 1000 < Date.now()) { localStorage.removeItem("ttp_token"); return null; }
       return p.user;
-    }catch{return null;}
+    } catch { return null; }
   });
 
-  const logout=useCallback(()=>{localStorage.removeItem("ttp_token");setToken(null);setUser(null);},[]);
-  const loginFn=(tok,usr)=>{localStorage.setItem("ttp_token",tok);setToken(tok);setUser(usr);};
-  const fetch_=(url,params={})=>apiFetch(url,params,logout);
+  const [themeKey, setThemeKey] = useState(() => localStorage.getItem("ttp_theme") || "gray");
+  const T = THEMES[themeKey] || THEMES.gray;
 
-  const [tab,setTab] = useState("overview");
-  const [showFilters,setShowFilters] = useState(true);
-  const [showExport,setShowExport] = useState(false);
-  const [showNotif,setShowNotif] = useState(false);
-  const [lastR,setLastR] = useState(dubaiTime());
+  const changeTheme = k => { setThemeKey(k); localStorage.setItem("ttp_theme", k); };
 
-  const [filters,setFilters] = useState({});
-  const [applied,setApplied] = useState({});
-  const [slicers,setSlicers] = useState({datasets:[],transportTypes:[],busTypes:[]});
+  const logout = useCallback(() => { localStorage.removeItem("ttp_token"); setToken(null); setUser(null); }, []);
+  const handleLogin = (tok, u) => { localStorage.setItem("ttp_token", tok); setToken(tok); setUser(u); };
+  const handleUnauth = useCallback(() => logout(), [logout]);
+  const fetch_ = useCallback((url, params = {}) => apiFetch(url, params, token), [token]);
 
-  const [kpis,setKpis] = useState(null);
-  const [revData,setRevData] = useState([]);
-  const [ymData,setYmData] = useState([]);
-  const [trData,setTrData] = useState([]);
-  const [depData,setDepData] = useState([]);
-  const [busClassData,setBusClassData] = useState([]);
-  const [mapMetric,setMapMetric] = useState("bookings");
-  const [oLoad,setOLoad] = useState(false);
-  const [dashStatus,setDashStatus] = useState(null);
+  const [tab, setTab] = useState("overview");
+  const [showFilters, setShowFilters] = useState(true);
+  const [showExport, setShowExport] = useState(false);
+  const [clock, setClock] = useState(dubaiTime());
+  const [lastR, setLastR] = useState("");
+  const [dashStatus, setDashStatus] = useState(null);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifEmail, setNotifEmail] = useState("");
+  const [notifSaved, setNotifSaved] = useState(false);
 
-  const [busTab,setBusTab] = useState("solmar");
-  const [busFilters,setBusFilters] = useState({});
-  const [busApplied,setBusApplied] = useState({});
-  const [trips,setTrips] = useState([]);
-  const [stTrips,setStTrips] = useState([]);
-  const [stMonthly,setStMonthly] = useState([]);
-  const [pendels,setPendels] = useState([]);
-  const [bLoad,setBLoad] = useState(false);
+  const [filters, setFilters] = useState({});
+  const [applied, setApplied] = useState({});
+  const [slicers, setSlicers] = useState({ datasets: [], transportTypes: [], busTypes: [] });
 
-  function buildP(f){
-    const p={};
-    if(f.departureDateFrom)p.departureDateFrom=f.departureDateFrom;
-    if(f.departureDateTo)p.departureDateTo=f.departureDateTo;
-    if(f.returnDateFrom)p.returnDateFrom=f.returnDateFrom;
-    if(f.returnDateTo)p.returnDateTo=f.returnDateTo;
-    if(f.bookingDateFrom)p.bookingDateFrom=f.bookingDateFrom;
-    if(f.bookingDateTo)p.bookingDateTo=f.bookingDateTo;
-    if(f.transportTypes?.length)p.transportType=f.transportTypes;
-    if(f.busTypes?.length)p.busType=f.busTypes;
-    if(f.statuses?.length)p.status=f.statuses;
-    if(f.datasets?.length)p.dataset=f.datasets;
-    return p;
-  }
+  const [kpis, setKpis] = useState(null);
+  const [revData, setRevData] = useState([]);
+  const [ymData, setYmData] = useState([]);
+  const [trData, setTrData] = useState([]);
+  const [depData, setDepData] = useState([]);
+  const [oLoad, setOLoad] = useState(false);
+  const [barMetric, setBarMetric] = useState("bookings");
+  const [mapMetric, setMapMetric] = useState("bookings");
 
-  // Load slicers
-  useEffect(()=>{
-    if(!token)return;
-    fetch_("/api/dashboard/slicers").then(d=>{if(d&&!d.error)setSlicers(d);}).catch(()=>{});
-    fetch_("/api/dashboard/bus-class-summary").then(d=>{if(Array.isArray(d))setBusClassData(d);}).catch(()=>{});
-    const t=localStorage.getItem("ttp_token");
-    fetch(`${BASE}/api/ai/status`,{headers:{"Authorization":`Bearer ${t}`}})
-      .then(r=>r.json()).then(d=>setDashStatus(d)).catch(()=>{});
-  },[token]);
+  const [busView, setBusView] = useState("solmar");
+  const [busFilters, setBusFilters] = useState({});
+  const [busApplied, setBusApplied] = useState({});
+  const [busTrips, setBusTrips] = useState([]);
+  const [busClass, setBusClass] = useState([]);
+  const [stBus, setStBus] = useState([]);
+  const [stMonthly, setStMonthly] = useState([]);
+  const [bLoad, setBLoad] = useState(false);
+
+  const [msgs, setMsgs] = useState([{ role: "assistant", text: "Hello! I am your TTP Analytics AI powered by OpenAI. Ask me anything about your booking data — revenue, PAX, trends, or comparisons between Snowtravel, Solmar, Interbus and Solmar DE." }]);
+  const [aiInput, setAiInput] = useState("");
+  const [aiLoad, setAiLoad] = useState(false);
+  const msgEnd = useRef(null);
+
+  const [tableData, setTableData] = useState([]);
+  const [tableSearch, setTableSearch] = useState("");
+  const [tableDs, setTableDs] = useState([]);
+  const [tableSt, setTableSt] = useState([]);
+  const [tableDpF, setTableDpF] = useState("");
+  const [tableDpT, setTableDpT] = useState("");
+  const [tableSortCol, setTableSortCol] = useState("Departure Date");
+  const [tableSortDir, setTableSortDir] = useState("desc");
+  const [tablePage, setTablePage] = useState(0);
+  const [tableLoad, setTableLoad] = useState(false);
+  const TPER = 50;
+
+  const [stTab, setStTab] = useState("users");
+  const [users, setUsers] = useState([
+    { id: 1, name: "Abdul Rahman", username: "abdulrahman", email: "abdrah1264@gmail.com", role: "admin", active: true },
+    { id: 2, name: "TTP Admin", username: "ttp_admin", email: "admin@ttp-services.com", role: "admin", active: true },
+    { id: 3, name: "Robbert Jan", username: "robbert", email: "robbert@ttp-services.com", role: "viewer", active: true },
+    { id: 4, name: "Samir", username: "samir", email: "samir@ttp-services.com", role: "viewer", active: true },
+  ]);
+  const [editUser, setEditUser] = useState(null);
+  const [showNewUser, setShowNewUser] = useState(false);
+
+  const [expDs, setExpDs] = useState([]);
+  const [expSt, setExpSt] = useState("all");
+  const [expBF, setExpBF] = useState(""); const [expBT, setExpBT] = useState("");
+  const [expDF, setExpDF] = useState(""); const [expDT, setExpDT] = useState("");
+
+  const isAdmin = user?.role === "admin";
+
+  // Clock
+  useEffect(() => {
+    const id = setInterval(() => {
+      setClock(dubaiTime());
+      const now = new Date();
+      if ((now.getUTCHours() + 4) % 24 === 0 && now.getUTCMinutes() === 0) setApplied(a => ({ ...a }));
+    }, 60000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Load slicers + status on mount
+  useEffect(() => {
+    if (!token) return;
+    fetch_("/api/dashboard/slicers").then(d => { if (d && !d.error) setSlicers(d); }).catch(() => {});
+    fetch_("/api/ai/status").then(d => setDashStatus(d)).catch(() => {});
+  }, [token]);
 
   // Load overview data
-  useEffect(()=>{
-    if(!token)return;
+  const loadOverview = useCallback((p) => {
+    if (!token) return;
     setOLoad(true);
-    const p=buildP(applied);
     Promise.all([
-      fetch_("/api/dashboard/kpis",p),
-      fetch_("/api/dashboard/revenue-by-year",p),
-      fetch_("/api/dashboard/year-month-comparison",p),
-      fetch_("/api/dashboard/transport-breakdown",p).catch(()=>[]),
-      fetch_("/api/dashboard/departure-places",p).catch(()=>[]),
-    ]).then(([k,r,ym,tr,dep])=>{
-      if(k&&!k.error)setKpis(k);
-      if(Array.isArray(r))setRevData(r);
-      if(Array.isArray(ym))setYmData(ym);
-      if(Array.isArray(tr))setTrData(tr);
-      if(Array.isArray(dep))setDepData(dep);
+      fetch_("/api/dashboard/kpis", p),
+      fetch_("/api/dashboard/revenue-by-year", p),
+      fetch_("/api/dashboard/year-month-comparison", p),
+      fetch_("/api/dashboard/transport-breakdown", p).catch(() => []),
+      fetch_("/api/dashboard/departure-places", p).catch(() => []),
+    ]).then(([k, r, ym, tr, dep]) => {
+      if (k && !k.error) setKpis(k);
+      if (Array.isArray(r)) setRevData(r);
+      if (Array.isArray(ym)) setYmData(ym);
+      if (Array.isArray(tr)) setTrData(tr);
+      if (Array.isArray(dep)) setDepData(dep);
       setLastR(dubaiTime());
-    }).catch(console.error).finally(()=>setOLoad(false));
-  },[token,applied]);
+    }).catch(e => { if (e.message === "UNAUTH") handleUnauth(); }).finally(() => setOLoad(false));
+  }, [token]);
 
-  // Load bus trips
-  useEffect(()=>{
-    if(!token)return;
+  useEffect(() => { if (token) loadOverview({}); }, [token]);
+  useEffect(() => { loadOverview(buildParams(applied)); }, [applied]);
+
+  // Load bus data
+  const loadBus = useCallback(() => {
+    if (!token) return;
     setBLoad(true);
-    const p={};
-    if(busApplied.pendel)p.pendel=busApplied.pendel;
-    if(busApplied.dateFrom)p.dateFrom=busApplied.dateFrom;
-    if(busApplied.dateTo)p.dateTo=busApplied.dateTo;
-    Promise.all([
-      fetch_("/api/dashboard/bustrips",p),
-      fetch_("/api/dashboard/snowtravel-bus",{dateFrom:busApplied.dateFrom,dateTo:busApplied.dateTo}),
-      fetch_("/api/dashboard/snowtravel-monthly",{dateFrom:busApplied.dateFrom,dateTo:busApplied.dateTo}),
-    ]).then(([bt,st,stm])=>{
-      setTrips(bt?.rows||[]);setPendels(bt?.pendels||[]);
-      if(Array.isArray(st))setStTrips(st);
-      if(Array.isArray(stm))setStMonthly(stm);
-    }).catch(()=>{}).finally(()=>setBLoad(false));
-  },[token,busApplied]);
+    const p = buildParams(busApplied);
+    if (busView === "solmar") {
+      Promise.all([
+        fetch_("/api/dashboard/bustrips", p).catch(() => []),
+        fetch_("/api/dashboard/bus-class-summary", {}).catch(() => []),
+      ]).then(([bt, bc]) => {
+        if (Array.isArray(bt)) setBusTrips(bt);
+        if (Array.isArray(bc)) setBusClass(bc);
+      }).finally(() => setBLoad(false));
+    } else {
+      Promise.all([
+        fetch_("/api/dashboard/snowtravel-bus", p).catch(() => []),
+        fetch_("/api/dashboard/snowtravel-monthly", p).catch(() => []),
+      ]).then(([sb, sm]) => {
+        if (Array.isArray(sb)) setStBus(sb);
+        if (Array.isArray(sm)) setStMonthly(sm);
+      }).finally(() => setBLoad(false));
+    }
+  }, [token, busView, busApplied]);
 
-  // Auto-refresh midnight Dubai
-  useEffect(()=>{
-    const iv=setInterval(()=>{
-      const now=new Date().toLocaleTimeString("en-AE",{timeZone:"Asia/Dubai",hour:"2-digit",minute:"2-digit",hour12:false});
-      if(now==="00:00")setApplied(a=>({...a}));
-      setLastR(dubaiTime());
-    },60000);
-    return()=>clearInterval(iv);
-  },[]);
+  useEffect(() => { if (token) loadBus(); }, [token, busView, busApplied]);
+  // Load bustrips on mount directly
+  useEffect(() => {
+    if (!token) return;
+    fetch_("/api/dashboard/bustrips", {}).then(d => { if (Array.isArray(d) && d.length > 0) setBusTrips([...d]); }).catch(() => {});
+    fetch_("/api/dashboard/bus-class-summary", {}).then(d => { if (Array.isArray(d)) setBusClass(d); }).catch(() => {});
+  }, [token]);
 
-  // Close notif on outside click
-  const notifRef = useRef(null);
-  useEffect(()=>{
-    const h=e=>{if(notifRef.current&&!notifRef.current.contains(e.target))setShowNotif(false);};
-    document.addEventListener("mousedown",h);
-    return()=>document.removeEventListener("mousedown",h);
-  },[]);
+  // Load data table
+  const loadTable = useCallback(() => {
+    if (!token) return;
+    setTableLoad(true);
+    const p = new URLSearchParams();
+    p.set("token", token);
+    if (tableDs.length) tableDs.forEach(d => p.append("dataset", d));
+    if (tableSt.length) tableSt.forEach(s => p.append("status", s));
+    if (tableDpF) p.set("departureDateFrom", tableDpF);
+    if (tableDpT) p.set("departureDateTo", tableDpT);
+    fetch(`${BASE}/api/dashboard/export?${p.toString()}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.text()).then(csv => {
+        const lines = csv.split("\n").filter(Boolean);
+        if (lines.length < 2) { setTableData([]); return; }
+        const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, ""));
+        const rows = lines.slice(1).map(line => {
+          const vals = []; let cur = "", inQ = false;
+          for (const ch of line) { if (ch === '"') inQ = !inQ; else if (ch === "," && !inQ) { vals.push(cur.trim()); cur = ""; } else cur += ch; }
+          vals.push(cur.trim());
+          const obj = {}; headers.forEach((h, i) => { obj[h] = (vals[i] || "").replace(/^"|"$/g, ""); });
+          return obj;
+        });
+        setTableData(rows);
+      }).catch(() => {}).finally(() => setTableLoad(false));
+  }, [token, tableDs, tableSt, tableDpF, tableDpT]);
 
-  if(!token||!user) return <Login onLogin={loginFn}/>;
+  useEffect(() => { if (tab === "table" && token) loadTable(); }, [tab]);
 
-  const SEC={background:THEME.card,border:`1px solid ${THEME.border}`,borderRadius:10};
-  const HB=(ex={})=>({background:"transparent",border:`1px solid ${THEME.border}`,borderRadius:6,color:THEME.muted,padding:"5px 12px",fontSize:12,cursor:"pointer",...ex});
-  const busTableTitle=busApplied.label?`BUS OCCUPANCY — ${busApplied.label.toUpperCase()} — OUTBOUND VS RETURN`:"BUS OCCUPANCY — ALL LABELS — OUTBOUND VS RETURN";
+  const sendAI = useCallback(async (q) => {
+    const msg = q || aiInput.trim(); if (!msg) return;
+    setAiInput(""); setMsgs(m => [...m, { role: "user", text: msg }]); setAiLoad(true);
+    try {
+      const r = await fetch(`${BASE}/api/ai/chat`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ message: msg }) });
+      if (r.status === 401) { handleUnauth(); return; }
+      const d = await r.json();
+      setMsgs(m => [...m, { role: "assistant", text: d.reply || "No response." }]);
+    } catch { setMsgs(m => [...m, { role: "assistant", text: "Connection error. Please try again." }]); }
+    finally { setAiLoad(false); }
+  }, [aiInput, token, handleUnauth]);
 
-  // Build stMonthly for charts
-  const stRevenueData=stMonthly.map(d=>({year:d.year,month:d.month,revenue:d.revenue,bookings:d.bookings,pax:d.pax,bus_class:d.bus_class}));
+  useEffect(() => { msgEnd.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
+
+  const downloadCSV = useCallback(() => {
+    const p = new URLSearchParams(); p.set("token", token);
+    if (expDs.length) expDs.forEach(d => p.append("dataset", d));
+    if (expSt !== "all") p.set("status", expSt);
+    if (expBF) p.set("bookingDateFrom", expBF); if (expBT) p.set("bookingDateTo", expBT);
+    if (expDF) p.set("departureDateFrom", expDF); if (expDT) p.set("departureDateTo", expDT);
+    window.open(`${BASE}/api/dashboard/export?${p.toString()}`, "_blank");
+    setShowExport(false);
+  }, [token, expDs, expSt, expBF, expBT, expDF, expDT]);
+
+  const tableFiltered = tableData.filter(row => {
+    if (tableSearch && !Object.values(row).some(v => String(v).toLowerCase().includes(tableSearch.toLowerCase()))) return false;
+    return true;
+  }).sort((a, b) => {
+    const av = a[tableSortCol] || "", bv = b[tableSortCol] || "";
+    const cmp = av.localeCompare(bv, undefined, { numeric: true });
+    return tableSortDir === "asc" ? cmp : -cmp;
+  });
+
+  if (!token) return <Login onLogin={handleLogin} />;
+
+  const TABS = [["overview", "Overview"], ["map", "Map"], ["bus", "Bus Occupancy"], ["ai", "AI Assistant"], ["table", "Data Table"], ["settings", "Settings"]];
+  const TAB_S = t => ({
+    background: "transparent", border: "none", cursor: "pointer",
+    color: tab === t ? T.accent : T.muted,
+    borderBottom: `2px solid ${tab === t ? T.accent : "transparent"}`,
+    padding: "0 14px", height: 52, fontSize: 13, fontWeight: tab === t ? 700 : 500,
+    transition: "all 0.15s", whiteSpace: "nowrap",
+  });
+
+  const SvgBkg = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>;
+  const SvgPax = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>;
+  const SvgRev = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>;
 
   return (
-    <div style={{background:THEME.bg,minHeight:"100vh",fontFamily:"'Segoe UI',system-ui,sans-serif",color:THEME.text,paddingBottom:36}}>
+    <div style={{ background: T.bg, color: T.text, minHeight: "100vh", fontFamily: "Inter,system-ui,-apple-system,sans-serif", display: "flex", flexDirection: "column" }}>
+      <style>{`
+        *{box-sizing:border-box;margin:0;padding:0}
+        ::-webkit-scrollbar{width:5px;height:5px}
+        ::-webkit-scrollbar-track{background:${T.bg}}
+        ::-webkit-scrollbar-thumb{background:${T.border};border-radius:3px}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+        @media(max-width:768px){
+          .kpi-row{flex-direction:column!important}
+          .chart-2col{grid-template-columns:1fr!important}
+          .bus-2col{grid-template-columns:1fr!important}
+          .ai-grid{grid-template-columns:1fr!important}
+          .ai-sidebar{display:none!important}
+          .tab-nav{overflow-x:auto;-webkit-overflow-scrolling:touch}
+        }
+        input[type="date"]::-webkit-calendar-picker-indicator{opacity:0.5;cursor:pointer}
+      `}</style>
 
-      {/* HEADER */}
-      <div style={{background:"#0b0f18",borderBottom:`1px solid ${THEME.border}`,padding:"0 24px",display:"flex",alignItems:"center",justifyContent:"space-between",height:52,position:"sticky",top:0,zIndex:100}}>
-        <div style={{display:"flex",alignItems:"center",gap:16}}>
-          <a href="https://www.ttp-services.com" target="_blank" rel="noreferrer" style={{textDecoration:"none"}}>
-            <span style={{fontSize:15,fontWeight:800,color:THEME.text}}><span style={{color:THEME.accent}}>TTP</span> Analytics</span>
-          </a>
-          <div style={{display:"flex",gap:2}}>
-            {[["overview","Overview"],["map","Map"],["bus","Bus Occupancy"],["ai","AI Assistant"]].map(([id,lbl])=>(
-              <button key={id} onClick={()=>{setTab(id);if(id==="map"&&depData.length===0)setApplied(a=>({...a}));}} style={{
-                background:tab===id?"#162038":"transparent",
-                border:tab===id?`1px solid #2a4a7f`:"1px solid transparent",
-                borderRadius:6,color:tab===id?"#93c5fd":THEME.muted,
-                padding:"5px 14px",fontSize:13,cursor:"pointer",fontWeight:tab===id?600:400
-              }}>
-                {lbl}
-                {id==="ai"&&<span style={{marginLeft:5,fontSize:10,background:"rgba(79,142,247,0.2)",color:"#4f8ef7",padding:"1px 5px",borderRadius:8}}>AI</span>}
-              </button>
-            ))}
-          </div>
+      {/* ── HEADER ── */}
+      <header style={{ background: T.header, borderBottom: `1px solid ${T.border}`, height: 52, display: "flex", alignItems: "center", padding: "0 16px", gap: 12, position: "sticky", top: 0, zIndex: 200, boxShadow: "0 1px 3px rgba(0,0,0,0.06)", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, marginRight: 8 }}>
+          <img src="/assets/logo.png" alt="TTP" style={{ height: 26, objectFit: "contain" }} />
+          <span style={{ fontSize: 10, fontWeight: 700, color: T.muted2, letterSpacing: "0.12em", textTransform: "uppercase" }}>ANALYTICS</span>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <span style={{fontSize:11,color:THEME.muted2}}>🕐 {lastR} Dubai</span>
-          <button onClick={()=>setApplied(a=>({...a}))} style={HB()} title="Refresh data">↻</button>
-          {tab!=="ai"&&<button onClick={()=>setShowFilters(v=>!v)} style={HB({color:showFilters?"#93c5fd":THEME.muted})}>⚙ Filters</button>}
-          <button onClick={()=>setShowExport(true)} style={HB()}>↓ Export</button>
-          <button onClick={()=>window.print()} style={HB()}>🖨</button>
-          <div style={{width:1,height:20,background:THEME.border}}/>
-          <div ref={notifRef} style={{position:"relative"}}>
-            <button onClick={()=>setShowNotif(v=>!v)} style={{...HB(),position:"relative"}} title="Notifications">
-              🔔
-              {dashStatus&&<span style={{position:"absolute",top:-2,right:-2,width:7,height:7,background:THEME.accent,borderRadius:"50%"}}/>}
+        <nav className="tab-nav" style={{ display: "flex", height: 52, flex: 1, overflowX: "auto" }}>
+          {TABS.map(([t, l]) => <button key={t} style={TAB_S(t)} onClick={() => setTab(t)}>{l}</button>)}
+        </nav>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+          <span style={{ fontSize: 11, color: T.muted2, whiteSpace: "nowrap" }}>{clock} DXB</span>
+          <button onClick={() => setApplied(a => ({ ...a }))} style={{ background: "transparent", border: `1px solid ${T.border}`, borderRadius: 6, color: T.muted, width: 30, height: 30, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} title="Refresh">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 .49-4" /></svg>
+          </button>
+          {(tab === "overview" || tab === "map") && (
+            <button onClick={() => setShowFilters(s => !s)} style={{ background: showFilters ? T.accentLt : "transparent", border: `1px solid ${showFilters ? T.accent : T.border}`, borderRadius: 6, color: showFilters ? T.accent : T.muted, padding: "5px 10px", fontSize: 11, cursor: "pointer", fontWeight: showFilters ? 600 : 400 }}>
+              Filters
             </button>
-            {showNotif&&<NotifPanel dashStatus={dashStatus} onClose={()=>setShowNotif(false)}/>}
+          )}
+          <button onClick={() => setShowExport(true)} style={{ background: T.accent, border: "none", borderRadius: 6, color: "#fff", padding: "5px 14px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Export</button>
+          {/* Notification bell */}
+          <div style={{ position: "relative" }}>
+            <button onClick={() => setNotifOpen(o => !o)} style={{ background: "transparent", border: `1px solid ${T.border}`, borderRadius: 6, color: T.muted, width: 30, height: 30, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
+              {dashStatus && <span style={{ position: "absolute", top: 4, right: 4, width: 6, height: 6, background: "#ef4444", borderRadius: "50%" }} />}
+            </button>
+            {notifOpen && (
+              <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, width: 280, background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 16, zIndex: 9999, boxShadow: "0 8px 32px rgba(0,0,0,0.12)" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, color: T.text }}>Dashboard Status</div>
+                {dashStatus?.datasets?.map(d => (
+                  <div key={d.dataset} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${T.border}`, fontSize: 12 }}>
+                    <span style={{ color: T.muted }}>{d.dataset}</span>
+                    <span style={{ color: T.accent, fontWeight: 600 }}>{fmtNum(d.total_bookings)}</span>
+                  </div>
+                ))}
+                <div style={{ fontSize: 11, color: T.muted2, margin: "10px 0 6px", textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.06em" }}>Email Notifications</div>
+                {notifSaved ? (
+                  <div style={{ fontSize: 12, color: T.success, fontWeight: 600 }}>Enabled for {notifEmail}</div>
+                ) : (
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <input type="email" value={notifEmail} onChange={e => setNotifEmail(e.target.value)} placeholder="your@email.com"
+                      style={{ flex: 1, background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.text, padding: "6px 10px", fontSize: 11, outline: "none" }} />
+                    <button onClick={async () => {
+                      if (!notifEmail.includes("@")) return;
+                      const r = await fetch(`${BASE}/api/ai/notify`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ email: notifEmail }) });
+                      const d = await r.json(); if (d.success) setNotifSaved(true);
+                    }} style={{ background: T.accent, border: "none", borderRadius: 6, color: "#fff", padding: "6px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Save</button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-          <span style={{fontSize:12,color:THEME.muted}}>{user?.name||user?.username}</span>
-          <button onClick={logout} style={HB({color:THEME.danger})}>Logout</button>
+          <div style={{ width: 1, height: 20, background: T.border }} />
+          <span style={{ fontSize: 12, color: T.muted, whiteSpace: "nowrap" }}>{user?.username}</span>
+          <button onClick={logout} style={{ background: "transparent", border: `1px solid ${T.border}`, borderRadius: 6, color: T.danger, padding: "5px 10px", fontSize: 11, cursor: "pointer" }}>Logout</button>
         </div>
-      </div>
+      </header>
 
-      {/* FILTERS */}
-      {showFilters&&tab!=="ai"&&tab!=="bus"&&(
-        <FiltersPanel f={filters} setF={setFilters} slicers={slicers}
-          filters={filters} setFilters={setFilters}
-          onApply={()=>setApplied({...filters})}
-          onReset={()=>{setFilters({});setApplied({});}}/>
+      {/* ── FILTERS ── */}
+      {showFilters && (tab === "overview" || tab === "map") && (
+        <FiltersPanel filters={filters} setFilters={setFilters} slicers={slicers} T={T}
+          onApply={() => setApplied({ ...filters })}
+          onReset={() => { setFilters({}); setApplied({}); }} />
       )}
 
-      {/* EXPORT MODAL */}
-      {showExport&&<ExportModal onClose={()=>setShowExport(false)} applied={applied}/>}
+      {/* ── MAIN CONTENT ── */}
+      <main id="dash-main" style={{ flex: 1, padding: "18px 20px", overflowY: "auto", paddingBottom: 44 }}>
 
-      <div id="dashboard-content">
+        {/* ══ OVERVIEW ══ */}
+        {tab === "overview" && (
+          <div>
+            {/* Summary row — DataHub style */}
+            {kpis && !oLoad && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 18 }}>
+                {[
+                  { label: "Current period", bkg: kpis.currentBookings, pax: kpis.currentPax, rev: kpis.currentRevenue },
+                  { label: "Previous period", bkg: kpis.previousBookings, pax: kpis.previousPax, rev: kpis.previousRevenue },
+                  { label: "Difference", bkg: kpis.differenceBookings, pax: kpis.differencePax, rev: kpis.differenceRevenue, isDiff: true },
+                ].map((col, ci) => (
+                  <div key={ci} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "18px 20px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: T.muted, marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.06em" }}>{col.label}</div>
+                    {[["Turnover", col.rev, true], ["Pax", col.pax, false], ["Bookings", col.bkg, false]].map(([l, v, isCurr]) => (
+                      <div key={l} style={{ marginBottom: 8 }}>
+                        <div style={{ fontSize: 11, color: T.muted2, marginBottom: 2 }}>{l}</div>
+                        <div style={{ fontSize: 18, fontWeight: 700, color: col.isDiff ? (v >= 0 ? T.success : T.danger) : T.text }}>
+                          {col.isDiff && v >= 0 ? "+" : ""}{isCurr ? fmtEur(v) : fmtNum(v)}
+                          {col.isDiff && ci === 2 && (
+                            <span style={{ fontSize: 12, marginLeft: 8, color: v >= 0 ? T.success : T.danger }}>
+                              {fmtPct(isCurr ? (kpis.percentRevenue) : l === "Pax" ? kpis.percentPax : kpis.percentBookings)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
 
-        {/* ── OVERVIEW ── */}
-        {tab==="overview"&&(
-          <div style={{padding:"18px 24px",display:"flex",flexDirection:"column",gap:14}}>
-            {oLoad&&<div style={{color:THEME.accent,fontSize:12,textAlign:"center"}}>⟳ Loading…</div>}
-            <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
-              <KpiCard title="Bookings" icon={<IconBookings/>} current={kpis?.currentBookings} previous={kpis?.previousBookings} diff={kpis?.differenceBookings} pct={kpis?.percentBookings} loading={oLoad}/>
-              <KpiCard title="PAX" icon={<IconPax/>} current={kpis?.currentPax} previous={kpis?.previousPax} diff={kpis?.differencePax} pct={kpis?.percentPax} loading={oLoad}/>
-              <KpiCard title="Revenue" icon={<IconRevenue/>} current={kpis?.currentRevenue} previous={kpis?.previousRevenue} diff={kpis?.differenceRevenue} pct={kpis?.percentRevenue} isCurrency loading={oLoad}/>
+            <div className="chart-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+              <LineChart data={revData} title="Revenue by Year" metric="revenue" isCurrency T={T} />
+              <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "16px 18px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: T.muted, textTransform: "uppercase", letterSpacing: "0.07em" }}>Bookings / PAX by Year</span>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {["bookings", "pax"].map(m => (
+                      <button key={m} onClick={() => setBarMetric(m)} style={{ background: barMetric === m ? T.accentLt : "transparent", border: `1px solid ${barMetric === m ? T.accent : T.border}`, borderRadius: 4, color: barMetric === m ? T.accent : T.muted2, padding: "3px 10px", fontSize: 11, cursor: "pointer", textTransform: "capitalize", fontWeight: barMetric === m ? 600 : 400 }}>{m}</button>
+                    ))}
+                  </div>
+                </div>
+                <BarChart data={revData} metric={barMetric} T={T} />
+              </div>
+              <DonutChart data={trData} title="Transport Type Breakdown" T={T} />
+              <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "16px 18px" }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4 }}>KPI Cards</div>
+                <div className="kpi-row" style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
+                  <KpiCard title="Bookings" current={kpis?.currentBookings} previous={kpis?.previousBookings} diff={kpis?.differenceBookings} pct={kpis?.percentBookings} loading={oLoad} icon={<SvgBkg />} T={T} />
+                </div>
+                <div className="kpi-row" style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
+                  <KpiCard title="PAX" current={kpis?.currentPax} previous={kpis?.previousPax} diff={kpis?.differencePax} pct={kpis?.percentPax} loading={oLoad} icon={<SvgPax />} T={T} />
+                </div>
+                <div className="kpi-row" style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
+                  <KpiCard title="Revenue" current={kpis?.currentRevenue} previous={kpis?.previousRevenue} diff={kpis?.differenceRevenue} pct={kpis?.percentRevenue} isCurrency loading={oLoad} icon={<SvgRev />} T={T} />
+                </div>
+              </div>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-              <LineChart data={revData} title="Revenue by Year & Month" yIsCurrency metricKey="revenue"/>
-              <BarChart data={revData} title="Bookings by Year & Month" metric="bookings"/>
-            </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-              <BarChart data={revData} title="PAX by Year & Month" metric="pax"/>
-              <DonutChart data={trData} title="Transport Type Breakdown"/>
-            </div>
-            <div style={SEC}>
-              <div style={{padding:"12px 16px",borderBottom:`1px solid ${THEME.border}`,fontSize:12,color:THEME.muted,textTransform:"uppercase",letterSpacing:"0.08em",fontWeight:600}}>Year-Month Comparison</div>
-              <YMTable data={ymData}/>
+
+            {/* DataHub-style comparison table */}
+            <div style={{ marginBottom: 4 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10 }}>Year-Month Comparison</div>
+              <ComparisonTable data={ymData} T={T} />
             </div>
           </div>
         )}
 
-        {/* ── MAP ── */}
-        {tab==="map"&&(
-          <div style={{padding:"18px 24px",display:"flex",flexDirection:"column",gap:14}}>
-            {showFilters&&<FiltersPanel filters={filters} setFilters={setFilters} slicers={slicers} onApply={()=>setApplied({...filters})} onReset={()=>{setFilters({});setApplied({});}}/>}
-            <div style={SEC}>
-              <div style={{padding:"12px 16px",borderBottom:`1px solid ${THEME.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
-                <div>
-                  <span style={{fontSize:12,color:THEME.muted,textTransform:"uppercase",letterSpacing:"0.08em",fontWeight:600}}>Departure Cities Map</span>
-                  <span style={{fontSize:11,color:THEME.muted2,marginLeft:10}}>Click markers for details</span>
-                </div>
-                <div style={{display:"flex",gap:6}}>
-                  {["bookings","pax","revenue"].map(m=>(
-                    <button key={m} onClick={()=>setMapMetric(m)} style={{
-                      background:mapMetric===m?"#162038":"#111827",
-                      border:mapMetric===m?`1px solid #2a4a7f`:`1px solid ${THEME.border}`,
-                      borderRadius:5,color:mapMetric===m?"#93c5fd":THEME.muted,
-                      padding:"4px 12px",fontSize:12,cursor:"pointer",textTransform:"capitalize"
-                    }}>{m}</button>
-                  ))}
-                </div>
-              </div>
-              <div style={{padding:"16px 18px"}}>
-                {depData.length===0
-                  ?<div style={{height:420,display:"flex",alignItems:"center",justifyContent:"center",color:THEME.muted,fontSize:13,flexDirection:"column",gap:8}}><span style={{fontSize:32}}>🗺️</span><span>Apply filters to load map data</span></div>
-                  :<LeafletMap departureData={depData} metric={mapMetric} appliedFilters={applied}/>
-                }
-              </div>
-              <div style={{padding:"0 18px 14px",display:"flex",gap:16,fontSize:11,color:THEME.muted,alignItems:"center"}}>
-                <span>Low</span>
-                <div style={{flex:1,maxWidth:200,height:5,borderRadius:3,background:"linear-gradient(to right,#bfdbfe,#60a5fa,#1e3a8a)"}}/>
-                <span>High</span>
-                <span style={{marginLeft:16,color:THEME.muted2}}>{depData.length} cities</span>
-              </div>
+        {/* ══ MAP ══ */}
+        {tab === "map" && (
+          <div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
+              <span style={{ fontSize: 12, color: T.muted, fontWeight: 500 }}>Metric:</span>
+              {["bookings", "pax", "revenue"].map(m => (
+                <button key={m} onClick={() => setMapMetric(m)} style={{ background: mapMetric === m ? T.accent : T.card, border: `1px solid ${mapMetric === m ? T.accent : T.border}`, borderRadius: 6, color: mapMetric === m ? "#fff" : T.muted, padding: "5px 14px", fontSize: 12, cursor: "pointer", textTransform: "capitalize", fontWeight: mapMetric === m ? 600 : 400 }}>{m}</button>
+              ))}
+              <span style={{ fontSize: 11, color: T.muted2 }}>{depData.filter(d => findCity(d.destination)).length} cities mapped</span>
             </div>
-            {depData.length>0&&(
-              <div style={SEC}>
-                <div style={{padding:"12px 16px",borderBottom:`1px solid ${THEME.border}`,fontSize:12,color:THEME.muted,textTransform:"uppercase",letterSpacing:"0.08em",fontWeight:600}}>City Breakdown</div>
-                <div style={{overflowX:"auto"}}>
-                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                    <thead><tr style={{background:"#080c14"}}>
-                      {["#","City","Bookings","PAX","Revenue"].map((h,i)=>(
-                        <th key={i} style={{padding:"9px 12px",color:THEME.muted,fontWeight:600,fontSize:11,textTransform:"uppercase",textAlign:i<=1?"left":"right",borderBottom:`1px solid ${THEME.border}`}}>{h}</th>
+            {depData.length === 0
+              ? <div style={{ height: 440, background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", color: T.muted, flexDirection: "column", gap: 8 }}><span style={{ fontSize: 32 }}>🗺️</span><span>Apply filters to load map data</span></div>
+              : <LeafletMap departureData={depData} metric={mapMetric} statusFilter={(applied.statuses || [])[0] || ""} T={T} />
+            }
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 2px", fontSize: 11, color: T.muted2 }}>
+              <span>Low</span>
+              <div style={{ flex: 1, maxWidth: 180, height: 5, borderRadius: 3, background: "linear-gradient(to right,#bfdbfe,#1e40af)" }} />
+              <span>High</span>
+            </div>
+            {depData.length > 0 && (
+              <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "16px 18px", marginTop: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10 }}>Top Departure Cities</div>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                    <thead><tr style={{ borderBottom: `1px solid ${T.border}`, background: T.rowAlt }}>
+                      {["#", "City", "Bookings", "PAX", "Revenue"].map(h => (
+                        <th key={h} style={{ padding: "7px 10px", color: T.muted, fontWeight: 600, fontSize: 11, textTransform: "uppercase", textAlign: h === "#" || h === "City" ? "left" : "right" }}>{h}</th>
                       ))}
                     </tr></thead>
                     <tbody>
-                      {[...depData].sort((a,b)=>(b[mapMetric]||0)-(a[mapMetric]||0)).map((d,i)=>(
-                        <tr key={i} style={{background:i%2===0?THEME.card:"#080c14"}}>
-                          <td style={{padding:"7px 12px",color:THEME.muted2,fontSize:11}}>{i+1}</td>
-                          <td style={{padding:"7px 12px",color:"#93c5fd",fontWeight:500}}>{d.destination}</td>
-                          <td style={{padding:"7px 12px",textAlign:"right",color:THEME.text}}>{fmt(d.bookings)}</td>
-                          <td style={{padding:"7px 12px",textAlign:"right",color:THEME.text}}>{fmt(d.pax)}</td>
-                          <td style={{padding:"7px 12px",textAlign:"right",color:THEME.text}}>{fmt(d.revenue,true)}</td>
+                      {[...depData].sort((a, b) => (+b[mapMetric] || 0) - (+a[mapMetric] || 0)).slice(0, 15).map((d, i) => (
+                        <tr key={i} style={{ borderBottom: `1px solid ${T.border}`, background: i % 2 === 0 ? T.card : T.rowAlt }}>
+                          <td style={{ padding: "7px 10px", color: T.muted2, fontSize: 11 }}>#{i + 1}</td>
+                          <td style={{ padding: "7px 10px", color: T.accent, fontWeight: 500 }}>{d.destination}</td>
+                          <td style={{ padding: "7px 10px", textAlign: "right" }}>{fmtNum(d.bookings)}</td>
+                          <td style={{ padding: "7px 10px", textAlign: "right" }}>{fmtNum(d.pax)}</td>
+                          <td style={{ padding: "7px 10px", textAlign: "right" }}>{fmtEur(d.revenue)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1288,144 +1402,387 @@ export default function App() {
           </div>
         )}
 
-        {/* ── BUS OCCUPANCY ── */}
-        {tab==="bus"&&(
-          <div style={{padding:"18px 24px",display:"flex",flexDirection:"column",gap:14}}>
-            <div style={{display:"flex",gap:8}}>
-              {[["solmar","Solmar / Interbus"],["snowtravel","Snowtravel"]].map(([id,lbl])=>(
-                <button key={id} onClick={()=>setBusTab(id)} style={{
-                  background:busTab===id?THEME.accent:"#111827",
-                  border:`1px solid ${busTab===id?THEME.accent:THEME.border}`,
-                  borderRadius:8,color:busTab===id?THEME.bg:THEME.muted,
-                  padding:"8px 20px",fontSize:13,cursor:"pointer",fontWeight:busTab===id?700:400
-                }}>{lbl}</button>
+        {/* ══ BUS OCCUPANCY ══ */}
+        {tab === "bus" && (
+          <div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+              {[["solmar", "Solmar / Interbus"], ["snowtravel", "Snowtravel"]].map(([v, l]) => (
+                <button key={v} onClick={() => setBusView(v)} style={{ background: busView === v ? T.accent : T.card, border: `1px solid ${busView === v ? T.accent : T.border}`, borderRadius: 8, color: busView === v ? "#fff" : T.muted, padding: "8px 20px", fontSize: 13, cursor: "pointer", fontWeight: busView === v ? 700 : 500 }}>{l}</button>
               ))}
             </div>
-
-            {/* Bus Filters */}
-            <div style={{...SEC,padding:"14px 18px"}}>
-              <div style={{fontSize:11,color:THEME.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:12,fontWeight:600}}>Bus Filters</div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:12,alignItems:"flex-end"}}>
-                {[["dateFrom","Date From"],["dateTo","Date To"]].map(([k,l])=>(
-                  <div key={k}>
-                    <div style={{fontSize:11,color:THEME.muted,marginBottom:4,textTransform:"uppercase"}}>{l}</div>
-                    <input type="date" value={busFilters[k]||""} onChange={e=>setBusFilters(f=>({...f,[k]:e.target.value}))}
-                      style={{background:"#111827",border:`1px solid ${THEME.border}`,borderRadius:6,color:THEME.text,padding:"7px 10px",fontSize:13}}/>
-                  </div>
-                ))}
-                {busTab==="solmar"&&(
-                  <div>
-                    <div style={{fontSize:11,color:THEME.muted,marginBottom:4,textTransform:"uppercase"}}>Route</div>
-                    <select value={busFilters.pendel||""} onChange={e=>setBusFilters(f=>({...f,pendel:e.target.value}))}
-                      style={{background:"#111827",border:`1px solid ${THEME.border}`,borderRadius:6,color:THEME.text,padding:"7px 10px",fontSize:13}}>
-                      <option value="">All routes</option>
-                      {pendels.map(p=><option key={p} value={p}>{PENDEL_MAP[p]||p} ({p})</option>)}
-                    </select>
-                  </div>
-                )}
-                <div style={{display:"flex",gap:8}}>
-                  <button onClick={()=>setBusApplied({...busFilters})} style={{background:THEME.accent,border:"none",borderRadius:7,color:THEME.bg,padding:"8px 18px",fontWeight:700,fontSize:13,cursor:"pointer"}}>Apply</button>
-                  <button onClick={()=>{setBusFilters({});setBusApplied({});}} style={{background:"#111827",border:`1px solid ${THEME.border}`,borderRadius:7,color:"#94a3b8",padding:"8px 13px",fontSize:13,cursor:"pointer"}}>Reset</button>
+            <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "14px 18px", marginBottom: 16, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+              {[["Date From", "dateFrom"], ["Date To", "dateTo"]].map(([l, k]) => (
+                <div key={k}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, marginBottom: 4, textTransform: "uppercase" }}>{l}</div>
+                  <input type="date" lang="en-GB" value={busFilters[k] || ""} onChange={e => setBusFilters(f => ({ ...f, [k]: e.target.value }))}
+                    style={{ background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.text, padding: "7px 10px", fontSize: 12, outline: "none", colorScheme: "light" }} />
                 </div>
+              ))}
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => setBusApplied({ ...busFilters })} style={{ background: T.accent, border: "none", borderRadius: 6, color: "#fff", padding: "8px 20px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Apply</button>
+                <button onClick={() => { setBusFilters({}); setBusApplied({}); }} style={{ background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.muted, padding: "8px 16px", fontSize: 12, cursor: "pointer" }}>Reset</button>
               </div>
             </div>
 
-            {busTab==="solmar"&&(
+            {busView === "solmar" ? (
               <>
-                <div style={{display:"flex",gap:14,fontSize:12,color:THEME.muted,flexWrap:"wrap",alignItems:"center"}}>
-                  <span><b style={{color:THEME.text}}>RC</b> = Royal Class</span>
-                  <span><b style={{color:THEME.text}}>FC</b> = First Class</span>
-                  <span><b style={{color:THEME.text}}>PRE</b> = Premium Class</span>
-                  <span style={{color:THEME.muted2}}>Green = outbound &gt; return · Red = more return than outbound</span>
+                <div className="bus-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+                  <BusClassChart data={busClass} title="Bookings by Bus Class" metric="bookings" T={T} />
+                  <BusClassChart data={busClass} title="Revenue by Bus Class" metric="revenue" T={T} />
                 </div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-                  <BusClassChart data={busClassData} title="Bookings by Bus Class" metric="bookings"/>
-                  <BusClassChart data={busClassData} title="Revenue by Bus Class" metric="revenue"/>
-                </div>
-                <div style={SEC}>
-                  <div style={{padding:"12px 16px",borderBottom:`1px solid ${THEME.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                    <span style={{fontSize:12,color:THEME.muted,textTransform:"uppercase",letterSpacing:"0.08em",fontWeight:600}}>{busTableTitle}</span>
-                    <span style={{fontSize:12,color:THEME.muted2}}>{trips.length} distinct trip dates</span>
+                <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
+                  <div style={{ padding: "12px 16px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: T.muted, textTransform: "uppercase", letterSpacing: "0.07em" }}>BUS OCCUPANCY — OUTBOUND VS RETURN</span>
+                    <span style={{ fontSize: 11, color: T.muted2 }}>{busTrips.length} trips</span>
                   </div>
-                  <BusTripsTable rows={trips} loading={bLoad}/>
+                  <BusTripsTable rows={busTrips} loading={bLoad} T={T} />
                 </div>
               </>
-            )}
-
-            {busTab==="snowtravel"&&(
+            ) : (
               <>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-                  <LineChart data={stMonthly.filter(d=>d.bus_class==="Dream Class")} title="Dream Class Revenue by Month" yIsCurrency metricKey="revenue"/>
-                  <BarChart data={stMonthly.filter(d=>d.bus_class==="Dream Class")} title="Dream Class PAX by Month" metric="pax"/>
+                <div className="bus-2col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+                  <LineChart data={stMonthly} title="Revenue by Bus Type (Snowtravel)" metric="revenue" isCurrency T={T} />
+                  <BarChart data={stMonthly} title="PAX by Bus Type (Snowtravel)" metric="pax" T={T} />
                 </div>
-                <div style={SEC}>
-                  <div style={{padding:"12px 16px",borderBottom:`1px solid ${THEME.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                    <span style={{fontSize:12,color:THEME.muted,textTransform:"uppercase",letterSpacing:"0.08em",fontWeight:600}}>Snowtravel Bus Occupancy</span>
-                    <span style={{fontSize:12,color:THEME.muted2}}>{stTrips.length} rows</span>
+                <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
+                  <div style={{ padding: "12px 16px", borderBottom: `1px solid ${T.border}` }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: T.muted, textTransform: "uppercase", letterSpacing: "0.07em" }}>SNOWTRAVEL BUS OCCUPANCY — {stBus.length} rows</span>
                   </div>
-                  <SnowTravelTable rows={stTrips} loading={bLoad}/>
+                  <SnowTravelTable rows={stBus} loading={bLoad} T={T} />
                 </div>
               </>
             )}
           </div>
         )}
 
-        {/* ── AI ASSISTANT ── */}
-        {tab==="ai"&&(
-          <div style={{padding:"18px 24px",height:"calc(100vh - 88px)",display:"flex",flexDirection:"column"}}>
-            <div style={{flex:1,display:"grid",gridTemplateColumns:"1fr 340px",gap:14,overflow:"hidden"}}>
-              <AiAssistant onUnauth={logout}/>
-              <div style={{...SEC,padding:"16px 18px",overflowY:"auto",display:"flex",flexDirection:"column",gap:12}}>
-                <div style={{fontSize:12,color:THEME.muted,textTransform:"uppercase",letterSpacing:"0.08em",fontWeight:600}}>Suggested Questions</div>
-                {SUGGESTIONS.map((s,i)=>(
-                  <div key={i} style={{background:"#111827",border:`1px solid ${THEME.border}`,borderRadius:8,padding:"10px 13px",fontSize:13,color:"#94a3b8",lineHeight:1.4,cursor:"default"}}>
-                    <span style={{color:THEME.accent,marginRight:8}}>→</span>{s}
+        {/* ══ AI ASSISTANT ══ */}
+        {tab === "ai" && (
+          <div className="ai-grid" style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, height: "calc(100vh - 160px)" }}>
+            <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+              <div style={{ padding: "14px 18px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 36, height: 36, background: T.accentLt, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" /><circle cx="12" cy="5" r="4" /><line x1="12" y1="9" x2="12" y2="11" /></svg>
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>TTP AI Assistant</div>
+                  <div style={{ fontSize: 11, color: T.muted2, display: "flex", alignItems: "center", gap: 5 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: T.success, display: "inline-block" }} />
+                    Powered by OpenAI · Live Azure SQL data
+                  </div>
+                </div>
+              </div>
+              <div style={{ flex: 1, overflowY: "auto", padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
+                {msgs.map((m, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
+                    <div style={{ maxWidth: "80%", background: m.role === "user" ? T.accent : T.inputBg, border: m.role === "user" ? "none" : `1px solid ${T.border}`, borderRadius: m.role === "user" ? "12px 12px 2px 12px" : "12px 12px 12px 2px", padding: "10px 14px", fontSize: 13, color: m.role === "user" ? "#fff" : T.text, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+                      {m.text}
+                    </div>
                   </div>
                 ))}
-                <div style={{padding:"12px",background:"#080c14",borderRadius:8,border:`1px solid ${THEME.border}`}}>
-                  <div style={{fontSize:11,color:THEME.muted,marginBottom:6,fontWeight:600}}>DATA SOURCES</div>
-                  {["Snowtravel (TravelNote API)","Solmar","Interbus","Solmar DE"].map(d=>(
-                    <div key={d} style={{fontSize:12,color:THEME.muted2,padding:"3px 0",display:"flex",alignItems:"center",gap:6}}>
-                      <span style={{width:6,height:6,borderRadius:"50%",background:THEME.success,flexShrink:0}}/>{d}
+                {aiLoad && <div style={{ display: "flex", justifyContent: "flex-start" }}><div style={{ background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: "12px 12px 12px 2px", padding: "10px 14px", fontSize: 13, color: T.muted2 }}>Analysing data...</div></div>}
+                <div ref={msgEnd} />
+              </div>
+              <div style={{ padding: "12px 16px", borderTop: `1px solid ${T.border}`, display: "flex", gap: 10 }}>
+                <input value={aiInput} onChange={e => setAiInput(e.target.value)} onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendAI()}
+                  placeholder="Ask about your data..." style={{ flex: 1, background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 8, color: T.text, padding: "10px 14px", fontSize: 13, outline: "none" }} />
+                <button onClick={() => sendAI()} disabled={aiLoad} style={{ background: T.accent, border: "none", borderRadius: 8, color: "#fff", padding: "10px 20px", fontSize: 13, fontWeight: 700, cursor: "pointer", opacity: aiLoad ? 0.7 : 1 }}>Send</button>
+              </div>
+            </div>
+            <div className="ai-sidebar" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: "16px 18px", flex: 1, overflowY: "auto" }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10 }}>Quick Questions</div>
+                {QUICK_Q.map((q, i) => (
+                  <button key={i} onClick={() => sendAI(q)} style={{ display: "block", width: "100%", textAlign: "left", background: "transparent", border: `1px solid ${T.border}`, borderRadius: 8, color: T.muted, padding: "8px 12px", fontSize: 12, cursor: "pointer", marginBottom: 7 }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = T.accent; e.currentTarget.style.color = T.accent; e.currentTarget.style.background = T.accentLt; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.muted; e.currentTarget.style.background = "transparent"; }}>
+                    {q}
+                  </button>
+                ))}
+              </div>
+              <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: "16px 18px" }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10 }}>Data Sources</div>
+                {(dashStatus?.datasets || [{ dataset: "Snowtravel" }, { dataset: "Solmar" }, { dataset: "Interbus" }, { dataset: "Solmar DE" }]).map(d => (
+                  <div key={d.dataset} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${T.border}` }}>
+                    <span style={{ fontSize: 12, color: T.text }}>{d.dataset}</span>
+                    <span style={{ fontSize: 10, background: T.successLt, color: T.success, borderRadius: 10, padding: "2px 8px", fontWeight: 600 }}>Live</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ══ DATA TABLE ══ */}
+        {tab === "table" && (
+          <div>
+            <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "14px 18px", marginBottom: 14, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+              <div style={{ flex: "0 0 220px" }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>Search</div>
+                <input value={tableSearch} onChange={e => setTableSearch(e.target.value)} placeholder="Booking ID, city, dataset..."
+                  style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.text, padding: "7px 10px", fontSize: 12, outline: "none" }} />
+              </div>
+              <MultiSelect label="Dataset" options={["Snowtravel", "Solmar", "Interbus", "Solmar DE"]} value={tableDs} onChange={v => setTableDs(v)} T={T} />
+              <MultiSelect label="Status" options={["ok", "cancelled"]} value={tableSt} onChange={v => setTableSt(v)} T={T} />
+              {[["Departure From", tableDpF, setTableDpF], ["Departure To", tableDpT, setTableDpT]].map(([l, v, fn]) => (
+                <div key={l}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>{l}</div>
+                  <input type="date" lang="en-GB" value={v} onChange={e => fn(e.target.value)} style={{ background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.text, padding: "7px 10px", fontSize: 12, outline: "none", colorScheme: "light" }} />
+                </div>
+              ))}
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={loadTable} style={{ background: T.accent, border: "none", borderRadius: 6, color: "#fff", padding: "8px 18px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Refresh</button>
+                <button onClick={downloadCSV} style={{ background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.muted, padding: "8px 14px", fontSize: 12, cursor: "pointer" }}>Export CSV</button>
+              </div>
+              <span style={{ fontSize: 12, color: T.muted2, alignSelf: "flex-end", paddingBottom: 2 }}>{tableFiltered.length.toLocaleString()} rows</span>
+            </div>
+            {tableLoad ? (
+              <div style={{ textAlign: "center", padding: 48, color: T.muted }}>Loading data...</div>
+            ) : (
+              <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
+                <div style={{ overflowX: "auto", maxHeight: "calc(100vh - 340px)" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                    <thead style={{ position: "sticky", top: 0, zIndex: 10 }}>
+                      <tr style={{ background: T.rowAlt, borderBottom: `2px solid ${T.border}` }}>
+                        {tableData[0] && Object.keys(tableData[0]).map(h => (
+                          <th key={h} onClick={() => { setTableSortCol(h); setTableSortDir(d => tableSortCol === h ? (d === "asc" ? "desc" : "asc") : "asc"); }}
+                            style={{ padding: "9px 10px", color: T.muted, fontWeight: 600, textAlign: "left", whiteSpace: "nowrap", cursor: "pointer", userSelect: "none", fontSize: 11, background: T.rowAlt }}>
+                            {h} {tableSortCol === h ? (tableSortDir === "asc" ? "↑" : "↓") : ""}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tableFiltered.slice(tablePage * TPER, (tablePage + 1) * TPER).map((row, i) => (
+                        <tr key={i} style={{ borderBottom: `1px solid ${T.border}`, background: i % 2 === 0 ? T.card : T.rowAlt }}
+                          onMouseEnter={e => e.currentTarget.style.background = T.accentLt}
+                          onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? T.card : T.rowAlt}>
+                          {Object.entries(row).map(([k, v], j) => (
+                            <td key={j} style={{ padding: "7px 10px", whiteSpace: "nowrap", color: k === "Status" ? (v === "ok" ? T.success : v === "cancelled" ? T.danger : T.muted) : k === "Dataset" ? T.accent : T.text, fontWeight: k === "Status" || k === "Dataset" ? 600 : 400 }}>
+                              {v || "—"}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px", borderTop: `1px solid ${T.border}` }}>
+                  <span style={{ fontSize: 11, color: T.muted2 }}>Showing {Math.min((tablePage + 1) * TPER, tableFiltered.length)} of {tableFiltered.length}</span>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <PagBtn label="‹" onClick={() => setTablePage(p => Math.max(0, p - 1))} disabled={tablePage === 0} T={T} />
+                    <span style={{ fontSize: 11, color: T.muted }}>Page {tablePage + 1} / {Math.max(1, Math.ceil(tableFiltered.length / TPER))}</span>
+                    <PagBtn label="›" onClick={() => setTablePage(p => p + 1)} disabled={(tablePage + 1) * TPER >= tableFiltered.length} T={T} />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ══ SETTINGS ══ */}
+        {tab === "settings" && (
+          <div style={{ maxWidth: 860 }}>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20, color: T.text }}>Settings</div>
+            <div style={{ display: "flex", gap: 0, marginBottom: 20, borderBottom: `1px solid ${T.border}` }}>
+              {[["users", "Users & Access"], ["theme", "Theme"], ["api", "API & Integrations"], ["about", "About"]].map(([t, l]) => (
+                <button key={t} onClick={() => setStTab(t)} style={{ background: "transparent", border: "none", borderBottom: `2px solid ${stTab === t ? T.accent : "transparent"}`, color: stTab === t ? T.accent : T.muted, padding: "10px 18px", fontSize: 13, fontWeight: stTab === t ? 700 : 500, cursor: "pointer" }}>{l}</button>
+              ))}
+            </div>
+
+            {stTab === "users" && (
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: T.text }}>User Accounts ({users.length})</div>
+                  {isAdmin && <button onClick={() => setShowNewUser(true)} style={{ background: T.accent, border: "none", borderRadius: 6, color: "#fff", padding: "7px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>+ Add User</button>}
+                </div>
+                <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ background: T.rowAlt, borderBottom: `1px solid ${T.border}` }}>
+                        {["Name", "Username", "Email", "Role", "Status", "Actions"].map(h => (
+                          <th key={h} style={{ padding: "10px 14px", color: T.muted, fontWeight: 600, textAlign: "left", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {users.map((u, i) => (
+                        <tr key={u.id} style={{ borderBottom: `1px solid ${T.border}`, background: i % 2 === 0 ? T.card : T.rowAlt }}>
+                          <td style={{ padding: "10px 14px", fontWeight: 600, color: T.text }}>{u.name}</td>
+                          <td style={{ padding: "10px 14px", color: T.muted, fontFamily: "monospace", fontSize: 12 }}>{u.username}</td>
+                          <td style={{ padding: "10px 14px", color: T.muted, fontSize: 12 }}>{u.email}</td>
+                          <td style={{ padding: "10px 14px" }}>
+                            <span style={{ background: u.role === "admin" ? T.accentLt : T.inputBg, color: u.role === "admin" ? T.accent : T.muted, borderRadius: 10, padding: "2px 10px", fontSize: 11, fontWeight: 600, textTransform: "capitalize" }}>{u.role}</span>
+                          </td>
+                          <td style={{ padding: "10px 14px" }}>
+                            <span style={{ background: u.active ? T.successLt : T.dangerLt, color: u.active ? T.success : T.danger, borderRadius: 10, padding: "2px 10px", fontSize: 11, fontWeight: 600 }}>{u.active ? "Active" : "Inactive"}</span>
+                          </td>
+                          <td style={{ padding: "10px 14px" }}>
+                            <div style={{ display: "flex", gap: 6 }}>
+                              {isAdmin && (
+                                <button onClick={() => setEditUser(u)} style={{ background: T.accentLt, border: `1px solid ${T.accent}`, borderRadius: 5, color: T.accent, padding: "4px 10px", fontSize: 11, cursor: "pointer", fontWeight: 600 }}>Edit</button>
+                              )}
+                              {isAdmin && u.username !== "ttp_admin" && (
+                                <button onClick={() => setUsers(us => us.map(x => x.id === u.id ? { ...x, active: !x.active } : x))}
+                                  style={{ background: "transparent", border: `1px solid ${T.border}`, borderRadius: 5, color: T.muted, padding: "4px 10px", fontSize: 11, cursor: "pointer" }}>
+                                  {u.active ? "Deactivate" : "Activate"}
+                                </button>
+                              )}
+                              {isAdmin && u.id !== 1 && u.username !== "ttp_admin" && (
+                                <button onClick={() => { if (window.confirm(`Delete ${u.name}?`)) setUsers(us => us.filter(x => x.id !== u.id)); }}
+                                  style={{ background: T.dangerLt, border: `1px solid ${T.danger}`, borderRadius: 5, color: T.danger, padding: "4px 10px", fontSize: 11, cursor: "pointer", fontWeight: 600 }}>Delete</button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {stTab === "theme" && (
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: T.text, marginBottom: 14 }}>Theme & Display</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+                  {Object.entries(THEMES).map(([key, th]) => (
+                    <div key={key} onClick={() => changeTheme(key)}
+                      style={{ border: `2px solid ${themeKey === key ? T.accent : T.border}`, borderRadius: 12, padding: 16, cursor: "pointer", background: themeKey === key ? T.accentLt : T.card, transition: "all 0.15s" }}>
+                      <div style={{ borderRadius: 8, overflow: "hidden", marginBottom: 10, border: `1px solid ${T.border}` }}>
+                        <div style={{ background: th.header, height: 22, display: "flex", alignItems: "center", padding: "0 10px", gap: 6 }}>
+                          <div style={{ width: 24, height: 5, background: th.accent, borderRadius: 2 }} />
+                          <div style={{ width: 14, height: 5, background: th.muted2, borderRadius: 2 }} />
+                        </div>
+                        <div style={{ background: th.bg, padding: 8, display: "flex", gap: 5 }}>
+                          {[th.accent, th.success, th.warning].map((c, i) => (
+                            <div key={i} style={{ flex: 1, height: 22, background: th.card, border: `1px solid ${th.border}`, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              <div style={{ width: "60%", height: 4, background: c, borderRadius: 2 }} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: themeKey === key ? 700 : 500, color: themeKey === key ? T.accent : T.text }}>{th.name}</div>
+                      {themeKey === key && <div style={{ fontSize: 10, color: T.accent, marginTop: 2, fontWeight: 600 }}>✓ Active</div>}
+                    </div>
+                  ))}
+                </div>
+                <div style={{ background: T.inputBg, borderRadius: 8, padding: 12, fontSize: 12, color: T.muted }}>
+                  Theme is saved to your browser. Company blue #0033cc is used as primary accent across all themes.
+                </div>
+              </div>
+            )}
+
+            {stTab === "api" && (
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: T.text, marginBottom: 14 }}>API & Integrations</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {[
+                    { name: "Azure SQL Database", desc: "ttpserver.database.windows.net / TTPDatabase", status: "Connected", ok: true },
+                    { name: "OpenAI GPT-4o-mini", desc: "AI assistant — natural language data analysis", status: "Connected", ok: true },
+                    { name: "TravelNote API (Snowtravel)", desc: "Pipeline managed by Samir — syncs ST_Bookings", status: "Synced", ok: true },
+                    { name: "GRIP API (Solmar/Interbus)", desc: "Pipeline managed by Samir — syncs CustomerOverview", status: "Synced", ok: true },
+                    { name: "GitHub Actions CI/CD", desc: "Auto-deploy on push to main branch", status: "Active", ok: true },
+                    { name: "Azure Static Web Apps", desc: "Frontend hosting", status: "Live", ok: true },
+                    { name: "Azure App Service", desc: "Backend API hosting — Belgium Central", status: "Live", ok: true },
+                    { name: "Hotel Data Integration", desc: "Future: hotel booking data from accommodation providers", status: "Planned", ok: false },
+                    { name: "Eurotours Pipeline", desc: "Future: Eurotours booking data integration", status: "Planned", ok: false },
+                  ].map(item => (
+                    <div key={item.name} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: T.text, marginBottom: 2 }}>{item.name}</div>
+                        <div style={{ fontSize: 12, color: T.muted }}>{item.desc}</div>
+                      </div>
+                      <span style={{ background: item.ok ? T.successLt : T.inputBg, color: item.ok ? T.success : T.muted2, borderRadius: 10, padding: "3px 12px", fontSize: 11, fontWeight: 600, flexShrink: 0, marginLeft: 16 }}>{item.status}</span>
                     </div>
                   ))}
                 </div>
               </div>
-            </div>
+            )}
+
+            {stTab === "about" && (
+              <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: 24 }}>
+                <img src="/assets/logo.png" alt="TTP" style={{ height: 36, marginBottom: 16 }} />
+                <div style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 8 }}>TTP Analytics Platform</div>
+                <div style={{ fontSize: 13, color: T.muted, lineHeight: 1.8, marginBottom: 20 }}>Professional analytics dashboard for TTP Services — connecting live Azure SQL data with an intuitive interface for the entire team.</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0 }}>
+                  {[["Version", "1.2.0 — March 2026"], ["Frontend", "React 18 + Vite"], ["Backend", "Node.js 20 + Express"], ["Database", "Azure SQL — TTPDatabase"], ["AI", "OpenAI GPT-4o-mini"], ["Hosting", "Azure (Belgium Central)"], ["Datasets", "Snowtravel, Solmar, Interbus, Solmar DE"], ["Auto-refresh", "Daily at 00:00 Dubai time"]].map(([k, v]) => (
+                    <div key={k} style={{ padding: "10px 0", borderBottom: `1px solid ${T.border}` }}>
+                      <div style={{ fontSize: 10, color: T.muted2, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>{k}</div>
+                      <div style={{ fontSize: 12, color: T.text, fontWeight: 500 }}>{v}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
+      </main>
 
+      {/* ── STATUS BAR ── */}
+      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: T.card, borderTop: `1px solid ${T.border}`, padding: "4px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 10, zIndex: 50, flexWrap: "wrap", gap: 8 }}>
+        <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
+          <span style={{ color: T.muted2 }}>Last sync: <span style={{ color: T.accent, fontWeight: 600 }}>{lastR || "—"} Dubai</span></span>
+          {dashStatus?.datasets?.map(d => (
+            <span key={d.dataset} style={{ color: T.muted2 }}><span style={{ color: T.accent, fontWeight: 600 }}>{d.dataset}</span>: {fmtNum(d.total_bookings)}</span>
+          ))}
+        </div>
+        <span style={{ color: T.muted2 }}>Auto-refresh 00:00 Dubai · TTP Analytics v1.2</span>
       </div>
 
-      {/* STATUS BAR */}
-      {dashStatus&&(
-        <div style={{position:"fixed",bottom:0,left:0,right:0,background:"#080c14",borderTop:`1px solid ${THEME.border}`,padding:"5px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",fontSize:11,zIndex:50}}>
-          <div style={{display:"flex",gap:16,alignItems:"center",flexWrap:"wrap"}}>
-            <span style={{color:THEME.muted}}>Last sync:</span>
-            <span style={{color:THEME.accent}}>{dashStatus.dubaiTime}</span>
-            {(dashStatus.datasets||[]).map(d=>(
-              <span key={d.dataset} style={{color:THEME.muted2}}>
-                <span style={{color:THEME.text}}>{d.dataset}</span>: {Number(d.total_bookings).toLocaleString()}
-              </span>
-            ))}
+      {/* ── EXPORT MODAL ── */}
+      {showExport && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={e => { if (e.target === e.currentTarget) setShowExport(false); }}>
+          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 14, padding: 28, width: 460, boxShadow: "0 20px 60px rgba(0,0,0,0.18)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <span style={{ fontSize: 15, fontWeight: 700, color: T.text }}>Export Data</span>
+              <button onClick={() => setShowExport(false)} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 20 }}>×</button>
+            </div>
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>Dataset</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {["Snowtravel", "Solmar", "Interbus", "Solmar DE"].map(d => {
+                  const sel = expDs.includes(d);
+                  return <button key={d} onClick={() => setExpDs(s => sel ? s.filter(x => x !== d) : [...s, d])} style={{ background: sel ? T.accentLt : "transparent", border: `1.5px solid ${sel ? T.accent : T.border}`, borderRadius: 6, color: sel ? T.accent : T.muted, padding: "5px 12px", fontSize: 12, cursor: "pointer", fontWeight: sel ? 600 : 400 }}>{d}</button>;
+                })}
+              </div>
+            </div>
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>Status</div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {[["all", "All", T.muted], ["ok", "OK", T.success], ["cancelled", "Cancelled", T.danger]].map(([v, l, c]) => (
+                  <button key={v} onClick={() => setExpSt(v)} style={{ background: expSt === v ? (v === "ok" ? T.successLt : v === "cancelled" ? T.dangerLt : T.accentLt) : "transparent", border: `1.5px solid ${expSt === v ? c : T.border}`, borderRadius: 6, color: expSt === v ? c : T.muted, padding: "5px 14px", fontSize: 12, cursor: "pointer", fontWeight: expSt === v ? 600 : 400 }}>{l}</button>
+                ))}
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
+              {[["Booking From", expBF, setExpBF], ["Booking To", expBT, setExpBT], ["Departure From", expDF, setExpDF], ["Departure To", expDT, setExpDT]].map(([l, v, fn]) => (
+                <div key={l}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: T.muted, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>{l}</div>
+                  <input type="date" lang="en-GB" value={v} onChange={e => fn(e.target.value)} style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.text, padding: "7px 10px", fontSize: 12, outline: "none", colorScheme: "light" }} />
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button onClick={downloadCSV} style={{ background: T.accent, border: "none", borderRadius: 8, color: "#fff", padding: "10px 22px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Download CSV</button>
+              <button onClick={() => window.print()} style={{ background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 8, color: T.muted, padding: "10px 16px", fontSize: 13, cursor: "pointer" }}>Print / PDF</button>
+            </div>
           </div>
-          <span style={{color:"#1e3a5f"}}>Auto-refresh at 00:00 Dubai time</span>
         </div>
       )}
 
-      <style>{`
-        * { box-sizing: border-box; }
-        @media print { button, .no-print, nav { display: none !important; } #dashboard-content { padding: 0 !important; } body { background: white !important; } }
-        ::-webkit-scrollbar { width: 5px; height: 5px; }
-        ::-webkit-scrollbar-track { background: #050d1a; }
-        ::-webkit-scrollbar-thumb { background: #0e2040; border-radius: 3px; }
-        input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.4); }
-        .ttp-map-label { background: transparent !important; border: none !important; box-shadow: none !important; color: #94a3b8 !important; font-size: 10px !important; font-weight: 600 !important; padding: 0 !important; white-space: nowrap !important; }
-        .leaflet-tooltip-top.ttp-map-label::before { display: none !important; }
-        .leaflet-popup-content-wrapper { background: #0a1628 !important; border: 1px solid #0e2040 !important; color: #e2e8f0 !important; border-radius: 8px !important; }
-        .leaflet-popup-tip { background: #0a1628 !important; }
-        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
-      `}</style>
+      {/* ── USER MODALS ── */}
+      {(editUser || showNewUser) && (
+        <UserModal
+          user={editUser || null}
+          T={T}
+          onClose={() => { setEditUser(null); setShowNewUser(false); }}
+          onSave={u => {
+            if (editUser) setUsers(us => us.map(x => x.id === u.id ? u : x));
+            else setUsers(us => [...us, { ...u, id: Date.now(), active: true }]);
+            setEditUser(null); setShowNewUser(false);
+          }}
+        />
+      )}
     </div>
   );
 }
