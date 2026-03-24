@@ -74,51 +74,60 @@ router.get('/kpis', async (req, res) => {
   try {
     const { whereClause, params } = buildWhere(req.query);
 
-    // Build a version without status condition for the base where
-    const baseConditions = [];
-    const baseParams = {};
-    const datasets = asArray(req.query.dataset).filter(Boolean);
-    if (datasets.length) {
-      baseConditions.push(`dataset IN (${datasets.map((_, i) => `@ds${i}`).join(',')})`);
-      datasets.forEach((d, i) => { baseParams[`ds${i}`] = d; });
-    }
-    if (req.query.departureDateFrom) { baseConditions.push('departure_date >= @ddFrom'); baseParams.ddFrom = req.query.departureDateFrom; }
-    if (req.query.departureDateTo)   { baseConditions.push('departure_date <= @ddTo');   baseParams.ddTo   = req.query.departureDateTo;   }
-    if (req.query.bookingDateFrom)   { baseConditions.push('booking_date >= @bdFrom');   baseParams.bdFrom = req.query.bookingDateFrom;   }
-    if (req.query.bookingDateTo)     { baseConditions.push('booking_date <= @bdTo');     baseParams.bdTo   = req.query.bookingDateTo;     }
-
+    const hasDateFilter = req.query.departureDateFrom || req.query.departureDateTo || req.query.bookingDateFrom || req.query.bookingDateTo;
     const cy = new Date().getFullYear();
     const py = cy - 1;
 
+    // Current period
     const result = await query(`
       SELECT
-        SUM(CASE WHEN year = ${cy} THEN revenue  ELSE 0 END) AS currentRevenue,
-        SUM(CASE WHEN year = ${py} THEN revenue  ELSE 0 END) AS previousRevenue,
-        SUM(CASE WHEN year = ${cy} THEN pax      ELSE 0 END) AS currentPax,
-        SUM(CASE WHEN year = ${py} THEN pax      ELSE 0 END) AS previousPax,
-        COUNT(CASE WHEN year = ${cy} THEN 1 END)             AS currentBookings,
-        COUNT(CASE WHEN year = ${py} THEN 1 END)             AS previousBookings
+        COUNT(*)               AS currentBookings,
+        SUM(pax)               AS currentPax,
+        ROUND(SUM(revenue), 2) AS currentRevenue
       FROM bookings
       ${whereClause}
     `, params);
 
+    // Previous period - shift dates back 1 year if date filter applied, else use previous year
+    const prevParams = { ...params };
+    let prevWhere = whereClause;
+
+    if (hasDateFilter) {
+      if (prevParams.ddFrom) { const d = new Date(prevParams.ddFrom); d.setFullYear(d.getFullYear()-1); prevParams.ddFrom = d.toISOString().split('T')[0]; }
+      if (prevParams.ddTo)   { const d = new Date(prevParams.ddTo);   d.setFullYear(d.getFullYear()-1); prevParams.ddTo   = d.toISOString().split('T')[0]; }
+      if (prevParams.bdFrom) { const d = new Date(prevParams.bdFrom); d.setFullYear(d.getFullYear()-1); prevParams.bdFrom = d.toISOString().split('T')[0]; }
+      if (prevParams.bdTo)   { const d = new Date(prevParams.bdTo);   d.setFullYear(d.getFullYear()-1); prevParams.bdTo   = d.toISOString().split('T')[0]; }
+    } else {
+      prevWhere = whereClause ? whereClause + ` AND year = ${py}` : `WHERE year = ${py}`;
+    }
+
+    const prevResult = await query(`
+      SELECT
+        COUNT(*)               AS previousBookings,
+        SUM(pax)               AS previousPax,
+        ROUND(SUM(revenue), 2) AS previousRevenue
+      FROM bookings
+      ${prevWhere}
+    `, prevParams);
+
     const r = result.recordset[0] || {};
+    const p = prevResult.recordset[0] || {};
     const diff = (a, b) => a - b;
     const pct  = (a, b) => b > 0 ? Math.round(((a - b) / b) * 100) : null;
 
     res.json({
-      currentBookings:  r.currentBookings  || 0,
-      previousBookings: r.previousBookings || 0,
-      differenceBookings: diff(r.currentBookings || 0, r.previousBookings || 0),
-      percentBookings:  pct(r.currentBookings  || 0, r.previousBookings || 0),
-      currentPax:       r.currentPax       || 0,
-      previousPax:      r.previousPax      || 0,
-      differencePax:    diff(r.currentPax || 0, r.previousPax || 0),
-      percentPax:       pct(r.currentPax  || 0, r.previousPax || 0),
-      currentRevenue:   r.currentRevenue   || 0,
-      previousRevenue:  r.previousRevenue  || 0,
-      differenceRevenue: diff(r.currentRevenue || 0, r.previousRevenue || 0),
-      percentRevenue:   pct(r.currentRevenue || 0, r.previousRevenue || 0),
+      currentBookings:    r.currentBookings   || 0,
+      previousBookings:   p.previousBookings  || 0,
+      differenceBookings: diff(r.currentBookings || 0, p.previousBookings || 0),
+      percentBookings:    pct(r.currentBookings  || 0, p.previousBookings || 0),
+      currentPax:         r.currentPax        || 0,
+      previousPax:        p.previousPax       || 0,
+      differencePax:      diff(r.currentPax || 0, p.previousPax || 0),
+      percentPax:         pct(r.currentPax  || 0, p.previousPax || 0),
+      currentRevenue:     r.currentRevenue    || 0,
+      previousRevenue:    p.previousRevenue   || 0,
+      differenceRevenue:  diff(r.currentRevenue || 0, p.previousRevenue || 0),
+      percentRevenue:     pct(r.currentRevenue || 0, p.previousRevenue || 0),
     });
   } catch (err) {
     console.error('KPIs error:', err.message);
@@ -151,8 +160,6 @@ router.get('/revenue-by-year', async (req, res) => {
 router.get('/year-month-comparison', async (req, res) => {
   try {
     const { whereClause, params } = buildWhere(req.query);
-    const cy = new Date().getFullYear();
-    const py = cy - 1;
     const result = await query(`
       SELECT
         year,
@@ -313,7 +320,6 @@ router.get('/snowtravel-monthly', async (req, res) => {
 // ── EXPORT CSV ────────────────────────────────────────────────────────────────
 router.get('/export', async (req, res) => {
   try {
-    // Accept token from query param for direct browser downloads
     const token = req.query.token || req.headers.authorization?.split(' ')[1];
     if (token) {
       try {
