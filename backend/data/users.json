@@ -1,0 +1,18 @@
+[
+  {
+    "id": 1,
+    "name": "Abdul Rahman",
+    "username": "admin_ttp",
+    "email": "abdul@ttp.services",
+    "password": "admin2026",
+    "role": "admin"
+  },
+  {
+    "id": 2,
+    "name": "Robbert Jan Tel",
+    "username": "robbert_viewer",
+    "email": "robbert@ttp.services",
+    "password": "view2026",
+    "role": "viewer"
+  }
+]
