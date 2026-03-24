@@ -26,6 +26,7 @@ export default function Login({ onLogin, themeName = "gray", setThemeName }) {
       });
       const d = await r.json();
       if (!r.ok) { setError(d.error || "Login failed. Please check your credentials."); return; }
+      localStorage.setItem("token", d.token);
       onLogin(d.token, d.user);
     } catch {
       setError("Cannot connect to server. Please make sure the backend is running.");

@@ -120,23 +120,54 @@ export default function App() {
   const T = THEMES.gray;
 
   const fetchData = useCallback(async () => {
-    if (!user) return;
+    // 1. Pull the token from storage
+    const token = localStorage.getItem("token");
+
+    // 2. If no token, don't even try to fetch (avoids 401 loop)
+    if (!token) {
+      console.error("No token found, redirecting to login...");
+      setUser(null);
+      return;
+    }
+
     try {
       const p = buildParams(applied);
       const qs = new URLSearchParams(p).toString();
       const res = await fetch(`${BASE}/api/dashboard/kpis?${qs}`, {
-        headers: { Authorization: `Bearer ${user.token}` }
+        headers: {
+          "Authorization": `Bearer ${token}`, // Ensure 'Bearer ' is included
+          "Content-Type": "application/json"
+        }
       });
+
+      if (res.status === 401) {
+        localStorage.removeItem("token"); // Clear bad token
+        setUser(null);
+        return;
+      }
+
       const data = await res.json();
       setKpis(data);
 
       const res2 = await fetch(`${BASE}/api/dashboard/year-month?${qs}`, {
-        headers: { Authorization: `Bearer ${user.token}` }
+        headers: {
+          "Authorization": `Bearer ${token}`, // Ensure 'Bearer ' is included
+          "Content-Type": "application/json"
+        }
       });
+
+      if (res2.status === 401) {
+        localStorage.removeItem("token"); // Clear bad token
+        setUser(null);
+        return;
+      }
+
       const data2 = await res2.json();
       setYmData(data2);
-    } catch (err) { console.error(err); }
-  }, [user, applied]);
+    } catch (err) {
+      console.error("Fetch error:", err);
+    }
+  }, [applied]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
