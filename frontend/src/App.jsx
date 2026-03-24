@@ -35,6 +35,11 @@ function buildParams(f = {}) {
 // ── COMPONENTS ────────────────────────────────────────────────────────────────
 
 const YMTable = ({ data, T }) => {
+  // NEW SAFETY CHECK
+  if (!data || !Array.isArray(data)) {
+    return <div style={{ padding: 20, color: T.muted }}>Loading data from Azure...</div>;
+  }
+
   // ISSUE 1 FIX: Sort by Year DESC, then Month DESC
   const sorted = [...(data || [])].sort((a, b) => {
     if (b.year !== a.year) return b.year - a.year;
