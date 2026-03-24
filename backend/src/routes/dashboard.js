@@ -163,7 +163,7 @@ router.get('/year-month-comparison', async (req, res) => {
       FROM bookings
       ${whereClause}
       GROUP BY year, month
-      ORDER BY year DESC, month DESC
+      ORDER BY year DESC, month ASC
     `, params);
     res.json(result.recordset || []);
   } catch (err) {

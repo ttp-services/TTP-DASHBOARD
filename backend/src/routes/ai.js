@@ -17,8 +17,8 @@ router.post('/chat', async (req, res) => {
         SELECT
           SUM(CASE WHEN year=DATEPART(YEAR,GETDATE()) THEN revenue ELSE 0 END) AS cr,
           SUM(CASE WHEN year=DATEPART(YEAR,GETDATE())-1 THEN revenue ELSE 0 END) AS pr,
-          SUM(CASE WHEN year=DATEPART(YEAR,GETDATE()) THEN paxCount ELSE 0 END) AS cp,
-          SUM(CASE WHEN year=DATEPART(YEAR,GETDATE())-1 THEN paxCount ELSE 0 END) AS pp,
+          SUM(CASE WHEN year=DATEPART(YEAR,GETDATE()) THEN pax ELSE 0 END) AS cp,
+          SUM(CASE WHEN year=DATEPART(YEAR,GETDATE())-1 THEN pax ELSE 0 END) AS pp,
           COUNT(CASE WHEN year=DATEPART(YEAR,GETDATE()) THEN 1 END) AS cb,
           COUNT(CASE WHEN year=DATEPART(YEAR,GETDATE())-1 THEN 1 END) AS pb
         FROM bookings WHERE status IN ('ok','cancelled')
@@ -33,7 +33,7 @@ router.post('/chat', async (req, res) => {
       const ds = await query(`
         SELECT dataset,
           COUNT(*) AS b,
-          SUM(paxCount) AS p,
+          SUM(pax) AS p,
           SUM(revenue) AS r
         FROM bookings
         WHERE status IN ('ok','cancelled')
@@ -50,7 +50,7 @@ router.post('/chat', async (req, res) => {
         SELECT TOP 12
           year, month,
           COUNT(*) AS bookings,
-          SUM(paxCount) AS pax,
+          SUM(pax) AS pax,
           SUM(revenue) AS revenue
         FROM bookings
         WHERE status = 'ok'

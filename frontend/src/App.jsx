@@ -987,9 +987,10 @@ function BusOccupancyTab({ T, onUnauth }) {
 }
 
 // ── DATA TABLE TAB ────────────────────────────────────────────────────────────
-function DataTableTab({ T, user, onUnauth }) {
+function DataTableTab({ T, user, applied, onUnauth }) {
   const isAdmin = user?.role === "admin";
   const [rows, setRows] = useState([]);
+  const [allRows, setAllRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState("");
@@ -1007,35 +1008,64 @@ function DataTableTab({ T, user, onUnauth }) {
 
   const load = useCallback(() => {
     setLoading(true);
-    const p = { limit: PAGE_SIZE, offset: page * PAGE_SIZE, sortCol, sortDir };
-    if (search) p.search = search;
-    apiFetch("/api/dashboard/export", p)
-      .then(d => {
-        if (Array.isArray(d)) { setRows(d); setTotal(d.length < PAGE_SIZE ? page * PAGE_SIZE + d.length : (page+2)*PAGE_SIZE); }
-        else if (d?.data) { setRows(d.data); setTotal(d.total || d.data.length); }
+    const params = buildParams(applied);
+    const url = new URL(BASE + "/api/dashboard/export");
+    Object.entries(params).forEach(([k, v]) => {
+      if (Array.isArray(v)) v.forEach(x => url.searchParams.append(k, x));
+      else if (v !== "" && v != null) url.searchParams.set(k, v);
+    });
+    url.searchParams.set("token", localStorage.getItem("ttp_token"));
+    fetch(url.toString())
+      .then(r => {
+        if (r.status === 401) throw Object.assign(new Error("Unauthorized"), { status: 401 });
+        return r.text();
       })
-      .catch(e => { if (e.status === 401) onUnauth(); })
+      .then(csv => {
+        const lines = csv.trim().split('\n');
+        if (lines.length < 2) {
+          setAllRows([]);
+          setRows([]);
+          setTotal(0);
+          return;
+        }
+        const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, ''));
+        const data = lines.slice(1).map(line => {
+          const values = line.split(',').map(v => v.replace(/^"|"$/g, ''));
+          const obj = {};
+          headers.forEach((h, i) => obj[headers[i]] = values[i] || '');
+          return obj;
+        });
+        setAllRows(data);
+        setRows(data.slice(0, PAGE_SIZE));
+        setTotal(data.length);
+        setPage(0);
+      })
+      .catch(e => {
+        if (e.status === 401) onUnauth();
+        setAllRows([]);
+        setRows([]);
+        setTotal(0);
+      })
       .finally(() => setLoading(false));
-  }, [page, search, sortCol, sortDir]);
+  }, [applied]);
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    setRows(allRows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE));
+  }, [page, allRows]);
+
   const cols = [
-    { key: "booking_id", label: "Booking ID", width: 160 },
-    { key: "dataset", label: "Dataset", width: 100 },
-    { key: "status", label: "Status", width: 90 },
-    { key: "booking_date", label: "Booking Date", width: 110 },
-    { key: "departure_date", label: "Departure", width: 100 },
-    { key: "return_date", label: "Return", width: 100 },
-    { key: "period", label: "Period", width: 80 },
-    { key: "pax", label: "PAX", width: 60, align: "right" },
-    { key: "revenue", label: "Revenue", width: 100, align: "right" },
-    { key: "bus_type_name", label: "Bus Type", width: 110 },
-    { key: "packet_code", label: "Packet Code", width: 110 },
-    { key: "destination", label: "Destination", width: 130 },
-    { key: "transport_type", label: "Transport", width: 100 },
-    { key: "region", label: "Region", width: 100 },
-    { key: "customer_country", label: "Country", width: 80 },
+    { key: "Booking ID", label: "Booking ID", width: 160 },
+    { key: "Dataset", label: "Dataset", width: 100 },
+    { key: "Status", label: "Status", width: 90 },
+    { key: "Booking Date", label: "Booking Date", width: 110 },
+    { key: "Departure Date", label: "Departure", width: 100 },
+    { key: "Return Date", label: "Return", width: 100 },
+    { key: "PAX", label: "PAX", width: 60, align: "right" },
+    { key: "Revenue", label: "Revenue", width: 100, align: "right" },
+    { key: "Bus Type", label: "Bus Type", width: 110 },
+    { key: "Destination", label: "Destination", width: 130 },
   ];
 
   const downloadCSV = () => {
@@ -1601,7 +1631,7 @@ export default function App() {
         <div style={{ flex: 1, overflowY: "auto" }}>
           {tab === "overview"  && <OverviewTab T={T} applied={applied} onUnauth={handleUnauth} />}
           {tab === "bus"       && <BusOccupancyTab T={T} onUnauth={handleUnauth} />}
-          {tab === "data"      && <DataTableTab T={T} user={user} onUnauth={handleUnauth} />}
+          {tab === "data"      && <DataTableTab T={T} user={user} applied={applied} onUnauth={handleUnauth} />}
           {tab === "ai"        && <AITab T={T} onUnauth={handleUnauth} />}
           {tab === "settings" && isAdmin && <SettingsTab T={T} setThemeName={setThemeName} themeName={themeName} onUnauth={handleUnauth} />}
         </div>
