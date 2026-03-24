@@ -1,1264 +1,1611 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Login from "./components/Login.jsx";
 
+// ── CONSTANTS ─────────────────────────────────────────────────────────────────
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const YEAR_COLORS = ["#a78bfa","#f59e0b","#34d399","#3b82f6"];
+const YEAR_COLORS = ["#3b82f6","#10b981","#f59e0b","#ec4899"];
 const BASE = (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) || "http://localhost:3001";
 
-const GRAY = {
-  bg:"#f0f2f5", card:"#ffffff", cardHover:"#f8fafc", border:"#e2e8f0",
-  accent:"#0033cc", accentHover:"#1a4dd6", text:"#1a202c", muted:"#718096",
-  muted2:"#a0aec0", success:"#38a169", danger:"#e53e3e", warning:"#d97706",
-  headerBg:"#ffffff", headerBorder:"#e2e8f0", tableAlt:"#f7fafc",
-  tableHover:"#ebf8ff", inputBg:"#f8fafc", inputBorder:"#e2e8f0",
-  statusOk:"#c6f6d5", statusOkText:"#276749",
-  statusCancel:"#fed7d7", statusCancelText:"#9b2c2c",
-  shadow:"0 1px 3px rgba(0,0,0,0.08)", cardShadow:"0 2px 8px rgba(0,0,0,0.06)",
+// ── THEME ─────────────────────────────────────────────────────────────────────
+const THEMES = {
+  gray: {
+    id: "gray", name: "Professional Gray",
+    bg: "#f3f4f6", sidebar: "#ffffff", card: "#ffffff",
+    border: "#e5e7eb", accent: "#0033cc", accentLight: "#eff2ff",
+    text: "#111827", textSub: "#374151", muted: "#6b7280", muted2: "#9ca3af",
+    success: "#16a34a", successBg: "#f0fdf4", danger: "#dc2626", dangerBg: "#fef2f2",
+    warning: "#d97706", warningBg: "#fffbeb", tableHead: "#f9fafb",
+    tableRow: "#ffffff", tableRowAlt: "#f9fafb", tableHover: "#eff2ff",
+    inputBg: "#ffffff", shadow: "0 1px 3px rgba(0,0,0,0.08)",
+    shadowMd: "0 4px 12px rgba(0,0,0,0.08)", badge: "#e5e7eb", badgeText: "#374151",
+  },
+  dark: {
+    id: "dark", name: "Dark Navy",
+    bg: "#0d1117", sidebar: "#161b22", card: "#21262d",
+    border: "#30363d", accent: "#58a6ff", accentLight: "#1f3a6e",
+    text: "#e6edf3", textSub: "#b1bac4", muted: "#8b949e", muted2: "#6e7681",
+    success: "#3fb950", successBg: "#1a2e1d", danger: "#f85149", dangerBg: "#2d1215",
+    warning: "#d29922", warningBg: "#2d2011", tableHead: "#161b22",
+    tableRow: "#21262d", tableRowAlt: "#1c2129", tableHover: "#1f3a6e",
+    inputBg: "#161b22", shadow: "0 1px 3px rgba(0,0,0,0.4)",
+    shadowMd: "0 4px 12px rgba(0,0,0,0.5)", badge: "#30363d", badgeText: "#b1bac4",
+  }
 };
-const DARK = {
-  bg:"#050d1a", card:"#0a1628", cardHover:"#0d1f3c", border:"#0e2040",
-  accent:"#60a5fa", accentHover:"#93c5fd", text:"#f8fafc", muted:"#94a3b8",
-  muted2:"#64748b", success:"#34d399", danger:"#f87171", warning:"#fbbf24",
-  headerBg:"#0a1628", headerBorder:"#0e2040", tableAlt:"#080c14",
-  tableHover:"#0d1f3c", inputBg:"#050d1a", inputBorder:"#0e2040",
-  statusOk:"#064e3b", statusOkText:"#34d399",
-  statusCancel:"#450a0a", statusCancelText:"#f87171",
-  shadow:"0 1px 3px rgba(0,0,0,0.4)", cardShadow:"0 2px 12px rgba(0,0,0,0.4)",
-};
 
-function dubaiTime() {
-  return new Date().toLocaleTimeString("en-GB",{timeZone:"Asia/Dubai",hour:"2-digit",minute:"2-digit"});
-}
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+const dubaiTime = () => new Date().toLocaleString("en-GB", { timeZone: "Asia/Dubai", hour:"2-digit", minute:"2-digit" });
+const fmtEur = v => "\u20AC" + Math.round(v||0).toLocaleString("nl-BE");
+const fmtNum = v => Math.round(v||0).toLocaleString("nl-BE");
+const fmtPct = v => (v >= 0 ? "+" : "") + Number(v).toFixed(1) + "%";
+const calcPct = (a, b) => b ? ((a - b) / b * 100) : (a ? 100 : 0);
+const monthLabel = (m, y) => `${MONTHS[(m||1)-1]}-${y}`;
 
-function fmt(n, decimals=0) {
-  if (n == null) return "-";
-  if (Math.abs(n) >= 1e6) return "€" + (n/1e6).toFixed(1) + "M";
-  if (Math.abs(n) >= 1e3) return "€" + (n/1e3).toFixed(0) + "K";
-  return "€" + Number(n).toLocaleString("nl-BE", {minimumFractionDigits: decimals, maximumFractionDigits: decimals});
-}
-function fmtNum(n) {
-  if (n == null) return "-";
-  return Number(n).toLocaleString("nl-BE");
-}
-function diffColor(v, T) { return v > 0 ? T.success : v < 0 ? T.danger : T.muted; }
-
-async function apiFetch(path, params={}, token) {
-  const t = token || localStorage.getItem("ttp_token");
-  const qs = Object.entries(params).filter(([,v])=>v!=null&&v!=="").flatMap(([k,v])=>Array.isArray(v)?v.map(x=>`${k}=${encodeURIComponent(x)}`):[[`${k}=${encodeURIComponent(v)}`]]).join("&");
-  const url = `${BASE}${path}${qs?"?"+qs:""}`;
-  const r = await fetch(url, {headers:{"Authorization":`Bearer ${t}`}});
-  if (r.status===401) throw Object.assign(new Error("Unauthorized"),{status:401});
+// ── API ───────────────────────────────────────────────────────────────────────
+async function apiFetch(path, params = {}) {
+  const token = localStorage.getItem("ttp_token");
+  const url = new URL(BASE + path);
+  Object.entries(params).forEach(([k, v]) => {
+    if (Array.isArray(v)) v.forEach(x => url.searchParams.append(k, x));
+    else if (v !== "" && v != null) url.searchParams.set(k, v);
+  });
+  const r = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` } });
+  if (r.status === 401) throw Object.assign(new Error("Unauthorized"), { status: 401 });
   return r.json();
 }
 
-// ── CANVAS CHARTS ────────────────────────────────────────────────────────────
+function buildParams(f = {}) {
+  const p = {};
+  if (f.datasets?.length)       p.dataset = f.datasets;
+  if (f.statuses?.length)        p.status  = f.statuses;
+  if (f.transportTypes?.length)  p.transportType = f.transportTypes;
+  if (f.departureDateFrom)       p.departureDateFrom = f.departureDateFrom;
+  if (f.departureDateTo)         p.departureDateTo   = f.departureDateTo;
+  if (f.bookingDateFrom)         p.bookingDateFrom   = f.bookingDateFrom;
+  if (f.bookingDateTo)           p.bookingDateTo     = f.bookingDateTo;
+  return p;
+}
 
-function LineChart({ data, title, T }) {
-  const ref = useRef(null);
+// ── CANVAS CHARTS ─────────────────────────────────────────────────────────────
+function LineChart({ data, T }) {
+  const ref = useRef();
   const ptsRef = useRef([]);
   const [tip, setTip] = useState(null);
 
   useEffect(() => {
-    const canvas = ref.current; if (!canvas) return;
+    const canvas = ref.current;
+    if (!canvas || !data?.length) return;
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr; canvas.height = rect.height * dpr;
-    const ctx = canvas.getContext("2d"); ctx.scale(dpr, dpr);
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    const ctx = canvas.getContext("2d");
+    ctx.scale(dpr, dpr);
     const W = rect.width, H = rect.height;
-    const pad = {top:28, right:16, bottom:36, left:56};
-    ctx.clearRect(0,0,W,H);
-    if (!data || !data.length) { ctx.fillStyle=T.muted; ctx.font="13px sans-serif"; ctx.textAlign="center"; ctx.fillText("No data",W/2,H/2); return; }
+    const pad = { top: 24, right: 24, bottom: 36, left: 64 };
 
     const byYear = {};
-    data.forEach(d=>{ if(!byYear[d.year]) byYear[d.year]={}; byYear[d.year][d.month]=(d.revenue||0); });
-    const years = Object.keys(byYear).sort();
-    const allVals = data.map(d=>d.revenue||0);
+    data.forEach(r => {
+      if (!byYear[r.year]) byYear[r.year] = {};
+      byYear[r.year][r.month] = r.revenue || 0;
+    });
+    const years = Object.keys(byYear).map(Number).sort((a,b) => a-b);
+    const allVals = data.map(r => r.revenue || 0);
     const maxV = Math.max(...allVals, 1);
 
-    const scX = m => pad.left + (m-1)*(W-pad.left-pad.right)/11;
-    const scY = v => H-pad.bottom - (v/maxV)*(H-pad.top-pad.bottom);
+    ctx.fillStyle = T.card;
+    ctx.fillRect(0, 0, W, H);
 
-    // Grid
-    for(let i=0;i<=4;i++){
-      const y=H-pad.bottom-(i/4)*(H-pad.top-pad.bottom);
-      ctx.strokeStyle=T.border; ctx.lineWidth=0.5; ctx.beginPath(); ctx.moveTo(pad.left,y); ctx.lineTo(W-pad.right,y); ctx.stroke();
-      ctx.fillStyle=T.muted2; ctx.font="10px sans-serif"; ctx.textAlign="right";
-      const v=maxV*i/4; ctx.fillText(v>=1e6?(v/1e6).toFixed(1)+"M":v>=1e3?(v/1e3).toFixed(0)+"K":Math.round(v), pad.left-4, y+3);
+    const cW = W - pad.left - pad.right;
+    const cH = H - pad.top - pad.bottom;
+    const scaleX = m => pad.left + ((m - 1) / 11) * cW;
+    const scaleY = v => pad.top + cH - (v / maxV) * cH;
+
+    // Grid lines
+    for (let i = 0; i <= 4; i++) {
+      const y = pad.top + (cH / 4) * i;
+      ctx.strokeStyle = T.border;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right, y); ctx.stroke();
+      ctx.setLineDash([]);
+      const val = maxV - (maxV / 4) * i;
+      ctx.fillStyle = T.muted;
+      ctx.font = "10px system-ui";
+      ctx.textAlign = "right";
+      ctx.fillText(val >= 1e6 ? (val/1e6).toFixed(1)+"M" : val >= 1e3 ? (val/1e3).toFixed(0)+"K" : val.toFixed(0), pad.left - 4, y + 3);
     }
-    // X axis labels
-    ctx.fillStyle=T.muted; ctx.font="10px sans-serif"; ctx.textAlign="center";
-    [1,2,3,4,5,6,7,8,9,10,11,12].forEach(m=>ctx.fillText(MONTHS[m-1],scX(m),H-pad.bottom+14));
+
+    // Month labels
+    ctx.fillStyle = T.muted;
+    ctx.font = "10px system-ui";
+    ctx.textAlign = "center";
+    MONTHS.forEach((m, i) => ctx.fillText(m, scaleX(i+1), H - pad.bottom + 14));
 
     ptsRef.current = [];
-    years.forEach((y,i)=>{
-      const color = YEAR_COLORS[i%YEAR_COLORS.length];
-      ctx.strokeStyle=color; ctx.lineWidth=2; ctx.beginPath();
-      let started=false;
-      [1,2,3,4,5,6,7,8,9,10,11,12].forEach(m=>{
-        const v=byYear[y][m]; if(!v) return;
-        const x=scX(m), yy=scY(v);
-        if(!started){ctx.moveTo(x,yy);started=true;}else ctx.lineTo(x,yy);
-        ptsRef.current.push({x,y:yy,year:y,month:MONTHS[m-1],value:v,color});
-      });
+    years.forEach((y, yi) => {
+      const color = YEAR_COLORS[yi % YEAR_COLORS.length];
+      const pts = Array.from({length:12}, (_, i) => ({ x: scaleX(i+1), y: scaleY(byYear[y][i+1]||0), month: i+1, year: y, val: byYear[y][i+1]||0 })).filter(p => p.val > 0);
+      if (!pts.length) return;
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
       ctx.stroke();
-      // Dots
-      ptsRef.current.filter(p=>p.year===y).forEach(p=>{
-        ctx.fillStyle=color; ctx.beginPath(); ctx.arc(p.x,p.y,3,0,Math.PI*2); ctx.fill();
+
+      pts.forEach(p => {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ptsRef.current.push(p);
       });
     });
 
     // Legend
-    let lx=pad.left;
-    years.forEach((y,i)=>{
-      ctx.fillStyle=YEAR_COLORS[i%YEAR_COLORS.length]; ctx.fillRect(lx,6,10,8);
-      ctx.fillStyle=T.muted; ctx.font="10px sans-serif"; ctx.textAlign="left"; ctx.fillText(y,lx+13,13);
-      lx+=42;
+    let lx = pad.left;
+    years.forEach((y, yi) => {
+      ctx.fillStyle = YEAR_COLORS[yi % YEAR_COLORS.length];
+      ctx.fillRect(lx, 6, 12, 8);
+      ctx.fillStyle = T.muted;
+      ctx.font = "10px system-ui";
+      ctx.textAlign = "left";
+      ctx.fillText(y, lx + 15, 13);
+      lx += 48;
     });
   }, [data, T]);
 
-  const onMove = useCallback(e=>{
-    const canvas=ref.current; if(!canvas) return;
-    const rect=canvas.getBoundingClientRect();
-    const mx=(e.clientX-rect.left)*(canvas.width/rect.width/(window.devicePixelRatio||1));
-    const my=(e.clientY-rect.top)*(canvas.height/rect.height/(window.devicePixelRatio||1));
-    let nearest=null, minD=25;
-    ptsRef.current.forEach(p=>{const d=Math.sqrt((p.x-mx)**2+(p.y-my)**2);if(d<minD){minD=d;nearest=p;}});
-    setTip(nearest?{...nearest,cx:e.clientX,cy:e.clientY}:null);
-  },[]);
+  const onMove = useCallback(e => {
+    const rect = ref.current?.getBoundingClientRect();
+    if (!rect) return;
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    let near = null, minD = 20;
+    ptsRef.current.forEach(p => {
+      const d = Math.hypot(p.x - mx, p.y - my);
+      if (d < minD) { minD = d; near = p; }
+    });
+    setTip(near ? { x: e.clientX, y: e.clientY, ...near } : null);
+  }, []);
 
   return (
-    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:12,padding:"16px 18px",boxShadow:T.cardShadow,height:"100%",boxSizing:"border-box",position:"relative"}}>
-      <div style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:10}}>{title}</div>
-      <canvas ref={ref} style={{width:"100%",height:190,display:"block",cursor:"crosshair"}} onMouseMove={onMove} onMouseLeave={()=>setTip(null)}/>
-      {tip&&<div style={{position:"fixed",left:tip.cx+14,top:tip.cy-52,background:T.headerBg,border:`1px solid ${tip.color}`,borderRadius:8,padding:"7px 12px",fontSize:12,color:T.text,pointerEvents:"none",zIndex:9999,boxShadow:T.cardShadow,whiteSpace:"nowrap"}}>
-        <div style={{color:tip.color,fontWeight:700,marginBottom:2}}>{tip.month} {tip.year}</div>
-        <div>{fmt(tip.value)}</div>
-      </div>}
+    <div style={{ position: "relative" }}>
+      <canvas ref={ref} onMouseMove={onMove} onMouseLeave={() => setTip(null)}
+        style={{ width: "100%", height: 220, display: "block", cursor: "crosshair" }} />
+      {tip && (
+        <div style={{ position: "fixed", left: tip.x + 12, top: tip.y - 44, background: "#1e293b",
+          border: "1px solid #334155", borderRadius: 8, padding: "6px 12px", fontSize: 12,
+          color: "#f1f5f9", pointerEvents: "none", zIndex: 9999, boxShadow: "0 4px 16px rgba(0,0,0,0.3)" }}>
+          <div style={{ fontWeight: 700, color: "#60a5fa", marginBottom: 2 }}>{MONTHS[(tip.month||1)-1]} {tip.year}</div>
+          <div>{fmtEur(tip.val)}</div>
+        </div>
+      )}
     </div>
   );
 }
 
-function BarChart({ data, title, T }) {
-  const ref = useRef(null);
+function BarChart({ data, metric, T }) {
+  const ref = useRef();
   const barsRef = useRef([]);
-  const [metric, setMetric] = useState("bookings");
   const [tip, setTip] = useState(null);
 
   useEffect(() => {
-    const canvas=ref.current; if(!canvas) return;
-    const dpr=window.devicePixelRatio||1;
-    const rect=canvas.getBoundingClientRect();
-    canvas.width=rect.width*dpr; canvas.height=rect.height*dpr;
-    const ctx=canvas.getContext("2d"); ctx.scale(dpr,dpr);
-    const W=rect.width, H=rect.height;
-    const pad={top:28,right:16,bottom:36,left:50};
-    ctx.clearRect(0,0,W,H);
-    if(!data||!data.length){ctx.fillStyle=T.muted;ctx.font="13px sans-serif";ctx.textAlign="center";ctx.fillText("No data",W/2,H/2);return;}
+    const canvas = ref.current;
+    if (!canvas || !data?.length) return;
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    const ctx = canvas.getContext("2d");
+    ctx.scale(dpr, dpr);
+    const W = rect.width, H = rect.height;
+    const pad = { top: 24, right: 24, bottom: 36, left: 56 };
 
-    const byYear={};
-    data.forEach(d=>{if(!byYear[d.year])byYear[d.year]={};byYear[d.year][d.month]=metric==="bookings"?(d.bookings||0):(d.pax||0);});
-    const years=Object.keys(byYear).sort();
-    const allVals=Object.values(byYear).flatMap(y=>Object.values(y));
-    const maxV=Math.max(...allVals,1);
-    const slotW=(W-pad.left-pad.right)/12;
-    const bW=Math.max(4,Math.floor(slotW/years.length)-2);
-    const sy=v=>H-pad.bottom-(v/maxV)*(H-pad.top-pad.bottom);
+    const byYear = {};
+    data.forEach(r => {
+      if (!byYear[r.year]) byYear[r.year] = {};
+      byYear[r.year][r.month] = r[metric] || 0;
+    });
+    const years = Object.keys(byYear).map(Number).sort((a,b) => a-b);
+    const allVals = data.map(r => r[metric] || 0);
+    const maxV = Math.max(...allVals, 1);
 
-    for(let i=0;i<=4;i++){
-      const yy=H-pad.bottom-(i/4)*(H-pad.top-pad.bottom);
-      ctx.strokeStyle=T.border;ctx.lineWidth=0.5;ctx.beginPath();ctx.moveTo(pad.left,yy);ctx.lineTo(W-pad.right,yy);ctx.stroke();
-      const v=maxV*i/4;
-      ctx.fillStyle=T.muted2;ctx.font="10px sans-serif";ctx.textAlign="right";
-      ctx.fillText(v>=1e3?(v/1e3).toFixed(0)+"K":Math.round(v),pad.left-4,yy+3);
+    ctx.fillStyle = T.card;
+    ctx.fillRect(0, 0, W, H);
+
+    const cW = W - pad.left - pad.right;
+    const cH = H - pad.top - pad.bottom;
+    const slotW = cW / 12;
+    const bW = Math.min(14, (slotW - 4) / years.length);
+    const sy = v => pad.top + cH - (v / maxV) * cH;
+
+    for (let i = 0; i <= 4; i++) {
+      const y = pad.top + (cH / 4) * i;
+      ctx.strokeStyle = T.border;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right, y); ctx.stroke();
+      ctx.setLineDash([]);
+      const val = maxV - (maxV / 4) * i;
+      ctx.fillStyle = T.muted;
+      ctx.font = "10px system-ui";
+      ctx.textAlign = "right";
+      ctx.fillText(val >= 1e6 ? (val/1e6).toFixed(1)+"M" : val >= 1e3 ? (val/1e3).toFixed(0)+"K" : val.toFixed(0), pad.left - 4, y + 3);
     }
-    ctx.fillStyle=T.muted;ctx.font="10px sans-serif";ctx.textAlign="center";
-    [1,2,3,4,5,6,7,8,9,10,11,12].forEach(m=>ctx.fillText(MONTHS[m-1],pad.left+(m-1)*slotW+slotW/2,H-pad.bottom+14));
 
-    barsRef.current=[];
-    years.forEach((y,i)=>{
-      ctx.fillStyle=YEAR_COLORS[i%YEAR_COLORS.length]+"cc";
-      [1,2,3,4,5,6,7,8,9,10,11,12].forEach(m=>{
-        const v=byYear[y][m]||0; if(!v) return;
-        const x=pad.left+(m-1)*slotW+i*(bW+1)+(slotW-years.length*(bW+1))/2;
-        const barH=(v/maxV)*(H-pad.top-pad.bottom);
-        ctx.fillRect(x,sy(v),bW,barH);
-        barsRef.current.push({x,y:sy(v),width:bW,height:barH,year:y,month:MONTHS[m-1],value:v,metric});
+    ctx.fillStyle = T.muted;
+    ctx.font = "10px system-ui";
+    ctx.textAlign = "center";
+    MONTHS.forEach((m, i) => ctx.fillText(m, pad.left + i * slotW + slotW / 2, H - pad.bottom + 14));
+
+    barsRef.current = [];
+    years.forEach((y, yi) => {
+      const color = YEAR_COLORS[yi % YEAR_COLORS.length];
+      ctx.fillStyle = color + "cc";
+      Array.from({length:12}, (_, i) => i+1).forEach(m => {
+        const v = byYear[y][m] || 0;
+        if (!v) return;
+        const x = pad.left + (m-1) * slotW + yi * (bW + 2) + (slotW - years.length * (bW + 2)) / 2;
+        const bH = (v / maxV) * cH;
+        ctx.fillRect(x, sy(v), bW, bH);
+        barsRef.current.push({ x, y: sy(v), width: bW, height: bH, year: y, month: m, val: v });
       });
     });
-    let lx=pad.left;
-    years.forEach((y,i)=>{
-      ctx.fillStyle=YEAR_COLORS[i%YEAR_COLORS.length];ctx.fillRect(lx,7,10,8);
-      ctx.fillStyle=T.muted;ctx.font="10px sans-serif";ctx.textAlign="left";ctx.fillText(y,lx+13,14);
-      lx+=42;
-    });
-  },[data,metric,T]);
 
-  const onMove=useCallback(e=>{
-    const canvas=ref.current;if(!canvas)return;
-    const rect=canvas.getBoundingClientRect();
-    const mx=(e.clientX-rect.left)*(canvas.width/rect.width/(window.devicePixelRatio||1));
-    const my=(e.clientY-rect.top)*(canvas.height/rect.height/(window.devicePixelRatio||1));
-    const bar=barsRef.current.find(b=>mx>=b.x&&mx<=b.x+b.width&&my>=b.y&&my<=b.y+b.height);
-    setTip(bar?{...bar,cx:e.clientX,cy:e.clientY}:null);
-  },[]);
+    let lx = pad.left;
+    years.forEach((y, yi) => {
+      ctx.fillStyle = YEAR_COLORS[yi % YEAR_COLORS.length];
+      ctx.fillRect(lx, 6, 12, 8);
+      ctx.fillStyle = T.muted;
+      ctx.font = "10px system-ui";
+      ctx.textAlign = "left";
+      ctx.fillText(y, lx + 15, 13);
+      lx += 48;
+    });
+  }, [data, metric, T]);
+
+  const onMove = useCallback(e => {
+    const rect = ref.current?.getBoundingClientRect();
+    if (!rect) return;
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const bar = barsRef.current.find(b => mx >= b.x && mx <= b.x + b.width && my >= b.y && my <= b.y + b.height);
+    setTip(bar ? { x: e.clientX, y: e.clientY, ...bar } : null);
+  }, []);
 
   return (
-    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:12,padding:"16px 18px",boxShadow:T.cardShadow,height:"100%",boxSizing:"border-box",position:"relative"}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-        <div style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.08em"}}>{title}</div>
-        <div style={{display:"flex",gap:4}}>
-          {["bookings","pax"].map(m=>(
-            <button key={m} onClick={()=>setMetric(m)} style={{
-              background:metric===m?T.accent:"transparent",color:metric===m?"#fff":T.muted,
-              border:`1px solid ${metric===m?T.accent:T.border}`,borderRadius:6,
-              padding:"3px 10px",fontSize:11,fontWeight:600,cursor:"pointer",
-            }}>{m==="bookings"?"Bookings":"PAX"}</button>
+    <div style={{ position: "relative" }}>
+      <canvas ref={ref} onMouseMove={onMove} onMouseLeave={() => setTip(null)}
+        style={{ width: "100%", height: 220, display: "block", cursor: "crosshair" }} />
+      {tip && (
+        <div style={{ position: "fixed", left: tip.x + 12, top: tip.y - 44, background: "#1e293b",
+          border: "1px solid #334155", borderRadius: 8, padding: "6px 12px", fontSize: 12,
+          color: "#f1f5f9", pointerEvents: "none", zIndex: 9999, boxShadow: "0 4px 16px rgba(0,0,0,0.3)" }}>
+          <div style={{ fontWeight: 700, color: "#60a5fa", marginBottom: 2 }}>{MONTHS[(tip.month||1)-1]} {tip.year}</div>
+          <div>{metric === "revenue" ? fmtEur(tip.val) : fmtNum(tip.val) + (metric === "pax" ? " PAX" : " bookings")}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BusClassChart({ data, metric, label, T }) {
+  const ref = useRef();
+  const barsRef = useRef([]);
+  const [tip, setTip] = useState(null);
+
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas || !data?.length) return;
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    const ctx = canvas.getContext("2d");
+    ctx.scale(dpr, dpr);
+    const W = rect.width, H = rect.height;
+    const pad = { top: 24, right: 24, bottom: 60, left: 60 };
+
+    const classes = [...new Set(data.map(d => d.bus_class))].filter(Boolean);
+    const datasets = [...new Set(data.map(d => d.dataset))].filter(Boolean);
+    const dsColors = { Solmar: "#3b82f6", Interbus: "#10b981", "Solmar DE": "#f59e0b", Snowtravel: "#8b5cf6" };
+
+    const grouped = {};
+    classes.forEach(c => { grouped[c] = {}; datasets.forEach(ds => { grouped[c][ds] = 0; }); });
+    data.forEach(d => { if (grouped[d.bus_class]) grouped[d.bus_class][d.dataset] = d[metric] || 0; });
+
+    const maxV = Math.max(...classes.flatMap(c => datasets.map(ds => grouped[c][ds])), 1);
+    ctx.fillStyle = T.card;
+    ctx.fillRect(0, 0, W, H);
+
+    const cW = W - pad.left - pad.right;
+    const cH = H - pad.top - pad.bottom;
+    const slotW = cW / classes.length;
+    const bW = Math.min(28, (slotW - 8) / datasets.length);
+    const sy = v => pad.top + cH - (v / maxV) * cH;
+
+    for (let i = 0; i <= 4; i++) {
+      const y = pad.top + (cH / 4) * i;
+      ctx.strokeStyle = T.border; ctx.lineWidth = 1; ctx.setLineDash([4,4]);
+      ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right, y); ctx.stroke();
+      ctx.setLineDash([]);
+      const val = maxV - (maxV / 4) * i;
+      ctx.fillStyle = T.muted; ctx.font = "10px system-ui"; ctx.textAlign = "right";
+      ctx.fillText(metric === "revenue" ? (val>=1e6?(val/1e6).toFixed(1)+"M":val>=1e3?(val/1e3).toFixed(0)+"K":val.toFixed(0)) : fmtNum(val), pad.left - 4, y + 3);
+    }
+
+    barsRef.current = [];
+    classes.forEach((c, ci) => {
+      const slotX = pad.left + ci * slotW;
+      datasets.forEach((ds, di) => {
+        const v = grouped[c][ds];
+        if (!v) return;
+        const color = dsColors[ds] || "#94a3b8";
+        const x = slotX + di * (bW + 3) + (slotW - datasets.length * (bW + 3)) / 2;
+        const bH = (v / maxV) * cH;
+        ctx.fillStyle = color + "dd";
+        ctx.fillRect(x, sy(v), bW, bH);
+        barsRef.current.push({ x, y: sy(v), width: bW, height: bH, class: c, dataset: ds, val: v });
+      });
+      ctx.fillStyle = T.muted; ctx.font = "11px system-ui"; ctx.textAlign = "center";
+      ctx.fillText(c, slotX + slotW / 2, H - pad.bottom + 14);
+    });
+
+    let lx = pad.left;
+    datasets.forEach(ds => {
+      ctx.fillStyle = dsColors[ds] || "#94a3b8";
+      ctx.fillRect(lx, 6, 12, 8);
+      ctx.fillStyle = T.muted; ctx.font = "10px system-ui"; ctx.textAlign = "left";
+      ctx.fillText(ds, lx + 15, 13);
+      lx += ds.length * 7 + 24;
+    });
+  }, [data, metric, T]);
+
+  const onMove = useCallback(e => {
+    const rect = ref.current?.getBoundingClientRect();
+    if (!rect) return;
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const bar = barsRef.current.find(b => mx >= b.x && mx <= b.x + b.width && my >= b.y && my <= b.y + b.height);
+    setTip(bar ? { x: e.clientX, y: e.clientY, ...bar } : null);
+  }, []);
+
+  return (
+    <div style={{ position: "relative" }}>
+      <canvas ref={ref} onMouseMove={onMove} onMouseLeave={() => setTip(null)}
+        style={{ width: "100%", height: 220, display: "block", cursor: "crosshair" }} />
+      {tip && (
+        <div style={{ position: "fixed", left: tip.x + 12, top: tip.y - 44, background: "#1e293b",
+          border: "1px solid #334155", borderRadius: 8, padding: "6px 12px", fontSize: 12,
+          color: "#f1f5f9", pointerEvents: "none", zIndex: 9999 }}>
+          <div style={{ fontWeight: 700, color: "#60a5fa", marginBottom: 2 }}>{tip.class} · {tip.dataset}</div>
+          <div>{metric === "revenue" ? fmtEur(tip.val) : fmtNum(tip.val) + (metric === "pax" ? " PAX" : " bookings")}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── SMALL COMPONENTS ──────────────────────────────────────────────────────────
+function Card({ children, T, style = {} }) {
+  return (
+    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10,
+      boxShadow: T.shadow, ...style }}>
+      {children}
+    </div>
+  );
+}
+
+function Btn({ children, onClick, variant = "primary", T, style = {}, disabled = false }) {
+  const styles = {
+    primary: { background: T.accent, color: "#fff", border: "none" },
+    secondary: { background: "transparent", color: T.muted, border: `1px solid ${T.border}` },
+    danger: { background: T.danger, color: "#fff", border: "none" },
+    success: { background: T.success, color: "#fff", border: "none" },
+    ghost: { background: T.accentLight, color: T.accent, border: `1px solid ${T.accent}20` },
+  };
+  return (
+    <button onClick={onClick} disabled={disabled}
+      style={{ ...styles[variant], borderRadius: 6, padding: "7px 14px", fontSize: 13,
+        fontWeight: 600, cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1,
+        transition: "all 0.15s", display: "inline-flex", alignItems: "center", gap: 6, ...style }}>
+      {children}
+    </button>
+  );
+}
+
+function StatusBadge({ status, T }) {
+  const isOk = status?.toLowerCase() === "ok";
+  const isCancelled = status?.toLowerCase() === "cancelled";
+  return (
+    <span style={{
+      display: "inline-block", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600,
+      background: isOk ? T.successBg : isCancelled ? T.dangerBg : T.badge,
+      color: isOk ? T.success : isCancelled ? T.danger : T.muted,
+    }}>{status}</span>
+  );
+}
+
+function Input({ value, onChange, placeholder, T, style = {}, type = "text" }) {
+  return (
+    <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+      style={{ background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.text,
+        padding: "7px 10px", fontSize: 13, outline: "none", width: "100%", ...style }} />
+  );
+}
+
+function Select({ value, onChange, options, T, style = {} }) {
+  return (
+    <select value={value} onChange={e => onChange(e.target.value)}
+      style={{ background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.text,
+        padding: "7px 10px", fontSize: 13, outline: "none", cursor: "pointer", ...style }}>
+      {options.map(o => (
+        <option key={o.value} value={o.value}>{o.label}</option>
+      ))}
+    </select>
+  );
+}
+
+function MultiSelect({ label, options, selected, onChange, T }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef();
+  useEffect(() => {
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+  const display = selected.length === 0 ? "All" : selected.length === 1 ? selected[0] : `${selected.length} selected`;
+  return (
+    <div ref={ref} style={{ position: "relative", minWidth: 140 }}>
+      <button onClick={() => setOpen(o => !o)}
+        style={{ background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.text,
+          padding: "7px 10px", fontSize: 13, cursor: "pointer", width: "100%", textAlign: "left",
+          display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ color: selected.length ? T.text : T.muted }}>{display}</span>
+        <span style={{ color: T.muted, fontSize: 10 }}>{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, minWidth: "100%",
+          background: T.card, border: `1px solid ${T.border}`, borderRadius: 8, boxShadow: T.shadowMd,
+          zIndex: 200, padding: 4, maxHeight: 220, overflowY: "auto" }}>
+          <div style={{ padding: "6px 10px", cursor: "pointer", fontSize: 13, color: T.muted,
+            borderRadius: 4, display: "flex", alignItems: "center", gap: 8 }}
+            onClick={() => onChange([])}>
+            <span style={{ color: T.accent, fontSize: 11 }}>{selected.length === 0 ? "✓" : " "}</span>
+            All
+          </div>
+          {options.map(o => (
+            <div key={o} style={{ padding: "6px 10px", cursor: "pointer", fontSize: 13, color: T.text,
+              borderRadius: 4, display: "flex", alignItems: "center", gap: 8,
+              background: selected.includes(o) ? T.accentLight : "transparent" }}
+              onClick={() => onChange(selected.includes(o) ? selected.filter(x => x !== o) : [...selected, o])}>
+              <span style={{ color: T.accent, fontSize: 11 }}>{selected.includes(o) ? "✓" : " "}</span>
+              {o}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── FILTERS BAR ───────────────────────────────────────────────────────────────
+function FiltersBar({ filters, setFilters, onApply, onReset, slicers, T }) {
+  const today = new Date().toISOString().split("T")[0];
+  const y = new Date().getFullYear();
+  const presets = [
+    { label: "This Year", from: `${y}-01-01`, to: `${y}-12-31` },
+    { label: "Last Year", from: `${y-1}-01-01`, to: `${y-1}-12-31` },
+    { label: "Last 3M",   from: new Date(new Date().setMonth(new Date().getMonth()-3)).toISOString().split("T")[0], to: today },
+    { label: "All",       from: "", to: "" },
+  ];
+  return (
+    <div style={{ background: T.card, borderBottom: `1px solid ${T.border}`, padding: "10px 24px",
+      display: "flex", flexWrap: "wrap", gap: 10, alignItems: "flex-end" }}>
+
+      {/* Date presets */}
+      <div>
+        <div style={{ fontSize: 11, color: T.muted, marginBottom: 4, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Quick Select</div>
+        <div style={{ display: "flex", gap: 4 }}>
+          {presets.map(p => (
+            <button key={p.label} onClick={() => {
+              setFilters(f => ({ ...f, departureDateFrom: p.from, departureDateTo: p.to }));
+              setTimeout(onApply, 60);
+            }} style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 16, color: T.muted,
+              padding: "4px 10px", fontSize: 11, cursor: "pointer", fontWeight: 500 }}>{p.label}</button>
           ))}
         </div>
       </div>
-      <canvas ref={ref} style={{width:"100%",height:190,display:"block",cursor:"crosshair"}} onMouseMove={onMove} onMouseLeave={()=>setTip(null)}/>
-      {tip&&<div style={{position:"fixed",left:tip.cx+14,top:tip.cy-52,background:T.headerBg,border:`1px solid ${T.accent}`,borderRadius:8,padding:"7px 12px",fontSize:12,color:T.text,pointerEvents:"none",zIndex:9999,boxShadow:T.cardShadow,whiteSpace:"nowrap"}}>
-        <div style={{color:T.accent,fontWeight:700,marginBottom:2}}>{tip.month} {tip.year}</div>
-        <div>{fmtNum(tip.value)} {tip.metric}</div>
-      </div>}
+
+      {/* Departure date */}
+      <div>
+        <div style={{ fontSize: 11, color: T.muted, marginBottom: 4, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Departure Date</div>
+        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+          <input type="date" value={filters.departureDateFrom || ""} onChange={e => setFilters(f => ({ ...f, departureDateFrom: e.target.value }))}
+            style={{ background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.text, padding: "6px 8px", fontSize: 12, colorScheme: T.id === "dark" ? "dark" : "light" }} />
+          <span style={{ color: T.muted, fontSize: 11 }}>to</span>
+          <input type="date" value={filters.departureDateTo || ""} onChange={e => setFilters(f => ({ ...f, departureDateTo: e.target.value }))}
+            style={{ background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.text, padding: "6px 8px", fontSize: 12, colorScheme: T.id === "dark" ? "dark" : "light" }} />
+        </div>
+      </div>
+
+      {/* Booking date */}
+      <div>
+        <div style={{ fontSize: 11, color: T.muted, marginBottom: 4, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Booking Date</div>
+        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+          <input type="date" value={filters.bookingDateFrom || ""} onChange={e => setFilters(f => ({ ...f, bookingDateFrom: e.target.value }))}
+            style={{ background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.text, padding: "6px 8px", fontSize: 12, colorScheme: T.id === "dark" ? "dark" : "light" }} />
+          <span style={{ color: T.muted, fontSize: 11 }}>to</span>
+          <input type="date" value={filters.bookingDateTo || ""} onChange={e => setFilters(f => ({ ...f, bookingDateTo: e.target.value }))}
+            style={{ background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.text, padding: "6px 8px", fontSize: 12, colorScheme: T.id === "dark" ? "dark" : "light" }} />
+        </div>
+      </div>
+
+      {/* Dataset */}
+      <div>
+        <div style={{ fontSize: 11, color: T.muted, marginBottom: 4, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Dataset</div>
+        <MultiSelect label="Dataset" options={slicers?.datasets || ["Snowtravel","Solmar","Interbus","Solmar DE"]}
+          selected={filters.datasets || []} onChange={v => setFilters(f => ({ ...f, datasets: v }))} T={T} />
+      </div>
+
+      {/* Transport */}
+      <div>
+        <div style={{ fontSize: 11, color: T.muted, marginBottom: 4, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Transport</div>
+        <MultiSelect label="Transport" options={slicers?.transportTypes || ["bus","own transport","plane"]}
+          selected={filters.transportTypes || []} onChange={v => setFilters(f => ({ ...f, transportTypes: v }))} T={T} />
+      </div>
+
+      {/* Status */}
+      <div>
+        <div style={{ fontSize: 11, color: T.muted, marginBottom: 4, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Status</div>
+        <div style={{ display: "flex", gap: 4 }}>
+          {[["", "All", T.muted, T.border], ["ok", "OK", T.success, T.success], ["cancelled", "Cancelled", T.danger, T.danger]].map(([v, l, col, bdr]) => {
+            const active = v === "" ? !(filters.statuses?.length) : (filters.statuses || []).includes(v);
+            return (
+              <button key={v} onClick={() => setFilters(f => ({ ...f, statuses: v ? [v] : [] }))}
+                style={{ background: active ? (v === "ok" ? T.successBg : v === "cancelled" ? T.dangerBg : T.accentLight) : T.inputBg,
+                  border: `1px solid ${active ? bdr : T.border}`, borderRadius: 6, color: active ? col : T.muted,
+                  padding: "6px 12px", fontSize: 12, cursor: "pointer", fontWeight: active ? 700 : 400 }}>{l}</button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
+        <Btn onClick={onApply} T={T}>Apply</Btn>
+        <Btn onClick={onReset} variant="secondary" T={T}>Reset</Btn>
+      </div>
     </div>
   );
 }
 
-function DonutChart({ data, T }) {
-  const ref = useRef(null);
-  const segsRef = useRef([]);
-  const [tip, setTip] = useState(null);
-  const COLORS = ["#3b82f6","#34d399","#f59e0b","#f87171","#a78bfa","#06b6d4"];
+// ── KPI CARD ──────────────────────────────────────────────────────────────────
+function KpiCard({ title, current, previous, icon, T, format = "number" }) {
+  const diff = (current || 0) - (previous || 0);
+  const p = calcPct(current || 0, previous || 0);
+  const up = diff >= 0;
+  const fmt = v => format === "currency" ? fmtEur(v) : fmtNum(v);
 
-  const norm = (data||[]).reduce((acc,item)=>{
-    const key=(item.transport_type||"").toLowerCase().replace("owntransport","own transport").trim();
-    const ex=acc.find(x=>(x.transport_type||"").toLowerCase().trim()===key);
-    if(ex){ex.bookings+=(item.bookings||0);}else acc.push({...item,transport_type:key});
+  return (
+    <Card T={T} style={{ flex: 1, padding: "20px 24px", minWidth: 200 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: T.muted, textTransform: "uppercase", letterSpacing: "0.05em" }}>{title}</div>
+        <div style={{ width: 36, height: 36, borderRadius: 8, background: T.accentLight, display: "flex",
+          alignItems: "center", justifyContent: "center", fontSize: 16 }}>{icon}</div>
+      </div>
+      <div style={{ fontSize: 28, fontWeight: 700, color: T.text, lineHeight: 1, marginBottom: 8 }}>{fmt(current)}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+        <span style={{ color: T.muted }}>vs {fmt(previous)}</span>
+        <span style={{ color: up ? T.success : T.danger, fontWeight: 700, background: up ? T.successBg : T.dangerBg,
+          padding: "2px 6px", borderRadius: 6 }}>{up ? "▲" : "▼"} {Math.abs(p).toFixed(1)}%</span>
+      </div>
+    </Card>
+  );
+}
+
+// ── TRANSPORT BAR ─────────────────────────────────────────────────────────────
+function TransportBar({ data, T }) {
+  if (!data?.length) return null;
+  const norm = data.reduce((acc, item) => {
+    const key = (item.transport_type || "").toLowerCase().replace("owntransport", "own transport").trim() || "other";
+    const ex = acc.find(x => x.key === key);
+    if (ex) { ex.bookings += (item.bookings || 0); }
+    else acc.push({ key, label: key, bookings: item.bookings || 0 });
     return acc;
-  },[]).sort((a,b)=>(b.bookings||0)-(a.bookings||0));
-
-  useEffect(()=>{
-    const canvas=ref.current;if(!canvas)return;
-    const dpr=window.devicePixelRatio||1;
-    const rect=canvas.getBoundingClientRect();
-    canvas.width=rect.width*dpr;canvas.height=rect.height*dpr;
-    const ctx=canvas.getContext("2d");ctx.scale(dpr,dpr);
-    const W=rect.width,H=rect.height;
-    ctx.clearRect(0,0,W,H);
-    if(!norm.length){return;}
-    const total=norm.reduce((s,d)=>s+(d.bookings||0),0);
-    const cx=W*0.42,cy=H/2,r=Math.min(cx,cy)-10,ir=r*0.6;
-    let angle=-Math.PI/2;
-    segsRef.current=[];
-    norm.forEach((d,i)=>{
-      const slice=((d.bookings||0)/total)*Math.PI*2;
-      const color=COLORS[i%COLORS.length];
-      ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,angle,angle+slice);ctx.closePath();
-      ctx.fillStyle=color;ctx.fill();
-      segsRef.current.push({start:angle,end:angle+slice,label:d.transport_type,value:d.bookings||0,pct:Math.round((d.bookings||0)/total*100),color});
-      angle+=slice;
-    });
-    ctx.beginPath();ctx.arc(cx,cy,ir,0,Math.PI*2);ctx.fillStyle=T.card;ctx.fill();
-    ctx.fillStyle=T.text;ctx.font=`bold 16px sans-serif`;ctx.textAlign="center";ctx.fillText(fmtNum(total),cx,cy+2);
-    ctx.fillStyle=T.muted;ctx.font="10px sans-serif";ctx.fillText("bookings",cx,cy+16);
-    // Legend
-    const lx=W*0.72;
-    norm.forEach((d,i)=>{
-      const yy=16+i*22;
-      if(yy>H-10)return;
-      ctx.fillStyle=COLORS[i%COLORS.length];ctx.fillRect(lx,yy,10,10);
-      ctx.fillStyle=T.text;ctx.font="11px sans-serif";ctx.textAlign="left";
-      const label=d.transport_type.charAt(0).toUpperCase()+d.transport_type.slice(1);
-      ctx.fillText(label.length>9?label.slice(0,9)+"..":label,lx+14,yy+9);
-      ctx.fillStyle=T.muted;ctx.font="10px sans-serif";
-      ctx.fillText(Math.round((d.bookings||0)/total*100)+"%",lx+14,yy+20);
-    });
-  },[norm,T]);
-
-  const onMove=useCallback(e=>{
-    const canvas=ref.current;if(!canvas)return;
-    const rect=canvas.getBoundingClientRect();
-    const mx=e.clientX-rect.left,my=e.clientY-rect.top;
-    const W=rect.width,cx=W*0.42,cy=rect.height/2;
-    const dx=mx-cx,dy=my-cy,dist=Math.sqrt(dx*dx+dy*dy);
-    const r=Math.min(cx,cy)-10,ir=r*0.6;
-    if(dist<ir||dist>r){setTip(null);return;}
-    let angle=Math.atan2(dy,dx);
-    if(angle<-Math.PI/2)angle+=Math.PI*2;
-    const seg=segsRef.current.find(s=>angle>=s.start&&angle<s.end);
-    if(seg)setTip({...seg,cx:e.clientX,cy:e.clientY});else setTip(null);
-  },[]);
-
+  }, []);
+  const total = norm.reduce((s, x) => s + x.bookings, 0);
+  const colors = ["#3b82f6", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6"];
   return (
-    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:12,padding:"16px 18px",boxShadow:T.cardShadow,position:"relative"}}>
-      <div style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:10}}>TRANSPORT TYPE</div>
-      <canvas ref={ref} style={{width:"100%",height:160,display:"block",cursor:"crosshair"}} onMouseMove={onMove} onMouseLeave={()=>setTip(null)}/>
-      {tip&&<div style={{position:"fixed",left:tip.cx+14,top:tip.cy-52,background:T.headerBg,border:`1px solid ${tip.color}`,borderRadius:8,padding:"7px 12px",fontSize:12,color:T.text,pointerEvents:"none",zIndex:9999,boxShadow:T.cardShadow,whiteSpace:"nowrap"}}>
-        <div style={{color:tip.color,fontWeight:700,marginBottom:2}}>{tip.label}</div>
-        <div>{fmtNum(tip.value)} bookings &middot; {tip.pct}%</div>
-      </div>}
+    <div>
+      <div style={{ display: "flex", height: 8, borderRadius: 4, overflow: "hidden", marginBottom: 8 }}>
+        {norm.map((x, i) => (
+          <div key={x.key} style={{ width: `${(x.bookings/total*100).toFixed(1)}%`, background: colors[i % colors.length] }} />
+        ))}
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px" }}>
+        {norm.map((x, i) => (
+          <div key={x.key} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: T.muted }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: colors[i % colors.length], display: "inline-block" }} />
+            <span style={{ textTransform: "capitalize" }}>{x.label}</span>
+            <span style={{ fontWeight: 600, color: T.text }}>{(x.bookings/total*100).toFixed(0)}%</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
-function BusBarChart({ data, metric, title, T }) {
-  const ref = useRef(null);
-  const barsRef = useRef([]);
-  const [tip, setTip] = useState(null);
-  const DS_COLORS = {"Solmar":"#34d399","Interbus":"#f59e0b","Snowtravel":"#60a5fa","Solmar DE":"#f87171"};
-
-  useEffect(()=>{
-    const canvas=ref.current;if(!canvas)return;
-    const dpr=window.devicePixelRatio||1;
-    const rect=canvas.getBoundingClientRect();
-    canvas.width=rect.width*dpr;canvas.height=rect.height*dpr;
-    const ctx=canvas.getContext("2d");ctx.scale(dpr,dpr);
-    const W=rect.width,H=rect.height;
-    const pad={top:28,right:16,bottom:48,left:50};
-    ctx.clearRect(0,0,W,H);
-    if(!data||!data.length){ctx.fillStyle=T.muted;ctx.font="13px sans-serif";ctx.textAlign="center";ctx.fillText("No data",W/2,H/2);return;}
-
-    const classes=[...new Set(data.map(d=>d.bus_class||d.bus_type_name||""))].filter(Boolean);
-    const datasets=[...new Set(data.map(d=>d.dataset))].filter(Boolean);
-    const maxV=Math.max(...data.map(d=>metric==="revenue"?(d.revenue||0):(d.bookings||0)),1);
-    const slotW=(W-pad.left-pad.right)/Math.max(classes.length,1);
-    const bW=Math.max(6,Math.floor(slotW/Math.max(datasets.length,1))-3);
-    const sy=v=>H-pad.bottom-(v/maxV)*(H-pad.top-pad.bottom);
-
-    for(let i=0;i<=4;i++){
-      const yy=H-pad.bottom-(i/4)*(H-pad.top-pad.bottom);
-      ctx.strokeStyle=T.border;ctx.lineWidth=0.5;ctx.beginPath();ctx.moveTo(pad.left,yy);ctx.lineTo(W-pad.right,yy);ctx.stroke();
-      const v=maxV*i/4;
-      ctx.fillStyle=T.muted2;ctx.font="10px sans-serif";ctx.textAlign="right";
-      ctx.fillText(v>=1e6?(v/1e6).toFixed(1)+"M":v>=1e3?(v/1e3).toFixed(0)+"K":Math.round(v),pad.left-4,yy+3);
-    }
-
-    barsRef.current=[];
-    classes.forEach((cls,ci)=>{
-      const slotX=pad.left+ci*slotW;
-      const totalW=datasets.length*(bW+2);
-      datasets.forEach((ds,di)=>{
-        const row=data.find(d=>(d.bus_class||d.bus_type_name||"")===(cls)&&d.dataset===ds);
-        if(!row)return;
-        const v=metric==="revenue"?(row.revenue||0):(row.bookings||0);
-        if(!v)return;
-        const x=slotX+(slotW-totalW)/2+di*(bW+2);
-        const barH=(v/maxV)*(H-pad.top-pad.bottom);
-        const color=DS_COLORS[ds]||"#94a3b8";
-        ctx.fillStyle=color;
-        ctx.fillRect(x,sy(v),bW,barH);
-        barsRef.current.push({x,y:sy(v),width:bW,height:barH,ds,cls,value:v,metric,color});
-      });
-      ctx.fillStyle=T.muted;ctx.font="10px sans-serif";ctx.textAlign="center";
-      const label=cls.length>8?cls.slice(0,8)+"..":cls;
-      ctx.fillText(label,slotX+slotW/2,H-pad.bottom+13);
-    });
-
-    let lx=pad.left;
-    datasets.forEach(ds=>{
-      const color=DS_COLORS[ds]||"#94a3b8";
-      ctx.fillStyle=color;ctx.fillRect(lx,8,10,8);
-      ctx.fillStyle=T.muted;ctx.font="10px sans-serif";ctx.textAlign="left";ctx.fillText(ds,lx+13,15);
-      lx+=ds.length*6+24;
-    });
-  },[data,metric,T]);
-
-  const onMove=useCallback(e=>{
-    const canvas=ref.current;if(!canvas)return;
-    const rect=canvas.getBoundingClientRect();
-    const mx=(e.clientX-rect.left)*(canvas.width/rect.width/(window.devicePixelRatio||1));
-    const my=(e.clientY-rect.top)*(canvas.height/rect.height/(window.devicePixelRatio||1));
-    const bar=barsRef.current.find(b=>mx>=b.x&&mx<=b.x+b.width&&my>=b.y&&my<=b.y+b.height);
-    setTip(bar?{...bar,cx:e.clientX,cy:e.clientY}:null);
-  },[]);
-
-  return (
-    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:12,padding:"16px 18px",boxShadow:T.cardShadow,position:"relative",flex:1}}>
-      <div style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:10}}>{title}</div>
-      <canvas ref={ref} style={{width:"100%",height:200,display:"block",cursor:"crosshair"}} onMouseMove={onMove} onMouseLeave={()=>setTip(null)}/>
-      {tip&&<div style={{position:"fixed",left:tip.cx+14,top:tip.cy-52,background:T.headerBg,border:`1px solid ${tip.color}`,borderRadius:8,padding:"7px 12px",fontSize:12,color:T.text,pointerEvents:"none",zIndex:9999,boxShadow:T.cardShadow,whiteSpace:"nowrap"}}>
-        <div style={{color:tip.color,fontWeight:700,marginBottom:2}}>{tip.cls} &middot; {tip.ds}</div>
-        <div>{tip.metric==="revenue"?fmt(tip.value):fmtNum(tip.value)+" bookings"}</div>
-      </div>}
-    </div>
-  );
-}
-
-// ── MAIN APP ─────────────────────────────────────────────────────────────────
-
-export default function App() {
-  const [token, setToken] = useState(()=>localStorage.getItem("ttp_token")||"");
-  const [user, setUser] = useState(null);
-  const [tab, setTab] = useState("overview");
-  const [busTab, setBusTab] = useState("solmar");
-  const [themeKey, setThemeKey] = useState(()=>localStorage.getItem("ttp_theme")||"gray");
-  const T = themeKey==="blue" ? DARK : GRAY;
-
-  // Filters
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [filters, setFilters] = useState({departureDateFrom:"",departureDateTo:"",bookingDateFrom:"",bookingDateTo:"",datasets:[],transports:[],statuses:[]});
-  const [applied, setApplied] = useState({});
-
-  // Overview data
+// ── OVERVIEW TAB ──────────────────────────────────────────────────────────────
+function OverviewTab({ T, applied, onUnauth }) {
   const [kpis, setKpis] = useState(null);
   const [revData, setRevData] = useState([]);
   const [ymData, setYmData] = useState([]);
   const [trData, setTrData] = useState([]);
-  const [slicers, setSlicers] = useState({transportTypes:[],busTypes:[],datasets:[]});
-  const [oLoad, setOLoad] = useState(false);
-  const [lastR, setLastR] = useState("");
+  const [barMetric, setBarMetric] = useState("bookings");
+  const [loading, setLoading] = useState(false);
+  const [ymPage, setYmPage] = useState(0);
+  const YM_PAGE_SIZE = 15;
 
-  // Bus data
-  const [busTrips, setBusTrips] = useState([]);
-  const [busClass, setBusClass] = useState([]);
-  const [stTrips, setStTrips] = useState([]);
-  const [bLoad, setBLoad] = useState(false);
-  const [busFilters, setBusFilters] = useState({dateFrom:"",dateTo:""});
-
-  // AI
-  const [msgs, setMsgs] = useState([{role:"assistant",text:"Hello! I am your TTP Analytics AI. Ask me anything about bookings, revenue, PAX or trends across Snowtravel, Solmar, Interbus and Solmar DE."}]);
-  const [aiInput, setAiInput] = useState("");
-  const [aiLoad, setAiLoad] = useState(false);
-  const chatRef = useRef(null);
-
-  // Data Table
-  const [tableData, setTableData] = useState([]);
-  const [tableSearch, setTableSearch] = useState("");
-  const [tableDataset, setTableDataset] = useState("");
-  const [tableStatus, setTableStatus] = useState("");
-  const [tablePage, setTablePage] = useState(1);
-  const [tLoad, setTLoad] = useState(false);
-
-  // Settings
-  const [users, setUsers] = useState([]);
-  const [settingsTab, setSettingsTab] = useState("users");
-  const [showAddUser, setShowAddUser] = useState(false);
-  const [editUser, setEditUser] = useState(null);
-  const [newUser, setNewUser] = useState({name:"",username:"",email:"",password:"",role:"viewer"});
-
-  // Dubai clock
-  const [clock, setClock] = useState(dubaiTime());
-  useEffect(()=>{const iv=setInterval(()=>setClock(dubaiTime()),1000);return()=>clearInterval(iv);},[]);
-
-  // Parse token
-  useEffect(()=>{
-    if(!token)return;
-    try{const p=JSON.parse(atob(token.split(".")[1]));setUser(p.user||p);}catch{}
-  },[token]);
-
-  const logout = ()=>{ localStorage.removeItem("ttp_token"); setToken(""); setUser(null); };
-  const onLogin = (tok,u)=>{ localStorage.setItem("ttp_token",tok); setToken(tok); setUser(u); };
-
-  const switchTheme = (k)=>{ setThemeKey(k); localStorage.setItem("ttp_theme",k); };
-
-  // Build params
-  const buildP = useCallback((f)=>{
-    const p={};
-    if(f.departureDateFrom)p.departureDateFrom=f.departureDateFrom;
-    if(f.departureDateTo)p.departureDateTo=f.departureDateTo;
-    if(f.bookingDateFrom)p.bookingDateFrom=f.bookingDateFrom;
-    if(f.bookingDateTo)p.bookingDateTo=f.bookingDateTo;
-    if((f.datasets||[]).length)p.dataset=f.datasets;
-    if((f.transports||[]).length)p.transportType=f.transports;
-    if((f.statuses||[]).length)p.status=f.statuses;
-    return p;
-  },[]);
-
-  // Load overview
-  const loadOverview = useCallback((f)=>{
-    if(!token)return;
-    setOLoad(true);
-    const p=buildP(f);
+  useEffect(() => {
+    const p = buildParams(applied);
+    setLoading(true);
     Promise.all([
-      apiFetch("/api/dashboard/kpis",p).catch(()=>null),
-      apiFetch("/api/dashboard/revenue-by-year",p).catch(()=>[]),
-      apiFetch("/api/dashboard/year-month-comparison",p).catch(()=>[]),
-      apiFetch("/api/dashboard/transport-breakdown",p).catch(()=>[]),
-    ]).then(([k,r,ym,tr])=>{
-      if(k&&!k.error)setKpis(k);
-      if(Array.isArray(r))setRevData(r);
-      if(Array.isArray(ym))setYmData(ym);
-      if(Array.isArray(tr))setTrData(tr);
-      setLastR(dubaiTime());
-    }).catch(console.error).finally(()=>setOLoad(false));
-  },[token,buildP]);
+      apiFetch("/api/dashboard/kpis", p),
+      apiFetch("/api/dashboard/revenue-by-year", p),
+      apiFetch("/api/dashboard/year-month-comparison", p),
+      apiFetch("/api/dashboard/transport-breakdown", p).catch(() => []),
+    ]).then(([k, r, ym, tr]) => {
+      if (k && !k.error) setKpis(k);
+      if (Array.isArray(r)) setRevData(r);
+      if (Array.isArray(ym)) { setYmData(ym); setYmPage(0); }
+      if (Array.isArray(tr)) setTrData(tr);
+    }).catch(e => { if (e.status === 401) onUnauth(); })
+      .finally(() => setLoading(false));
+  }, [applied]);
 
-  useEffect(()=>{
-    if(!token)return;
-    apiFetch("/api/dashboard/slicers",{}).then(d=>{ if(d&&!d.error)setSlicers(d); }).catch(()=>{});
-    loadOverview({});
-  },[token]);
-
-  useEffect(()=>{if(token)loadOverview(applied);},[applied]);
-
-  // Load bus data
-  const loadBus = useCallback((f={})=>{
-    if(!token)return;
-    setBLoad(true);
-    const p={};
-    if(f.dateFrom)p.dateFrom=f.dateFrom;
-    if(f.dateTo)p.dateTo=f.dateTo;
-    Promise.all([
-      apiFetch("/api/dashboard/bustrips",p).catch(()=>[]),
-      apiFetch("/api/dashboard/bus-class-summary",{}).catch(()=>[]),
-      apiFetch("/api/dashboard/snowtravel-bus",p).catch(()=>[]),
-    ]).then(([bt,bc,st])=>{
-      const btRows=Array.isArray(bt)?bt:(bt?.rows||[]);
-      setBusTrips(btRows);
-      if(Array.isArray(bc))setBusClass(bc);
-      const stRows=Array.isArray(st)?st:(st?.rows||[]);
-      setStTrips(stRows);
-    }).catch(console.error).finally(()=>setBLoad(false));
-  },[token]);
-
-  useEffect(()=>{if(token)loadBus({});},[token]);
-
-  // Load table data
-  const loadTable = useCallback(()=>{
-    if(!token)return;
-    setTLoad(true);
-    const p={};
-    if(tableDataset)p.dataset=tableDataset;
-    if(tableStatus)p.status=tableStatus;
-    apiFetch("/api/dashboard/export",{...p,token},token)
-      .then(d=>{ /* CSV - handled differently */ })
-      .catch(()=>{});
-    apiFetch("/api/dashboard/year-month-comparison",p)
-      .then(d=>{ if(Array.isArray(d))setTableData(d); })
-      .catch(()=>[]).finally(()=>setTLoad(false));
-  },[token,tableDataset,tableStatus]);
-
-  useEffect(()=>{if(token&&tab==="table")loadTable();},[token,tab]);
-
-  // Load users
-  useEffect(()=>{
-    if(!token||!user||(user.role!=="admin"))return;
-    apiFetch("/api/auth/users",{}).then(d=>{ if(Array.isArray(d))setUsers(d); }).catch(()=>{
-      setUsers([
-        {id:1,name:"Abdul Rahman",username:"abdulrahman",email:"abdrah1264@gmail.com",role:"admin",active:true},
-        {id:2,name:"TTP Admin",username:"ttp_admin",email:"admin@ttp-services.com",role:"admin",active:true},
-        {id:3,name:"Robbert Jan",username:"robbert",email:"robbert@ttp-services.com",role:"viewer",active:true},
-        {id:4,name:"Samir",username:"samir",email:"samir@ttp-services.com",role:"viewer",active:true},
-      ]);
-    });
-  },[token,user]);
-
-  // AI send
-  const sendAI = async (msg)=>{
-    if(!msg.trim()||aiLoad)return;
-    setMsgs(m=>[...m,{role:"user",text:msg}]);
-    setAiInput("");
-    setAiLoad(true);
-    try{
-      const t=localStorage.getItem("ttp_token");
-      const r=await fetch(`${BASE}/api/ai/chat`,{
-        method:"POST",
-        headers:{"Authorization":`Bearer ${t}`,"Content-Type":"application/json"},
-        body:JSON.stringify({message:msg})
-      });
-      if(r.status===401){logout();return;}
-      const d=await r.json();
-      setMsgs(m=>[...m,{role:"assistant",text:d.reply||"Sorry, I could not get a response."}]);
-    }catch{
-      setMsgs(m=>[...m,{role:"assistant",text:"Connection error. Please check the server is running."}]);
-    }finally{setAiLoad(false);}
-  };
-
-  useEffect(()=>{
-    if(chatRef.current)chatRef.current.scrollTop=chatRef.current.scrollHeight;
-  },[msgs]);
-
-  const exportCSV = ()=>{
-    const p=new URLSearchParams();
-    p.set("token",localStorage.getItem("ttp_token")||"");
-    const af=applied;
-    if(af.departureDateFrom)p.set("departureDateFrom",af.departureDateFrom);
-    if(af.departureDateTo)p.set("departureDateTo",af.departureDateTo);
-    if((af.datasets||[]).length)af.datasets.forEach(d=>p.append("dataset",d));
-    if((af.statuses||[]).length)af.statuses.forEach(s=>p.append("status",s));
-    window.open(`${BASE}/api/dashboard/export?${p.toString()}`,"_blank");
-  };
-
-  const QUICK_DATES = [
-    {label:"This Year",fn:()=>{const y=new Date().getFullYear();setFilters(f=>({...f,departureDateFrom:`${y}-01-01`,departureDateTo:`${y}-12-31`}));}},
-    {label:"Last Year",fn:()=>{const y=new Date().getFullYear()-1;setFilters(f=>({...f,departureDateFrom:`${y}-01-01`,departureDateTo:`${y}-12-31`}));}},
-    {label:"Last 3M",fn:()=>{const to=new Date(),from=new Date();from.setMonth(from.getMonth()-3);setFilters(f=>({...f,departureDateFrom:from.toISOString().split("T")[0],departureDateTo:to.toISOString().split("T")[0]}));}},
-    {label:"All",fn:()=>setFilters(f=>({...f,departureDateFrom:"",departureDateTo:"",bookingDateFrom:"",bookingDateTo:""}))},
-  ];
-
-  if(!token) return <Login onLogin={onLogin}/>;
-
-  const isAdmin = user?.role==="admin";
-
-  // ── RENDER ─────────────────────────────────────────────────────────────────
-
-  const TABS = [
-    {id:"overview",label:"Overview"},
-    {id:"bus",label:"Bus Occupancy"},
-    {id:"ai",label:"AI Assistant"},
-    {id:"table",label:"Data Table"},
-    ...(isAdmin?[{id:"settings",label:"Settings"}]:[]),
-  ];
+  const ymRows = ymData.slice(ymPage * YM_PAGE_SIZE, (ymPage + 1) * YM_PAGE_SIZE);
+  const ymPages = Math.ceil(ymData.length / YM_PAGE_SIZE);
 
   return (
-    <div style={{minHeight:"100vh",background:T.bg,fontFamily:"'Segoe UI',system-ui,sans-serif",color:T.text}}>
-      {/* HEADER */}
-      <div style={{background:T.headerBg,borderBottom:`1px solid ${T.headerBorder}`,boxShadow:T.shadow,position:"sticky",top:0,zIndex:100}}>
-        <div style={{maxWidth:1400,margin:"0 auto",padding:"0 20px",display:"flex",alignItems:"center",gap:0,height:52}}>
-          {/* Logo */}
-          <div style={{display:"flex",alignItems:"center",gap:8,marginRight:28,flexShrink:0}}>
-            <div style={{width:30,height:30,background:T.accent,borderRadius:7,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-              <img src="/assets/logo.png" alt="TTP" style={{height:20,objectFit:"contain",filter:"brightness(0) invert(1)"}}
-                onError={e=>{e.target.style.display="none";e.target.nextSibling.style.display="block";}}
-              />
-              <span style={{display:"none",color:"#fff",fontWeight:800,fontSize:11}}>TTP</span>
-            </div>
-            <span style={{fontSize:13,fontWeight:700,color:T.accent,letterSpacing:"0.06em"}}>ANALYTICS</span>
-          </div>
+    <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 20 }}>
+      {loading && <div style={{ textAlign: "center", color: T.muted, padding: 12, fontSize: 13 }}>Loading data...</div>}
 
-          {/* Tabs */}
-          <div style={{display:"flex",alignItems:"center",gap:0,flex:1,overflowX:"auto"}}>
-            {TABS.map(t=>(
-              <button key={t.id} onClick={()=>setTab(t.id)} style={{
-                background:"transparent",border:"none",borderBottom:`2px solid ${tab===t.id?T.accent:"transparent"}`,
-                color:tab===t.id?T.accent:T.muted,padding:"0 14px",height:52,fontSize:14,
-                fontWeight:tab===t.id?600:400,cursor:"pointer",whiteSpace:"nowrap",
-                transition:"all 0.15s",flexShrink:0,
-              }}>{t.label}</button>
-            ))}
-          </div>
-
-          {/* Right controls */}
-          <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
-            <span style={{fontSize:12,color:T.muted,fontFamily:"monospace"}}>{clock} DXB</span>
-            <button onClick={()=>loadOverview(applied)} title="Refresh" style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:7,padding:"5px 8px",cursor:"pointer",color:T.muted,display:"flex",alignItems:"center"}}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.04-5.44"/></svg>
-            </button>
-            <button onClick={()=>setFiltersOpen(o=>!o)} style={{background:filtersOpen?T.accent:"transparent",color:filtersOpen?"#fff":T.muted,border:`1px solid ${filtersOpen?T.accent:T.border}`,borderRadius:7,padding:"5px 12px",fontSize:13,fontWeight:600,cursor:"pointer"}}>Filters</button>
-            <button onClick={exportCSV} style={{background:T.accent,color:"#fff",border:"none",borderRadius:7,padding:"6px 14px",fontSize:13,fontWeight:600,cursor:"pointer"}}>Export</button>
-            <span style={{fontSize:13,color:T.muted,marginLeft:4}}>{user?.username||"user"}</span>
-            <button onClick={logout} style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:7,padding:"5px 10px",fontSize:12,color:T.muted,cursor:"pointer"}}>Logout</button>
-          </div>
-        </div>
-
-        {/* Filters panel */}
-        {filtersOpen&&(
-          <div style={{borderTop:`1px solid ${T.border}`,background:T.headerBg,padding:"14px 20px"}}>
-            <div style={{maxWidth:1400,margin:"0 auto"}}>
-              {/* Quick date presets */}
-              <div style={{display:"flex",gap:6,marginBottom:12,alignItems:"center"}}>
-                <span style={{fontSize:11,color:T.muted,fontWeight:600,marginRight:4}}>Quick:</span>
-                {QUICK_DATES.map(q=>(
-                  <button key={q.label} onClick={()=>{q.fn();}} style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,color:T.muted,padding:"3px 12px",fontSize:12,cursor:"pointer",fontWeight:500}}>{q.label}</button>
-                ))}
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12,alignItems:"end"}}>
-                {[
-                  {label:"Departure From",key:"departureDateFrom"},
-                  {label:"Departure To",key:"departureDateTo"},
-                  {label:"Booking From",key:"bookingDateFrom"},
-                  {label:"Booking To",key:"bookingDateTo"},
-                ].map(({label,key})=>(
-                  <div key={key}>
-                    <div style={{fontSize:11,color:T.muted,fontWeight:600,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.04em"}}>{label}</div>
-                    <input type="date" value={filters[key]||""} onChange={e=>setFilters(f=>({...f,[key]:e.target.value}))}
-                      style={{width:"100%",boxSizing:"border-box",background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:7,padding:"7px 10px",fontSize:13,color:T.text,outline:"none",colorScheme:themeKey==="blue"?"dark":"light"}}
-                    />
-                  </div>
-                ))}
-                {/* Dataset */}
-                <div>
-                  <div style={{fontSize:11,color:T.muted,fontWeight:600,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.04em"}}>Dataset</div>
-                  <select value={(filters.datasets||[])[0]||""} onChange={e=>setFilters(f=>({...f,datasets:e.target.value?[e.target.value]:[]}))}
-                    style={{width:"100%",background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:7,padding:"7px 10px",fontSize:13,color:T.text,outline:"none"}}>
-                    <option value="">All</option>
-                    {["Snowtravel","Solmar","Interbus","Solmar DE"].map(d=><option key={d} value={d}>{d}</option>)}
-                  </select>
-                </div>
-                {/* Transport */}
-                <div>
-                  <div style={{fontSize:11,color:T.muted,fontWeight:600,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.04em"}}>Transport</div>
-                  <select value={(filters.transports||[])[0]||""} onChange={e=>setFilters(f=>({...f,transports:e.target.value?[e.target.value]:[]}))}
-                    style={{width:"100%",background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:7,padding:"7px 10px",fontSize:13,color:T.text,outline:"none"}}>
-                    <option value="">All</option>
-                    {(slicers.transportTypes||[]).map(d=><option key={d} value={d}>{d}</option>)}
-                  </select>
-                </div>
-                {/* Status */}
-                <div>
-                  <div style={{fontSize:11,color:T.muted,fontWeight:600,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.04em"}}>Status</div>
-                  <div style={{display:"flex",gap:5}}>
-                    {[["","All",T.muted],["ok","OK",T.success],["cancelled","Cancelled",T.danger]].map(([v,l,c])=>{
-                      const active=v===""?(filters.statuses||[]).length===0:(filters.statuses||[]).includes(v);
-                      return <button key={v} onClick={()=>setFilters(f=>({...f,statuses:v?[v]:[]}))} style={{background:active?`${c}22`:"transparent",border:`1px solid ${active?c:T.border}`,borderRadius:6,color:active?c:T.muted,padding:"6px 12px",fontSize:12,cursor:"pointer",fontWeight:active?700:400}}>{l}</button>;
-                    })}
-                  </div>
-                </div>
-                {/* Buttons */}
-                <div style={{display:"flex",gap:8,paddingTop:20}}>
-                  <button onClick={()=>{setApplied({...filters});setFiltersOpen(false);}} style={{flex:1,background:T.accent,color:"#fff",border:"none",borderRadius:7,padding:"8px",fontSize:13,fontWeight:600,cursor:"pointer"}}>Apply</button>
-                  <button onClick={()=>{setFilters({departureDateFrom:"",departureDateTo:"",bookingDateFrom:"",bookingDateTo:"",datasets:[],transports:[],statuses:[]});setApplied({});}} style={{flex:1,background:"transparent",border:`1px solid ${T.border}`,borderRadius:7,padding:"8px",fontSize:13,color:T.muted,cursor:"pointer"}}>Reset</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+      {/* KPI Cards */}
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+        <KpiCard title="Bookings" icon="📋" current={kpis?.currentBookings} previous={kpis?.previousBookings} T={T} />
+        <KpiCard title="PAX" icon="👥" current={kpis?.currentPax} previous={kpis?.previousPax} T={T} />
+        <KpiCard title="Revenue" icon="💰" current={kpis?.currentRevenue} previous={kpis?.previousRevenue} T={T} format="currency" />
       </div>
 
-      {/* CONTENT */}
-      <div style={{maxWidth:1400,margin:"0 auto",padding:"20px 20px 60px"}}>
-
-        {/* ── OVERVIEW TAB ── */}
-        {tab==="overview"&&(
-          <div>
-            {oLoad&&<div style={{textAlign:"center",padding:20,color:T.muted,fontSize:13}}>Loading data...</div>}
-            {/* KPI Cards */}
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,marginBottom:20}} className="kpi-grid">
-              {[
-                {label:"BOOKINGS",curr:kpis?.currentBookings,prev:kpis?.previousBookings,diff:kpis?.differenceBookings,pct:kpis?.percentBookings,fmt:fmtNum,icon:(
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                )},
-                {label:"PAX",curr:kpis?.currentPax,prev:kpis?.previousPax,diff:kpis?.differencePax,pct:kpis?.percentPax,fmt:fmtNum,icon:(
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                )},
-                {label:"REVENUE",curr:kpis?.currentRevenue,prev:kpis?.previousRevenue,diff:kpis?.differenceRevenue,pct:kpis?.percentRevenue,fmt:fmt,icon:(
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                )},
-              ].map(({label,curr,prev,diff,pct,fmt:f,icon})=>(
-                <div key={label} style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:12,padding:"20px 24px",boxShadow:T.cardShadow,transition:"box-shadow 0.15s"}}
-                  onMouseEnter={e=>e.currentTarget.style.boxShadow=`0 4px 16px rgba(0,51,204,0.12)`}
-                  onMouseLeave={e=>e.currentTarget.style.boxShadow=T.cardShadow}>
-                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-                    <div style={{color:T.accent}}>{icon}</div>
-                    <span style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.08em"}}>{label}</span>
-                  </div>
-                  <div style={{fontSize:32,fontWeight:800,color:T.accent,marginBottom:6,lineHeight:1}}>{curr!=null?f(curr):"—"}</div>
-                  <div style={{fontSize:12,color:T.muted,marginBottom:8}}>prev year: {prev!=null?f(prev):"—"}</div>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <span style={{color:diffColor(diff,T),fontSize:13,fontWeight:700}}>
-                      {diff!=null?(diff>0?"▲ ":"▼ ")+f(Math.abs(diff)):"—"}
-                    </span>
-                    {pct!=null&&<span style={{background:diffColor(diff,T)+"22",color:diffColor(diff,T),fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:20}}>
-                      {diff>0?"+":""}{Number(pct).toFixed(1)}%
-                    </span>}
-                  </div>
-                </div>
+      {/* Charts row */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <Card T={T} style={{ padding: 20 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.textSub, marginBottom: 12 }}>Revenue by Year</div>
+          <LineChart data={revData} T={T} />
+        </Card>
+        <Card T={T} style={{ padding: 20 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: T.textSub }}>
+              {barMetric === "bookings" ? "Bookings" : "PAX"} by Year
+            </div>
+            <div style={{ display: "flex", gap: 4 }}>
+              {["bookings","pax"].map(m => (
+                <button key={m} onClick={() => setBarMetric(m)}
+                  style={{ background: barMetric === m ? T.accent : T.bg, color: barMetric === m ? "#fff" : T.muted,
+                    border: `1px solid ${barMetric === m ? T.accent : T.border}`, borderRadius: 6,
+                    padding: "4px 10px", fontSize: 11, cursor: "pointer", fontWeight: 600, textTransform: "capitalize" }}>{m}</button>
               ))}
-            </div>
-
-            {/* Charts row */}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}} className="chart-grid">
-              <LineChart data={revData} title="REVENUE BY YEAR" T={T}/>
-              <BarChart data={revData} title="BOOKINGS / PAX BY YEAR" T={T}/>
-            </div>
-
-            {/* Table + Donut */}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 260px",gap:16,alignItems:"start"}}>
-              {/* Year-Month table */}
-              <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:12,overflow:"hidden",boxShadow:T.cardShadow}}>
-                <div style={{padding:"14px 18px",borderBottom:`1px solid ${T.border}`,fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.08em"}}>
-                  YEAR-MONTH COMPARISON
-                </div>
-                <div style={{overflowX:"auto",maxHeight:420,overflowY:"auto"}}>
-                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-                    <thead>
-                      <tr style={{background:T.tableAlt,position:"sticky",top:0}}>
-                        {["PERIOD","LAST YEAR","BOOKINGS","PREV BKG","PAX","PREV PAX","REVENUE","PREV REV","DIFFERENCE","% DIFF"].map(h=>(
-                          <th key={h} style={{padding:"9px 12px",textAlign:"right",fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderBottom:`1px solid ${T.border}`,...(h==="PERIOD"||h==="LAST YEAR"?{textAlign:"left"}:{})}}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {ymData.length===0&&<tr><td colSpan={10} style={{padding:20,textAlign:"center",color:T.muted,fontSize:12}}>No data — apply filters or click refresh</td></tr>}
-                      {ymData.map((row,i)=>{
-                        const d=row.diffRevenue||row.difference||0;
-                        const pct=row.diffPct||row.percentRevenue||0;
-                        return (
-                          <tr key={i} style={{background:i%2===0?T.card:T.tableAlt,borderBottom:`1px solid ${T.border}`}}
-                            onMouseEnter={e=>e.currentTarget.style.background=T.tableHover}
-                            onMouseLeave={e=>e.currentTarget.style.background=i%2===0?T.card:T.tableAlt}>
-                            <td style={{padding:"9px 12px",fontWeight:600,color:T.accent,whiteSpace:"nowrap"}}>{MONTHS[(row.month||1)-1]}-{row.year}</td>
-                            <td style={{padding:"9px 12px",color:T.muted,whiteSpace:"nowrap"}}>{MONTHS[(row.month||1)-1]}-{(row.year||0)-1}</td>
-                            <td style={{padding:"9px 12px",textAlign:"right",fontWeight:600}}>{fmtNum(row.currentBookings||row.bookings)}</td>
-                            <td style={{padding:"9px 12px",textAlign:"right",color:T.muted}}>{fmtNum(row.previousBookings||row.prevBookings)}</td>
-                            <td style={{padding:"9px 12px",textAlign:"right",fontWeight:600}}>{fmtNum(row.currentPax||row.pax)}</td>
-                            <td style={{padding:"9px 12px",textAlign:"right",color:T.muted}}>{fmtNum(row.previousPax||row.prevPax)}</td>
-                            <td style={{padding:"9px 12px",textAlign:"right",fontWeight:600}}>{fmt(row.currentRevenue||row.revenue)}</td>
-                            <td style={{padding:"9px 12px",textAlign:"right",color:T.muted}}>{fmt(row.previousRevenue||row.prevRevenue)}</td>
-                            <td style={{padding:"9px 12px",textAlign:"right",color:diffColor(d,T),fontWeight:700}}>{d>0?"+":""}{fmt(d)}</td>
-                            <td style={{padding:"9px 12px",textAlign:"right",color:diffColor(pct,T),fontWeight:700}}>{d>0?"+":""}{Number(pct||0).toFixed(1)}%</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-              {/* Donut */}
-              <DonutChart data={trData} T={T}/>
             </div>
           </div>
-        )}
+          <BarChart data={revData} metric={barMetric} T={T} />
+        </Card>
+      </div>
 
-        {/* ── BUS OCCUPANCY TAB ── */}
-        {tab==="bus"&&(
-          <div>
-            {/* Solmar/Snowtravel toggle */}
-            <div style={{display:"flex",gap:8,marginBottom:16}}>
-              {[["solmar","Solmar / Interbus"],["snowtravel","Snowtravel"]].map(([k,l])=>(
-                <button key={k} onClick={()=>setBusTab(k)} style={{background:busTab===k?T.accent:"transparent",color:busTab===k?"#fff":T.muted,border:`1px solid ${busTab===k?T.accent:T.border}`,borderRadius:8,padding:"8px 20px",fontSize:13,fontWeight:600,cursor:"pointer"}}>{l}</button>
-              ))}
-            </div>
-
-            {/* Bus date filter */}
-            <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"14px 18px",marginBottom:16,display:"flex",gap:12,alignItems:"flex-end",flexWrap:"wrap"}}>
-              {[["Date From","dateFrom"],["Date To","dateTo"]].map(([l,k])=>(
-                <div key={k}>
-                  <div style={{fontSize:11,color:T.muted,fontWeight:600,marginBottom:4}}>{l}</div>
-                  <input type="date" value={busFilters[k]||""} onChange={e=>setBusFilters(f=>({...f,[k]:e.target.value}))}
-                    style={{background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:7,padding:"7px 10px",fontSize:13,color:T.text,outline:"none",colorScheme:themeKey==="blue"?"dark":"light"}}
-                  />
-                </div>
-              ))}
-              <button onClick={()=>loadBus(busFilters)} style={{background:T.accent,color:"#fff",border:"none",borderRadius:7,padding:"8px 18px",fontSize:13,fontWeight:600,cursor:"pointer"}}>Apply</button>
-              <button onClick={()=>{setBusFilters({dateFrom:"",dateTo:""});loadBus({});}} style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:7,padding:"8px 14px",fontSize:13,color:T.muted,cursor:"pointer"}}>Reset</button>
-            </div>
-
-            {bLoad&&<div style={{textAlign:"center",padding:20,color:T.muted}}>Loading bus data...</div>}
-
-            {/* Solmar charts */}
-            {busTab==="solmar"&&(
-              <div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}>
-                  <BusBarChart data={busClass.filter(d=>d.dataset!=="Snowtravel")} metric="bookings" title="BOOKINGS BY BUS CLASS" T={T}/>
-                  <BusBarChart data={busClass.filter(d=>d.dataset!=="Snowtravel")} metric="revenue" title="REVENUE BY BUS CLASS" T={T}/>
-                </div>
-                {/* BUStrips table */}
-                <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:12,overflow:"hidden",boxShadow:T.cardShadow}}>
-                  <div style={{padding:"14px 18px",borderBottom:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                    <span style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.08em"}}>
-                      BUS OCCUPANCY — OUTBOUND VS RETURN
-                    </span>
-                    <span style={{fontSize:12,color:T.muted}}>{busTrips.length} trips</span>
-                  </div>
-                  <div style={{overflowX:"auto",maxHeight:480,overflowY:"auto"}}>
-                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                      <thead>
-                        <tr style={{background:T.tableAlt,position:"sticky",top:0}}>
-                          <th colSpan={2} style={{padding:"8px 12px",textAlign:"left",fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",borderBottom:`1px solid ${T.border}`}}>TRIP</th>
-                          <th colSpan={4} style={{padding:"8px 12px",textAlign:"center",fontSize:10,fontWeight:700,color:"#2563eb",textTransform:"uppercase",borderBottom:`1px solid ${T.border}`,borderLeft:`2px solid ${T.border}`}}>OUTBOUND</th>
-                          <th colSpan={4} style={{padding:"8px 12px",textAlign:"center",fontSize:10,fontWeight:700,color:T.success,textTransform:"uppercase",borderBottom:`1px solid ${T.border}`,borderLeft:`2px solid ${T.border}`}}>RETURN</th>
-                          <th colSpan={4} style={{padding:"8px 12px",textAlign:"center",fontSize:10,fontWeight:700,color:T.warning,textTransform:"uppercase",borderBottom:`1px solid ${T.border}`,borderLeft:`2px solid ${T.border}`}}>DIFFERENCE</th>
-                        </tr>
-                        <tr style={{background:T.tableAlt,position:"sticky",top:33}}>
-                          {["START","END","RC","FC","PRE","TOTAL","RC","FC","PRE","TOTAL","RC","FC","PRE","TOTAL"].map((h,i)=>(
-                            <th key={i} style={{padding:"6px 10px",textAlign:i<2?"left":"right",fontSize:10,color:T.muted2,fontWeight:600,borderBottom:`1px solid ${T.border}`,...(i===2||i===6||i===10?{borderLeft:`2px solid ${T.border}`}:{})}}>{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {busTrips.length===0&&<tr><td colSpan={14} style={{padding:20,textAlign:"center",color:T.muted,fontSize:12}}>No trips found</td></tr>}
-                        {busTrips.map((r,i)=>(
-                          <tr key={i} style={{background:i%2===0?T.card:T.tableAlt,borderBottom:`1px solid ${T.border}`}}
-                            onMouseEnter={e=>e.currentTarget.style.background=T.tableHover}
-                            onMouseLeave={e=>e.currentTarget.style.background=i%2===0?T.card:T.tableAlt}>
-                            <td style={{padding:"8px 10px",color:T.accent,fontWeight:600,whiteSpace:"nowrap"}}>{r.StartDate}</td>
-                            <td style={{padding:"8px 10px",color:T.muted,whiteSpace:"nowrap"}}>{r.EndDate}</td>
-                            {[r.ORC,r.OFC,r.OPRE,r.OTotal].map((v,j)=><td key={j} style={{padding:"8px 10px",textAlign:"right",...(j===0?{borderLeft:`2px solid ${T.border}`}:{})}}>{v||0}</td>)}
-                            {[r.RRC,r.RFC,r.RPRE,r.RTotal].map((v,j)=><td key={j} style={{padding:"8px 10px",textAlign:"right",...(j===0?{borderLeft:`2px solid ${T.border}`}:{})}}>{v||0}</td>)}
-                            {[r.RC_Diff,r.FC_Diff,r.PRE_Diff,r.Total_Difference].map((v,j)=>(
-                              <td key={j} style={{padding:"8px 10px",textAlign:"right",fontWeight:600,color:v>0?T.success:v<0?T.danger:T.muted,...(j===0?{borderLeft:`2px solid ${T.border}`}:{})}}>{v>0?"+":""}{v||0}</td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <div style={{padding:"8px 18px",borderTop:`1px solid ${T.border}`,fontSize:11,color:T.muted}}>
-                    RC = Royal Class &nbsp;|&nbsp; FC = First Class &nbsp;|&nbsp; PRE = Premium
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Snowtravel */}
-            {busTab==="snowtravel"&&(
-              <div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}>
-                  <BusBarChart data={busClass.filter(d=>d.dataset==="Snowtravel")} metric="bookings" title="BOOKINGS BY BUS CLASS (SNOWTRAVEL)" T={T}/>
-                  <BusBarChart data={busClass.filter(d=>d.dataset==="Snowtravel")} metric="revenue" title="REVENUE BY BUS CLASS (SNOWTRAVEL)" T={T}/>
-                </div>
-                <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:12,overflow:"hidden",boxShadow:T.cardShadow}}>
-                  <div style={{padding:"14px 18px",borderBottom:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                    <span style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.08em"}}>SNOWTRAVEL BUS OCCUPANCY</span>
-                    <span style={{fontSize:12,color:T.muted}}>{stTrips.length} rows</span>
-                  </div>
-                  <div style={{overflowX:"auto",maxHeight:480,overflowY:"auto"}}>
-                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                      <thead>
-                        <tr style={{background:T.tableAlt,position:"sticky",top:0}}>
-                          {["DEPARTURE","RETURN","DREAM CLASS","FIRST CLASS","SLEEP/ROYAL","TOTAL PAX"].map(h=>(
-                            <th key={h} style={{padding:"9px 12px",textAlign:h.includes("DATE")||h==="DEPARTURE"||h==="RETURN"?"left":"right",fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap"}}>{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {stTrips.length===0&&<tr><td colSpan={6} style={{padding:20,textAlign:"center",color:T.muted,fontSize:12}}>No Snowtravel bus data</td></tr>}
-                        {stTrips.map((r,i)=>(
-                          <tr key={i} style={{background:i%2===0?T.card:T.tableAlt,borderBottom:`1px solid ${T.border}`}}
-                            onMouseEnter={e=>e.currentTarget.style.background=T.tableHover}
-                            onMouseLeave={e=>e.currentTarget.style.background=i%2===0?T.card:T.tableAlt}>
-                            <td style={{padding:"8px 12px",color:T.accent,fontWeight:600}}>{r.departure_date}</td>
-                            <td style={{padding:"8px 12px",color:T.muted}}>{r.return_date}</td>
-                            <td style={{padding:"8px 12px",textAlign:"right"}}>{r.dream_class||0}</td>
-                            <td style={{padding:"8px 12px",textAlign:"right"}}>{r.first_class||0}</td>
-                            <td style={{padding:"8px 12px",textAlign:"right"}}>{r.sleep_royal_class||0}</td>
-                            <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:T.accent}}>{r.total_pax||0}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            )}
+      {/* Transport bar + Year-Month table */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 16 }}>
+        <Card T={T} style={{ padding: 20 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.textSub, marginBottom: 16 }}>Transport Mix</div>
+          <TransportBar data={trData} T={T} />
+        </Card>
+        <Card T={T} style={{ padding: 0, overflow: "hidden" }}>
+          <div style={{ padding: "16px 20px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: T.textSub }}>Year-Month Comparison</div>
+            <div style={{ fontSize: 12, color: T.muted }}>{ymData.length} rows</div>
           </div>
-        )}
-
-        {/* ── AI ASSISTANT TAB ── */}
-        {tab==="ai"&&(
-          <div style={{display:"grid",gridTemplateColumns:"1fr 300px",gap:16,height:"calc(100vh - 160px)"}}>
-            {/* Chat */}
-            <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:12,display:"flex",flexDirection:"column",overflow:"hidden",boxShadow:T.cardShadow}}>
-              <div style={{padding:"16px 20px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",gap:10}}>
-                <div style={{width:10,height:10,borderRadius:"50%",background:"#22c55e"}}/>
-                <div>
-                  <div style={{fontSize:14,fontWeight:700,color:T.text}}>TTP AI Assistant</div>
-                  <div style={{fontSize:11,color:T.muted}}>Powered by OpenAI &middot; Live Azure SQL data</div>
-                </div>
-              </div>
-              <div ref={chatRef} style={{flex:1,overflowY:"auto",padding:"16px 20px",display:"flex",flexDirection:"column",gap:12}}>
-                {msgs.map((m,i)=>(
-                  <div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start"}}>
-                    <div style={{maxWidth:"75%",background:m.role==="user"?T.accent:T.tableAlt,color:m.role==="user"?"#fff":T.text,borderRadius:m.role==="user"?"14px 14px 2px 14px":"14px 14px 14px 2px",padding:"10px 14px",fontSize:13,lineHeight:1.5}}>
-                      {m.text}
-                    </div>
-                  </div>
-                ))}
-                {aiLoad&&<div style={{display:"flex",gap:4,padding:"8px 0",alignItems:"center"}}>
-                  {[0,1,2].map(i=><div key={i} style={{width:7,height:7,borderRadius:"50%",background:T.muted,animation:`bounce 1s ${i*0.2}s infinite`}}/>)}
-                </div>}
-              </div>
-              <div style={{padding:"12px 16px",borderTop:`1px solid ${T.border}`,display:"flex",gap:8}}>
-                <input value={aiInput} onChange={e=>setAiInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&sendAI(aiInput)}
-                  placeholder="Ask about your data..." style={{flex:1,background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:8,padding:"9px 14px",fontSize:13,color:T.text,outline:"none"}}
-                />
-                <button onClick={()=>sendAI(aiInput)} disabled={aiLoad||!aiInput.trim()} style={{background:T.accent,color:"#fff",border:"none",borderRadius:8,padding:"9px 18px",fontSize:13,fontWeight:600,cursor:"pointer",opacity:aiLoad||!aiInput.trim()?0.6:1}}>Send</button>
-              </div>
-            </div>
-            {/* Sidebar */}
-            <div style={{display:"flex",flexDirection:"column",gap:12}}>
-              <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:12,padding:"16px",boxShadow:T.cardShadow}}>
-                <div style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:12}}>QUICK QUESTIONS</div>
-                {["What is total revenue for 2026?","Compare Solmar vs Snowtravel bookings","Which month had the most PAX in 2025?","How many cancellations in 2025?","Show revenue breakdown by dataset","What is year-on-year growth?","Average revenue per booking?","Which departure city has most bookings?"].map((q,i)=>(
-                  <button key={i} onClick={()=>sendAI(q)} style={{display:"block",width:"100%",textAlign:"left",background:"transparent",border:`1px solid ${T.border}`,borderRadius:7,padding:"8px 12px",fontSize:12,color:T.text,cursor:"pointer",marginBottom:6,lineHeight:1.4}}
-                    onMouseEnter={e=>{e.target.style.background=T.tableHover;e.target.style.borderColor=T.accent;}}
-                    onMouseLeave={e=>{e.target.style.background="transparent";e.target.style.borderColor=T.border;}}
-                  >{q}</button>
-                ))}
-              </div>
-              <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:12,padding:"16px",boxShadow:T.cardShadow}}>
-                <div style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:10}}>DATA SOURCES</div>
-                {["Snowtravel","Solmar","Interbus","Solmar DE"].map(ds=>(
-                  <div key={ds} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:`1px solid ${T.border}`}}>
-                    <span style={{fontSize:13,color:T.text}}>{ds}</span>
-                    <span style={{fontSize:11,color:T.success,fontWeight:600,background:`${T.success}22`,padding:"2px 8px",borderRadius:10}}>Live</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── DATA TABLE TAB ── */}
-        {tab==="table"&&(
-          <div>
-            <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"14px 18px",marginBottom:16,display:"flex",gap:12,alignItems:"flex-end",flexWrap:"wrap"}}>
-              <div style={{flex:1,minWidth:200}}>
-                <div style={{fontSize:11,color:T.muted,fontWeight:600,marginBottom:4,textTransform:"uppercase"}}>Search</div>
-                <input value={tableSearch} onChange={e=>setTableSearch(e.target.value)} placeholder="Search period, dataset..."
-                  style={{width:"100%",boxSizing:"border-box",background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:7,padding:"7px 10px",fontSize:13,color:T.text,outline:"none"}}
-                />
-              </div>
-              {[["Dataset","tableDataset",["Snowtravel","Solmar","Interbus","Solmar DE"]],["Status","tableStatus",["ok","cancelled"]]].map(([l,k,opts])=>(
-                <div key={k}>
-                  <div style={{fontSize:11,color:T.muted,fontWeight:600,marginBottom:4,textTransform:"uppercase"}}>{l}</div>
-                  <select value={k==="tableDataset"?tableDataset:tableStatus} onChange={e=>{k==="tableDataset"?setTableDataset(e.target.value):setTableStatus(e.target.value);}}
-                    style={{background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:7,padding:"7px 10px",fontSize:13,color:T.text,outline:"none",minWidth:130}}>
-                    <option value="">All</option>
-                    {opts.map(o=><option key={o} value={o}>{o}</option>)}
-                  </select>
-                </div>
-              ))}
-              <button onClick={loadTable} style={{background:T.accent,color:"#fff",border:"none",borderRadius:7,padding:"8px 16px",fontSize:13,fontWeight:600,cursor:"pointer"}}>Apply</button>
-              <button onClick={exportCSV} style={{background:"transparent",border:`1px solid ${T.accent}`,borderRadius:7,padding:"8px 16px",fontSize:13,fontWeight:600,color:T.accent,cursor:"pointer"}}>Export CSV</button>
-            </div>
-            <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:12,overflow:"hidden",boxShadow:T.cardShadow}}>
-              <div style={{padding:"12px 18px",borderBottom:`1px solid ${T.border}`,fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.08em"}}>
-                DATA — YEAR-MONTH SUMMARY
-              </div>
-              <div style={{overflowX:"auto"}}>
-                <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-                  <thead>
-                    <tr style={{background:T.tableAlt}}>
-                      {["PERIOD","BOOKINGS","PREV BKG","PAX","PREV PAX","REVENUE","PREV REVENUE","DIFF","% DIFF"].map(h=>(
-                        <th key={h} style={{padding:"10px 14px",textAlign:h==="PERIOD"?"left":"right",fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap"}}>{h}</th>
-                      ))}
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: T.tableHead }}>
+                  {["Period","Bookings","Prev Bkg","Δ Bkg","PAX","Prev PAX","Δ PAX","Revenue","Prev Rev","Δ Rev"].map(h => (
+                    <th key={h} style={{ padding: "8px 12px", textAlign: h === "Period" ? "left" : "right",
+                      fontWeight: 600, fontSize: 11, color: T.muted, textTransform: "uppercase",
+                      letterSpacing: "0.05em", borderBottom: `1px solid ${T.border}`, whiteSpace: "nowrap" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {ymRows.map((row, i) => {
+                  const bDiff = (row.currentBookings||0) - (row.previousBookings||0);
+                  const pDiff = (row.currentPax||0) - (row.previousPax||0);
+                  const rDiff = (row.currentRevenue||0) - (row.previousRevenue||0);
+                  return (
+                    <tr key={i} style={{ background: i % 2 === 0 ? T.tableRow : T.tableRowAlt,
+                      borderBottom: `1px solid ${T.border}` }}>
+                      <td style={{ padding: "8px 12px", fontWeight: 600, color: T.text, whiteSpace: "nowrap" }}>
+                        {monthLabel(row.month, row.year)}
+                      </td>
+                      <td style={{ padding: "8px 12px", textAlign: "right", color: T.text }}>{fmtNum(row.currentBookings)}</td>
+                      <td style={{ padding: "8px 12px", textAlign: "right", color: T.muted }}>{fmtNum(row.previousBookings)}</td>
+                      <td style={{ padding: "8px 12px", textAlign: "right", color: bDiff >= 0 ? T.success : T.danger, fontWeight: 600 }}>{bDiff >= 0 ? "+" : ""}{fmtNum(bDiff)}</td>
+                      <td style={{ padding: "8px 12px", textAlign: "right", color: T.text }}>{fmtNum(row.currentPax)}</td>
+                      <td style={{ padding: "8px 12px", textAlign: "right", color: T.muted }}>{fmtNum(row.previousPax)}</td>
+                      <td style={{ padding: "8px 12px", textAlign: "right", color: pDiff >= 0 ? T.success : T.danger, fontWeight: 600 }}>{pDiff >= 0 ? "+" : ""}{fmtNum(pDiff)}</td>
+                      <td style={{ padding: "8px 12px", textAlign: "right", color: T.text }}>{fmtEur(row.currentRevenue)}</td>
+                      <td style={{ padding: "8px 12px", textAlign: "right", color: T.muted }}>{fmtEur(row.previousRevenue)}</td>
+                      <td style={{ padding: "8px 12px", textAlign: "right", color: rDiff >= 0 ? T.success : T.danger, fontWeight: 600 }}>{rDiff >= 0 ? "+" : ""}{fmtEur(rDiff)}</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {tLoad&&<tr><td colSpan={9} style={{padding:20,textAlign:"center",color:T.muted}}>Loading...</td></tr>}
-                    {!tLoad&&tableData.filter(r=>{
-                      const period=`${MONTHS[(r.month||1)-1]}-${r.year}`.toLowerCase();
-                      return !tableSearch||period.includes(tableSearch.toLowerCase());
-                    }).slice((tablePage-1)*20,tablePage*20).map((row,i)=>{
-                      const d=row.diffRevenue||row.difference||0;
-                      const pct=row.diffPct||0;
-                      return (
-                        <tr key={i} style={{background:i%2===0?T.card:T.tableAlt,borderBottom:`1px solid ${T.border}`}}
-                          onMouseEnter={e=>e.currentTarget.style.background=T.tableHover}
-                          onMouseLeave={e=>e.currentTarget.style.background=i%2===0?T.card:T.tableAlt}>
-                          <td style={{padding:"9px 14px",fontWeight:600,color:T.accent}}>{MONTHS[(row.month||1)-1]}-{row.year}</td>
-                          <td style={{padding:"9px 14px",textAlign:"right"}}>{fmtNum(row.currentBookings||row.bookings)}</td>
-                          <td style={{padding:"9px 14px",textAlign:"right",color:T.muted}}>{fmtNum(row.previousBookings)}</td>
-                          <td style={{padding:"9px 14px",textAlign:"right"}}>{fmtNum(row.currentPax||row.pax)}</td>
-                          <td style={{padding:"9px 14px",textAlign:"right",color:T.muted}}>{fmtNum(row.previousPax)}</td>
-                          <td style={{padding:"9px 14px",textAlign:"right",fontWeight:600}}>{fmt(row.currentRevenue||row.revenue)}</td>
-                          <td style={{padding:"9px 14px",textAlign:"right",color:T.muted}}>{fmt(row.previousRevenue)}</td>
-                          <td style={{padding:"9px 14px",textAlign:"right",color:diffColor(d,T),fontWeight:700}}>{d>0?"+":""}{fmt(d)}</td>
-                          <td style={{padding:"9px 14px",textAlign:"right",color:diffColor(pct,T),fontWeight:700}}>{d>0?"+":""}{Number(pct||0).toFixed(1)}%</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        )}
-
-        {/* ── SETTINGS TAB ── */}
-        {tab==="settings"&&isAdmin&&(
-          <div>
-            {/* Settings sub-tabs */}
-            <div style={{display:"flex",gap:0,borderBottom:`1px solid ${T.border}`,marginBottom:20}}>
-              {[["users","Users & Access"],["theme","Theme"],["api","API Keys & Integrations"],["about","About"]].map(([k,l])=>(
-                <button key={k} onClick={()=>setSettingsTab(k)} style={{background:"transparent",border:"none",borderBottom:`2px solid ${settingsTab===k?T.accent:"transparent"}`,color:settingsTab===k?T.accent:T.muted,padding:"10px 18px",fontSize:14,fontWeight:settingsTab===k?600:400,cursor:"pointer"}}>{l}</button>
-              ))}
+          {ymPages > 1 && (
+            <div style={{ padding: "10px 16px", borderTop: `1px solid ${T.border}`, display: "flex", gap: 6, justifyContent: "flex-end" }}>
+              <Btn onClick={() => setYmPage(p => Math.max(0, p-1))} disabled={ymPage === 0} variant="secondary" T={T} style={{ padding: "4px 10px", fontSize: 12 }}>Prev</Btn>
+              <span style={{ fontSize: 12, color: T.muted, alignSelf: "center" }}>{ymPage+1} / {ymPages}</span>
+              <Btn onClick={() => setYmPage(p => Math.min(ymPages-1, p+1))} disabled={ymPage >= ymPages-1} variant="secondary" T={T} style={{ padding: "4px 10px", fontSize: 12 }}>Next</Btn>
             </div>
+          )}
+        </Card>
+      </div>
+    </div>
+  );
+}
 
-            {/* Users */}
-            {settingsTab==="users"&&(
-              <div>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-                  <div style={{fontSize:15,fontWeight:700,color:T.text}}>User Accounts ({users.length})</div>
-                  <button onClick={()=>setShowAddUser(true)} style={{background:T.accent,color:"#fff",border:"none",borderRadius:8,padding:"8px 18px",fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:6}}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    Add User
-                  </button>
-                </div>
-                <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:12,overflow:"hidden",boxShadow:T.cardShadow}}>
-                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-                    <thead>
-                      <tr style={{background:T.tableAlt}}>
-                        {["NAME","USERNAME","EMAIL","ROLE","STATUS","ACTIONS"].map(h=>(
-                          <th key={h} style={{padding:"11px 16px",textAlign:"left",fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:"0.06em",borderBottom:`1px solid ${T.border}`}}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {users.map((u,i)=>(
-                        <tr key={u.id||i} style={{background:i%2===0?T.card:T.tableAlt,borderBottom:`1px solid ${T.border}`}}
-                          onMouseEnter={e=>e.currentTarget.style.background=T.tableHover}
-                          onMouseLeave={e=>e.currentTarget.style.background=i%2===0?T.card:T.tableAlt}>
-                          <td style={{padding:"12px 16px",fontWeight:600,color:T.text}}>{u.name}</td>
-                          <td style={{padding:"12px 16px",color:T.muted,fontFamily:"monospace",fontSize:12}}>{u.username}</td>
-                          <td style={{padding:"12px 16px",color:T.muted}}>{u.email}</td>
-                          <td style={{padding:"12px 16px"}}>
-                            <span style={{background:u.role==="admin"?`${T.accent}22`:T.tableAlt,color:u.role==="admin"?T.accent:T.muted,fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:12,border:`1px solid ${u.role==="admin"?T.accent:T.border}`}}>{u.role==="admin"?"Admin":"Viewer"}</span>
-                          </td>
-                          <td style={{padding:"12px 16px"}}>
-                            <span style={{background:`${T.success}22`,color:T.success,fontSize:11,fontWeight:600,padding:"3px 10px",borderRadius:12}}>Active</span>
-                          </td>
-                          <td style={{padding:"12px 16px"}}>
-                            <div style={{display:"flex",gap:6}}>
-                              <button onClick={()=>setEditUser({...u})} style={{background:`${T.accent}15`,border:`1px solid ${T.accent}40`,borderRadius:6,color:T.accent,padding:"5px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>Edit</button>
-                              <button onClick={()=>{if(window.confirm(`Delete ${u.name}?`))setUsers(prev=>prev.filter(x=>x.id!==u.id));}} style={{background:`${T.danger}15`,border:`1px solid ${T.danger}40`,borderRadius:6,color:T.danger,padding:"5px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>Delete</button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
+// ── BUS OCCUPANCY TAB ─────────────────────────────────────────────────────────
+function BusOccupancyTab({ T, onUnauth }) {
+  const [mode, setMode] = useState("solmar"); // "solmar" | "snowtravel"
+  const [busClass, setBusClass] = useState([]);
+  const [busTrips, setBusTrips] = useState([]);
+  const [stData, setStData] = useState([]);
+  const [stMonthly, setStMonthly] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [classMetric, setClassMetric] = useState("bookings");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [tripPage, setTripPage] = useState(0);
+  const TRIP_PAGE = 30;
 
-            {/* Theme */}
-            {settingsTab==="theme"&&(
-              <div>
-                <div style={{fontSize:15,fontWeight:700,color:T.text,marginBottom:16}}>Theme Selection</div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,maxWidth:600}}>
-                  {[["gray","Gray (Light)","#f0f2f5","#ffffff","#0033cc"],["blue","Blue (Dark)","#050d1a","#0a1628","#60a5fa"]].map(([k,l,bg,card,acc])=>(
-                    <div key={k} onClick={()=>switchTheme(k)} style={{
-                      border:`2px solid ${themeKey===k?T.accent:T.border}`,borderRadius:14,padding:20,cursor:"pointer",
-                      background:T.card,boxShadow:themeKey===k?`0 0 0 3px ${T.accent}33`:T.cardShadow,
-                      transition:"all 0.2s",
-                    }}>
-                      {/* Preview */}
-                      <div style={{background:bg,borderRadius:8,padding:12,marginBottom:12,border:`1px solid ${T.border}`}}>
-                        <div style={{background:card,borderRadius:6,padding:8,marginBottom:6,display:"flex",gap:6}}>
-                          {[acc,"#f59e0b","#34d399"].map((c,i)=><div key={i} style={{flex:1,background:c,borderRadius:4,height:16,opacity:0.8}}/>)}
-                        </div>
-                        <div style={{background:card,borderRadius:4,height:6,opacity:0.6}}/>
-                        <div style={{background:card,borderRadius:4,height:4,marginTop:4,opacity:0.4,width:"70%"}}/>
-                      </div>
-                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                        <span style={{fontSize:14,fontWeight:600,color:T.text}}>{l}</span>
-                        {themeKey===k&&<span style={{color:T.accent,fontSize:12,fontWeight:700}}>✓ Active</span>}
-                      </div>
-                    </div>
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([
+      apiFetch("/api/dashboard/bus-class-summary"),
+      apiFetch("/api/dashboard/bustrips"),
+      apiFetch("/api/dashboard/snowtravel-bus").catch(() => []),
+      apiFetch("/api/dashboard/snowtravel-monthly").catch(() => []),
+    ]).then(([bc, bt, st, stm]) => {
+      if (Array.isArray(bc)) setBusClass(bc);
+      const rows = Array.isArray(bt) ? bt : (bt?.rows || []);
+      setBusTrips(rows);
+      if (Array.isArray(st)) setStData(st);
+      if (Array.isArray(stm)) setStMonthly(stm);
+    }).catch(e => { if (e.status === 401) onUnauth(); })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const applyBusFilter = () => {
+    const p = {};
+    if (dateFrom) p.dateFrom = dateFrom;
+    if (dateTo) p.dateTo = dateTo;
+    setLoading(true);
+    Promise.all([
+      apiFetch("/api/dashboard/bustrips", p),
+      apiFetch("/api/dashboard/snowtravel-bus", p).catch(() => []),
+    ]).then(([bt, st]) => {
+      const rows = Array.isArray(bt) ? bt : (bt?.rows || []);
+      setBusTrips(rows); setTripPage(0);
+      if (Array.isArray(st)) setStData(st);
+    }).finally(() => setLoading(false));
+  };
+
+  const solmarClass = busClass.filter(d => ["Solmar","Interbus","Solmar DE"].includes(d.dataset));
+  const stClass = busClass.filter(d => d.dataset === "Snowtravel");
+  const trips = busTrips.slice(tripPage * TRIP_PAGE, (tripPage+1) * TRIP_PAGE);
+  const tripPages = Math.ceil(busTrips.length / TRIP_PAGE);
+
+  const diffColor = v => Number(v) >= 0 ? T.success : T.danger;
+  const diffBg = v => Number(v) >= 0 ? T.successBg : T.dangerBg;
+
+  return (
+    <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Toggle + Filter */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 12 }}>
+        <div style={{ display: "flex", background: T.bg, borderRadius: 8, padding: 3, border: `1px solid ${T.border}` }}>
+          {[["solmar","Solmar / Interbus"],["snowtravel","Snowtravel"]].map(([v, l]) => (
+            <button key={v} onClick={() => setMode(v)}
+              style={{ background: mode === v ? T.accent : "transparent", color: mode === v ? "#fff" : T.muted,
+                border: "none", borderRadius: 6, padding: "7px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{l}</button>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            style={{ background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.text, padding: "6px 8px", fontSize: 12, colorScheme: T.id === "dark" ? "dark" : "light" }} />
+          <span style={{ color: T.muted, fontSize: 11 }}>to</span>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            style={{ background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.text, padding: "6px 8px", fontSize: 12, colorScheme: T.id === "dark" ? "dark" : "light" }} />
+          <Btn onClick={applyBusFilter} T={T} style={{ padding: "7px 14px" }}>Apply</Btn>
+          <Btn onClick={() => { setDateFrom(""); setDateTo(""); }} variant="secondary" T={T} style={{ padding: "7px 14px" }}>Reset</Btn>
+        </div>
+      </div>
+
+      {loading && <div style={{ textAlign: "center", color: T.muted, padding: 12, fontSize: 13 }}>Loading...</div>}
+
+      {mode === "solmar" && (
+        <>
+          {/* Charts */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Card T={T} style={{ padding: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.textSub }}>
+                  {classMetric === "bookings" ? "Bookings" : "PAX"} by Bus Class
+                </div>
+                <div style={{ display: "flex", gap: 4 }}>
+                  {["bookings","pax"].map(m => (
+                    <button key={m} onClick={() => setClassMetric(m)}
+                      style={{ background: classMetric === m ? T.accent : T.bg, color: classMetric === m ? "#fff" : T.muted,
+                        border: `1px solid ${classMetric === m ? T.accent : T.border}`, borderRadius: 6,
+                        padding: "4px 10px", fontSize: 11, cursor: "pointer", fontWeight: 600, textTransform: "capitalize" }}>{m}</button>
                   ))}
                 </div>
               </div>
-            )}
+              <BusClassChart data={solmarClass} metric={classMetric} T={T} />
+            </Card>
+            <Card T={T} style={{ padding: 20 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.textSub, marginBottom: 12 }}>Revenue by Bus Class</div>
+              <BusClassChart data={solmarClass} metric="revenue" T={T} />
+            </Card>
+          </div>
 
-            {/* API Keys */}
-            {settingsTab==="api"&&(
-              <div>
-                <div style={{fontSize:15,fontWeight:700,color:T.text,marginBottom:16}}>API Integrations</div>
-                {[{name:"OpenAI GPT-4o-mini",desc:"Powers the AI Assistant chat",status:"Connected",color:T.success},{name:"Azure SQL Database",desc:"ttpserver.database.windows.net / TTPDatabase",status:"Connected",color:T.success},{name:"Anthropic Claude",desc:"Alternative AI provider",status:"Not configured",color:T.muted}].map((item,i)=>(
-                  <div key={i} style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"16px 20px",marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center",boxShadow:T.cardShadow}}>
-                    <div>
-                      <div style={{fontSize:14,fontWeight:600,color:T.text,marginBottom:3}}>{item.name}</div>
-                      <div style={{fontSize:12,color:T.muted}}>{item.desc}</div>
-                    </div>
-                    <span style={{background:`${item.color}22`,color:item.color,fontSize:12,fontWeight:600,padding:"4px 12px",borderRadius:12,border:`1px solid ${item.color}40`}}>{item.status}</span>
-                  </div>
+          {/* Bus Occupancy Table */}
+          <Card T={T} style={{ overflow: "hidden" }}>
+            <div style={{ padding: "14px 20px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>Bus Occupancy — Outbound vs Return</div>
+              <div style={{ fontSize: 12, color: T.muted }}>{busTrips.length} trips</div>
+            </div>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead>
+                  <tr style={{ background: T.tableHead }}>
+                    <th colSpan={2} style={{ padding: "8px 12px", textAlign: "center", fontWeight: 700, fontSize: 11, color: T.text, borderBottom: `1px solid ${T.border}`, borderRight: `1px solid ${T.border}` }}>TRIP</th>
+                    <th colSpan={4} style={{ padding: "8px 12px", textAlign: "center", fontWeight: 700, fontSize: 11, color: "#3b82f6", borderBottom: `1px solid ${T.border}`, borderRight: `1px solid ${T.border}`, background: "#eff6ff" }}>OUTBOUND</th>
+                    <th colSpan={4} style={{ padding: "8px 12px", textAlign: "center", fontWeight: 700, fontSize: 11, color: "#16a34a", borderBottom: `1px solid ${T.border}`, borderRight: `1px solid ${T.border}`, background: "#f0fdf4" }}>RETURN</th>
+                    <th colSpan={4} style={{ padding: "8px 12px", textAlign: "center", fontWeight: 700, fontSize: 11, color: T.warning, borderBottom: `1px solid ${T.border}`, background: T.warningBg }}>DIFFERENCE</th>
+                  </tr>
+                  <tr style={{ background: T.tableHead }}>
+                    {["Start","End","RC","FC","PRE","Total","RC","FC","PRE","Total","RC","FC","PRE","Total"].map((h,i) => (
+                      <th key={i} style={{ padding: "6px 10px", textAlign: i < 2 ? "left" : "right",
+                        fontWeight: 600, fontSize: 10, color: T.muted, borderBottom: `2px solid ${T.border}`,
+                        borderRight: [1,5,9].includes(i) ? `1px solid ${T.border}` : "none",
+                        textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {trips.map((row, i) => (
+                    <tr key={i} style={{ background: i % 2 === 0 ? T.tableRow : T.tableRowAlt,
+                      borderBottom: `1px solid ${T.border}` }}>
+                      <td style={{ padding: "7px 10px", fontWeight: 600, color: T.text, whiteSpace: "nowrap" }}>{row.StartDate}</td>
+                      <td style={{ padding: "7px 10px", color: T.muted, whiteSpace: "nowrap", borderRight: `1px solid ${T.border}` }}>{row.EndDate}</td>
+                      <td style={{ padding: "7px 10px", textAlign: "right", color: T.text }}>{fmtNum(row.ORC)}</td>
+                      <td style={{ padding: "7px 10px", textAlign: "right", color: T.text }}>{fmtNum(row.OFC)}</td>
+                      <td style={{ padding: "7px 10px", textAlign: "right", color: T.text }}>{fmtNum(row.OPRE)}</td>
+                      <td style={{ padding: "7px 10px", textAlign: "right", fontWeight: 700, color: T.text, borderRight: `1px solid ${T.border}` }}>{fmtNum(row.OTotal)}</td>
+                      <td style={{ padding: "7px 10px", textAlign: "right", color: T.text }}>{fmtNum(row.RRC)}</td>
+                      <td style={{ padding: "7px 10px", textAlign: "right", color: T.text }}>{fmtNum(row.RFC)}</td>
+                      <td style={{ padding: "7px 10px", textAlign: "right", color: T.text }}>{fmtNum(row.RPRE)}</td>
+                      <td style={{ padding: "7px 10px", textAlign: "right", fontWeight: 700, color: T.text, borderRight: `1px solid ${T.border}` }}>{fmtNum(row.RTotal)}</td>
+                      {[row.RC_Diff, row.FC_Diff, row.PRE_Diff, row.Total_Difference].map((v, vi) => (
+                        <td key={vi} style={{ padding: "7px 10px", textAlign: "right", fontWeight: vi === 3 ? 700 : 400,
+                          color: diffColor(v), background: diffBg(v) + "44" }}>{Number(v) >= 0 ? "+" : ""}{fmtNum(v)}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {tripPages > 1 && (
+              <div style={{ padding: "10px 16px", borderTop: `1px solid ${T.border}`, display: "flex", gap: 6, justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 12, color: T.muted }}>RC=Royal Class &nbsp;|&nbsp; FC=First Class &nbsp;|&nbsp; PRE=Premium</span>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <Btn onClick={() => setTripPage(p => Math.max(0,p-1))} disabled={tripPage===0} variant="secondary" T={T} style={{ padding: "4px 10px", fontSize: 12 }}>Prev</Btn>
+                  <span style={{ fontSize: 12, color: T.muted, alignSelf: "center" }}>{tripPage+1} / {tripPages}</span>
+                  <Btn onClick={() => setTripPage(p => Math.min(tripPages-1,p+1))} disabled={tripPage>=tripPages-1} variant="secondary" T={T} style={{ padding: "4px 10px", fontSize: 12 }}>Next</Btn>
+                </div>
+              </div>
+            )}
+          </Card>
+        </>
+      )}
+
+      {mode === "snowtravel" && (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <Card T={T} style={{ padding: 20 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.textSub, marginBottom: 12 }}>Bookings / PAX by Bus Class</div>
+              <BusClassChart data={stClass} metric={classMetric} T={T} />
+              <div style={{ display: "flex", gap: 4, marginTop: 8 }}>
+                {["bookings","pax"].map(m => (
+                  <button key={m} onClick={() => setClassMetric(m)}
+                    style={{ background: classMetric === m ? T.accent : T.bg, color: classMetric === m ? "#fff" : T.muted,
+                      border: `1px solid ${classMetric === m ? T.accent : T.border}`, borderRadius: 6,
+                      padding: "4px 10px", fontSize: 11, cursor: "pointer", fontWeight: 600, textTransform: "capitalize" }}>{m}</button>
                 ))}
               </div>
-            )}
+            </Card>
+            <Card T={T} style={{ padding: 20 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.textSub, marginBottom: 12 }}>Revenue by Bus Class</div>
+              <BusClassChart data={stClass} metric="revenue" T={T} />
+            </Card>
+          </div>
 
-            {/* About */}
-            {settingsTab==="about"&&(
-              <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:12,padding:"28px 32px",maxWidth:500,boxShadow:T.cardShadow}}>
-                <div style={{width:56,height:56,background:T.accent,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:16}}>
-                  <img src="/assets/logo.png" alt="TTP" style={{height:34,objectFit:"contain",filter:"brightness(0) invert(1)"}} onError={e=>e.target.style.display="none"}/>
-                </div>
-                <div style={{fontSize:20,fontWeight:700,color:T.text,marginBottom:4}}>TTP Analytics Platform</div>
-                <div style={{fontSize:13,color:T.muted,marginBottom:16}}>Version 1.3 &middot; TTP Services</div>
-                <div style={{fontSize:13,color:T.muted,lineHeight:1.8}}>
-                  <div>Backend: Node.js + Express on Azure App Service</div>
-                  <div>Frontend: React + Vite on GitHub Pages</div>
-                  <div>Database: Azure SQL (TTPDatabase)</div>
-                  <div>AI: OpenAI GPT-4o-mini</div>
-                  <div style={{marginTop:8}}>Auto-refresh: Daily at 00:00 Dubai time</div>
-                </div>
-              </div>
-            )}
+          <Card T={T} style={{ overflow: "hidden" }}>
+            <div style={{ padding: "14px 20px", borderBottom: `1px solid ${T.border}` }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>Snowtravel Bus Occupancy</div>
+            </div>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead>
+                  <tr style={{ background: T.tableHead }}>
+                    {["Departure","Return","Dream Class","First Class","Sleep/Royal","Total PAX"].map(h => (
+                      <th key={h} style={{ padding: "8px 12px", textAlign: h === "Departure" || h === "Return" ? "left" : "right",
+                        fontWeight: 600, fontSize: 11, color: T.muted, textTransform: "uppercase",
+                        letterSpacing: "0.05em", borderBottom: `2px solid ${T.border}` }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {stData.map((row, i) => (
+                    <tr key={i} style={{ background: i % 2 === 0 ? T.tableRow : T.tableRowAlt, borderBottom: `1px solid ${T.border}` }}>
+                      <td style={{ padding: "7px 12px", fontWeight: 600, color: T.text }}>{row.departure_date}</td>
+                      <td style={{ padding: "7px 12px", color: T.muted }}>{row.return_date}</td>
+                      <td style={{ padding: "7px 12px", textAlign: "right", color: T.text }}>{fmtNum(row.dream_class)}</td>
+                      <td style={{ padding: "7px 12px", textAlign: "right", color: T.text }}>{fmtNum(row.first_class)}</td>
+                      <td style={{ padding: "7px 12px", textAlign: "right", color: T.text }}>{fmtNum(row.sleep_royal_class)}</td>
+                      <td style={{ padding: "7px 12px", textAlign: "right", fontWeight: 700, color: T.text }}>{fmtNum(row.total_pax)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── DATA TABLE TAB ────────────────────────────────────────────────────────────
+function DataTableTab({ T, user, onUnauth }) {
+  const isAdmin = user?.role === "admin";
+  const [rows, setRows] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
+  const [search, setSearch] = useState("");
+  const [sortCol, setSortCol] = useState("departure_date");
+  const [sortDir, setSortDir] = useState("desc");
+  const [loading, setLoading] = useState(false);
+  const [exportModal, setExportModal] = useState(false);
+  const [expDatasets, setExpDatasets] = useState([]);
+  const [expStatus, setExpStatus] = useState("");
+  const [expDepFrom, setExpDepFrom] = useState("");
+  const [expDepTo, setExpDepTo] = useState("");
+  const [expBkFrom, setExpBkFrom] = useState("");
+  const [expBkTo, setExpBkTo] = useState("");
+  const PAGE_SIZE = 50;
+
+  const load = useCallback(() => {
+    setLoading(true);
+    const p = { limit: PAGE_SIZE, offset: page * PAGE_SIZE, sortCol, sortDir };
+    if (search) p.search = search;
+    apiFetch("/api/dashboard/export", p)
+      .then(d => {
+        if (Array.isArray(d)) { setRows(d); setTotal(d.length < PAGE_SIZE ? page * PAGE_SIZE + d.length : (page+2)*PAGE_SIZE); }
+        else if (d?.data) { setRows(d.data); setTotal(d.total || d.data.length); }
+      })
+      .catch(e => { if (e.status === 401) onUnauth(); })
+      .finally(() => setLoading(false));
+  }, [page, search, sortCol, sortDir]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const cols = [
+    { key: "booking_id", label: "Booking ID", width: 160 },
+    { key: "dataset", label: "Dataset", width: 100 },
+    { key: "status", label: "Status", width: 90 },
+    { key: "booking_date", label: "Booking Date", width: 110 },
+    { key: "departure_date", label: "Departure", width: 100 },
+    { key: "return_date", label: "Return", width: 100 },
+    { key: "period", label: "Period", width: 80 },
+    { key: "pax", label: "PAX", width: 60, align: "right" },
+    { key: "revenue", label: "Revenue", width: 100, align: "right" },
+    { key: "bus_type_name", label: "Bus Type", width: 110 },
+    { key: "packet_code", label: "Packet Code", width: 110 },
+    { key: "destination", label: "Destination", width: 130 },
+    { key: "transport_type", label: "Transport", width: 100 },
+    { key: "region", label: "Region", width: 100 },
+    { key: "customer_country", label: "Country", width: 80 },
+  ];
+
+  const downloadCSV = () => {
+    const p = new URLSearchParams();
+    p.set("token", localStorage.getItem("ttp_token"));
+    if (expDatasets.length) expDatasets.forEach(d => p.append("dataset", d));
+    if (expStatus) p.set("status", expStatus);
+    if (expDepFrom) p.set("departureDateFrom", expDepFrom);
+    if (expDepTo) p.set("departureDateTo", expDepTo);
+    if (expBkFrom) p.set("bookingDateFrom", expBkFrom);
+    if (expBkTo) p.set("bookingDateTo", expBkTo);
+    window.open(`${BASE}/api/dashboard/export?${p.toString()}`, "_blank");
+    setExportModal(false);
+  };
+
+  const pages = Math.ceil(total / PAGE_SIZE);
+
+  return (
+    <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* Toolbar */}
+      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 200, position: "relative" }}>
+          <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: T.muted, fontSize: 14 }}>🔍</span>
+          <input value={search} onChange={e => { setSearch(e.target.value); setPage(0); }}
+            placeholder="Search booking ID, destination, dataset..."
+            style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 8,
+              color: T.text, padding: "8px 12px 8px 32px", fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+        </div>
+        <span style={{ fontSize: 13, color: T.muted }}>{total.toLocaleString()} records</span>
+        {isAdmin && <Btn onClick={() => setExportModal(true)} T={T} variant="ghost">Export CSV</Btn>}
+      </div>
+
+      {/* Table */}
+      <Card T={T} style={{ overflow: "hidden" }}>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, minWidth: 1200 }}>
+            <thead>
+              <tr style={{ background: T.tableHead }}>
+                {cols.map(c => (
+                  <th key={c.key} onClick={() => { setSortCol(c.key); setSortDir(d => d === "asc" ? "desc" : "asc"); setPage(0); }}
+                    style={{ padding: "9px 12px", textAlign: c.align || "left", fontWeight: 600, fontSize: 11,
+                      color: sortCol === c.key ? T.accent : T.muted, textTransform: "uppercase", letterSpacing: "0.05em",
+                      borderBottom: `2px solid ${T.border}`, cursor: "pointer", whiteSpace: "nowrap",
+                      width: c.width, userSelect: "none" }}>
+                    {c.label} {sortCol === c.key ? (sortDir === "asc" ? "▲" : "▼") : ""}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={cols.length} style={{ padding: 24, textAlign: "center", color: T.muted }}>Loading...</td></tr>
+              ) : rows.length === 0 ? (
+                <tr><td colSpan={cols.length} style={{ padding: 24, textAlign: "center", color: T.muted }}>No data found</td></tr>
+              ) : rows.map((row, i) => (
+                <tr key={i} style={{ background: i % 2 === 0 ? T.tableRow : T.tableRowAlt,
+                  borderBottom: `1px solid ${T.border}`, transition: "background 0.1s" }}
+                  onMouseEnter={e => e.currentTarget.style.background = T.tableHover}
+                  onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? T.tableRow : T.tableRowAlt}>
+                  {cols.map(c => (
+                    <td key={c.key} style={{ padding: "7px 12px", textAlign: c.align || "left", color: T.text, whiteSpace: "nowrap", maxWidth: c.width, overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {c.key === "status" ? <StatusBadge status={row[c.key]} T={T} /> :
+                       c.key === "revenue" ? fmtEur(row[c.key]) :
+                       c.key === "period" ? `${MONTHS[(row.month||1)-1]}-${row.year}` :
+                       c.key === "dataset" ? <span style={{ background: T.accentLight, color: T.accent, padding: "2px 7px", borderRadius: 10, fontSize: 11, fontWeight: 600 }}>{row[c.key]}</span> :
+                       row[c.key] ?? "-"}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {pages > 1 && (
+          <div style={{ padding: "10px 16px", borderTop: `1px solid ${T.border}`, display: "flex", gap: 6, justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 12, color: T.muted }}>Page {page+1} of {pages}</span>
+            <div style={{ display: "flex", gap: 4 }}>
+              <Btn onClick={() => setPage(0)} disabled={page===0} variant="secondary" T={T} style={{ padding: "4px 8px", fontSize: 12 }}>«</Btn>
+              <Btn onClick={() => setPage(p => Math.max(0,p-1))} disabled={page===0} variant="secondary" T={T} style={{ padding: "4px 10px", fontSize: 12 }}>Prev</Btn>
+              <Btn onClick={() => setPage(p => Math.min(pages-1,p+1))} disabled={page>=pages-1} variant="secondary" T={T} style={{ padding: "4px 10px", fontSize: 12 }}>Next</Btn>
+              <Btn onClick={() => setPage(pages-1)} disabled={page>=pages-1} variant="secondary" T={T} style={{ padding: "4px 8px", fontSize: 12 }}>»</Btn>
+            </div>
           </div>
         )}
+      </Card>
+
+      {/* Export Modal */}
+      {exportModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 28, width: 460, boxShadow: T.shadowMd }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>Export Data</div>
+              <button onClick={() => setExportModal(false)} style={{ background: "none", border: "none", fontSize: 18, color: T.muted, cursor: "pointer" }}>×</button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div>
+                <div style={{ fontSize: 12, color: T.muted, marginBottom: 6, fontWeight: 600, textTransform: "uppercase" }}>Dataset</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {["Snowtravel","Solmar","Interbus","Solmar DE"].map(d => (
+                    <label key={d} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13, color: T.text }}>
+                      <input type="checkbox" checked={expDatasets.includes(d)} onChange={e => setExpDatasets(prev => e.target.checked ? [...prev,d] : prev.filter(x=>x!==d))} />
+                      {d}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 12, color: T.muted, marginBottom: 6, fontWeight: 600, textTransform: "uppercase" }}>Status</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {[["","All"],["ok","OK only"],["cancelled","Cancelled only"]].map(([v,l]) => (
+                    <label key={v} style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", fontSize: 13, color: T.text }}>
+                      <input type="radio" checked={expStatus===v} onChange={() => setExpStatus(v)} /> {l}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 12, color: T.muted, marginBottom: 4, fontWeight: 600, textTransform: "uppercase" }}>Departure From</div>
+                  <input type="date" value={expDepFrom} onChange={e=>setExpDepFrom(e.target.value)}
+                    style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.text, padding: "7px 8px", fontSize: 12, colorScheme: T.id==="dark"?"dark":"light" }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: T.muted, marginBottom: 4, fontWeight: 600, textTransform: "uppercase" }}>Departure To</div>
+                  <input type="date" value={expDepTo} onChange={e=>setExpDepTo(e.target.value)}
+                    style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.text, padding: "7px 8px", fontSize: 12, colorScheme: T.id==="dark"?"dark":"light" }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: T.muted, marginBottom: 4, fontWeight: 600, textTransform: "uppercase" }}>Booking From</div>
+                  <input type="date" value={expBkFrom} onChange={e=>setExpBkFrom(e.target.value)}
+                    style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.text, padding: "7px 8px", fontSize: 12, colorScheme: T.id==="dark"?"dark":"light" }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: T.muted, marginBottom: 4, fontWeight: 600, textTransform: "uppercase" }}>Booking To</div>
+                  <input type="date" value={expBkTo} onChange={e=>setExpBkTo(e.target.value)}
+                    style={{ width: "100%", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.text, padding: "7px 8px", fontSize: 12, colorScheme: T.id==="dark"?"dark":"light" }} />
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", paddingTop: 8 }}>
+                <Btn onClick={() => setExportModal(false)} variant="secondary" T={T}>Cancel</Btn>
+                <Btn onClick={downloadCSV} T={T}>Download CSV</Btn>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── AI ASSISTANT TAB ──────────────────────────────────────────────────────────
+function AITab({ T, onUnauth }) {
+  const [msgs, setMsgs] = useState([
+    { role: "assistant", text: "Hello! I'm your TTP Analytics AI, powered by OpenAI. I have access to your live booking data from Azure SQL. Ask me anything about your data!" }
+  ]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const endRef = useRef();
+
+  const suggestions = [
+    "What is the total revenue for Solmar in 2025?",
+    "Compare bookings between 2024 and 2025",
+    "Which departure city has the most PAX?",
+    "What is the bus occupancy for Royal Class?",
+    "Show revenue breakdown by transport type",
+    "Which month had the highest bookings in 2026?",
+    "What is the difference between Snowtravel and Solmar revenue?",
+    "How many PAX travelled in February 2025?",
+  ];
+
+  const send = async (q) => {
+    if (!q.trim() || loading) return;
+    setMsgs(m => [...m, { role: "user", text: q }]);
+    setInput("");
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("ttp_token");
+      const r = await fetch(`${BASE}/api/ai/chat`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ message: q }),
+      });
+      if (r.status === 401) { onUnauth(); return; }
+      const d = await r.json();
+      setMsgs(m => [...m, { role: "assistant", text: d.reply || "Sorry, I could not get a response." }]);
+    } catch {
+      setMsgs(m => [...m, { role: "assistant", text: "Connection error. Please check that the backend is running." }]);
+    } finally {
+      setLoading(false);
+      setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    }
+  };
+
+  return (
+    <div style={{ padding: 24, display: "grid", gridTemplateColumns: "1fr 300px", gap: 20, height: "calc(100vh - 160px)" }}>
+      {/* Chat */}
+      <Card T={T} style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <div style={{ padding: "14px 20px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: T.accentLight, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>🤖</div>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>TTP AI Assistant</div>
+            <div style={{ fontSize: 11, color: T.success }}>● Powered by OpenAI · Live data</div>
+          </div>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+          {msgs.map((m, i) => (
+            <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
+              <div style={{ maxWidth: "80%", padding: "10px 14px", borderRadius: m.role === "user" ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
+                background: m.role === "user" ? T.accent : T.tableRowAlt, color: m.role === "user" ? "#fff" : T.text,
+                fontSize: 13, lineHeight: 1.6, boxShadow: T.shadow, border: m.role === "assistant" ? `1px solid ${T.border}` : "none" }}>
+                {m.text}
+              </div>
+            </div>
+          ))}
+          {loading && (
+            <div style={{ display: "flex", justifyContent: "flex-start" }}>
+              <div style={{ padding: "10px 16px", borderRadius: "14px 14px 14px 4px", background: T.tableRowAlt, border: `1px solid ${T.border}`, fontSize: 13, color: T.muted }}>
+                Analysing data...
+              </div>
+            </div>
+          )}
+          <div ref={endRef} />
+        </div>
+        <div style={{ padding: "10px 16px", borderTop: `1px solid ${T.border}`, display: "flex", gap: 8 }}>
+          <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && send(input)}
+            placeholder="Ask about your data..."
+            style={{ flex: 1, background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 8,
+              color: T.text, padding: "9px 12px", fontSize: 13, outline: "none" }} />
+          <Btn onClick={() => send(input)} disabled={!input.trim() || loading} T={T} style={{ padding: "9px 18px" }}>Send</Btn>
+        </div>
+      </Card>
+
+      {/* Sidebar */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <Card T={T} style={{ padding: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 12 }}>Suggested Questions</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {suggestions.map((q, i) => (
+              <button key={i} onClick={() => send(q)}
+                style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8, color: T.textSub,
+                  padding: "8px 10px", fontSize: 12, cursor: "pointer", textAlign: "left", lineHeight: 1.4,
+                  transition: "all 0.15s" }}
+                onMouseEnter={e => { e.currentTarget.style.background = T.accentLight; e.currentTarget.style.color = T.accent; }}
+                onMouseLeave={e => { e.currentTarget.style.background = T.bg; e.currentTarget.style.color = T.textSub; }}>
+                {q}
+              </button>
+            ))}
+          </div>
+        </Card>
+        <Card T={T} style={{ padding: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 10 }}>Data Sources</div>
+          {["Snowtravel","Solmar","Interbus","Solmar DE"].map(ds => (
+            <div key={ds} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0", fontSize: 12, color: T.textSub }}>
+              <span style={{ color: T.success }}>●</span>{ds}
+            </div>
+          ))}
+        </Card>
       </div>
+    </div>
+  );
+}
 
-      {/* Add User Modal */}
-      {showAddUser&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowAddUser(false)}>
-          <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:32,width:420,boxShadow:"0 24px 64px rgba(0,0,0,0.4)"}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:16,fontWeight:700,color:T.text,marginBottom:20}}>Add New User</div>
-            {[["Full Name","name","text"],["Username","username","text"],["Email","email","email"],["Password","password","password"]].map(([l,k,t])=>(
-              <div key={k} style={{marginBottom:14}}>
-                <div style={{fontSize:11,color:T.muted,fontWeight:600,marginBottom:4,textTransform:"uppercase"}}>{l}</div>
-                <input type={t} value={newUser[k]||""} onChange={e=>setNewUser(u=>({...u,[k]:e.target.value}))}
-                  style={{width:"100%",boxSizing:"border-box",background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:7,padding:"9px 12px",fontSize:13,color:T.text,outline:"none"}}
-                />
+// ── SETTINGS TAB ──────────────────────────────────────────────────────────────
+function SettingsTab({ T, setThemeName, themeName, onUnauth }) {
+  const [users, setUsers] = useState([]);
+  const [editUser, setEditUser] = useState(null);
+  const [newUser, setNewUser] = useState({ name:"", username:"", email:"", password:"", role:"viewer" });
+  const [showAdd, setShowAdd] = useState(false);
+  const [apiKeys, setApiKeys] = useState({ openai: "", anthropic: "" });
+  const [saved, setSaved] = useState("");
+
+  useEffect(() => {
+    const token = localStorage.getItem("ttp_token");
+    fetch(`${BASE}/api/auth/users`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json()).then(d => { if (Array.isArray(d)) setUsers(d); })
+      .catch(() => {});
+  }, []);
+
+  const saveUser = async (u) => {
+    const token = localStorage.getItem("ttp_token");
+    const url = u.id ? `${BASE}/api/auth/users/${u.id}` : `${BASE}/api/auth/users`;
+    const method = u.id ? "PUT" : "POST";
+    const r = await fetch(url, { method, headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify(u) });
+    const d = await r.json();
+    if (d.users) setUsers(d.users);
+    else if (Array.isArray(d)) setUsers(d);
+    setEditUser(null); setShowAdd(false);
+    setNewUser({ name:"", username:"", email:"", password:"", role:"viewer" });
+    setSaved("User saved!"); setTimeout(() => setSaved(""), 2000);
+  };
+
+  const deleteUser = async (id) => {
+    if (!confirm("Delete this user?")) return;
+    const token = localStorage.getItem("ttp_token");
+    const r = await fetch(`${BASE}/api/auth/users/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+    const d = await r.json();
+    if (Array.isArray(d)) setUsers(d);
+    else if (d.users) setUsers(d.users);
+    setSaved("User deleted!"); setTimeout(() => setSaved(""), 2000);
+  };
+
+  const fieldStyle = { background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.text, padding: "8px 10px", fontSize: 13, width: "100%", outline: "none", boxSizing: "border-box" };
+
+  return (
+    <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 24 }}>
+      {saved && <div style={{ background: T.successBg, border: `1px solid ${T.success}`, borderRadius: 8, padding: "10px 16px", color: T.success, fontSize: 13, fontWeight: 600 }}>{saved}</div>}
+
+      {/* Theme */}
+      <Card T={T} style={{ padding: 20 }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 16 }}>Theme</div>
+        <div style={{ display: "flex", gap: 12 }}>
+          {Object.entries(THEMES).map(([key, theme]) => (
+            <div key={key} onClick={() => setThemeName(key)}
+              style={{ flex: 1, border: `2px solid ${themeName === key ? T.accent : T.border}`, borderRadius: 10, padding: 14, cursor: "pointer", transition: "all 0.2s" }}>
+              <div style={{ width: "100%", height: 60, borderRadius: 6, background: theme.bg, border: `1px solid ${theme.border}`, marginBottom: 8, position: "relative", overflow: "hidden" }}>
+                <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 40, background: theme.sidebar, borderRight: `1px solid ${theme.border}` }} />
+                <div style={{ position: "absolute", top: 8, left: 48, right: 8, height: 10, background: theme.card, borderRadius: 3 }} />
+                <div style={{ position: "absolute", top: 24, left: 48, right: 8, height: 28, background: theme.card, borderRadius: 3 }} />
+                <div style={{ position: "absolute", top: 24, left: 48, width: 14, height: 28, background: theme.accent, borderRadius: "3px 0 0 3px" }} />
               </div>
-            ))}
-            <div style={{marginBottom:20}}>
-              <div style={{fontSize:11,color:T.muted,fontWeight:600,marginBottom:4,textTransform:"uppercase"}}>Role</div>
-              <select value={newUser.role} onChange={e=>setNewUser(u=>({...u,role:e.target.value}))}
-                style={{width:"100%",background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:7,padding:"9px 12px",fontSize:13,color:T.text,outline:"none"}}>
-                <option value="viewer">Viewer</option>
-                <option value="admin">Admin</option>
-              </select>
+              <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{theme.name}</div>
+              {themeName === key && <div style={{ fontSize: 11, color: T.accent, marginTop: 2 }}>✓ Active</div>}
             </div>
-            <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>{
-                if(!newUser.name||!newUser.username||!newUser.password)return;
-                const u={...newUser,id:Date.now(),active:true};
-                setUsers(prev=>[...prev,u]);
-                setNewUser({name:"",username:"",email:"",password:"",role:"viewer"});
-                setShowAddUser(false);
-              }} style={{flex:1,background:T.accent,color:"#fff",border:"none",borderRadius:8,padding:10,fontSize:13,fontWeight:600,cursor:"pointer"}}>Add User</button>
-              <button onClick={()=>setShowAddUser(false)} style={{flex:1,background:"transparent",border:`1px solid ${T.border}`,borderRadius:8,padding:10,fontSize:13,color:T.muted,cursor:"pointer"}}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit User Modal */}
-      {editUser&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setEditUser(null)}>
-          <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:32,width:420,boxShadow:"0 24px 64px rgba(0,0,0,0.4)"}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:16,fontWeight:700,color:T.text,marginBottom:20}}>Edit User — {editUser.name}</div>
-            {[["Full Name","name","text"],["Email","email","email"]].map(([l,k,t])=>(
-              <div key={k} style={{marginBottom:14}}>
-                <div style={{fontSize:11,color:T.muted,fontWeight:600,marginBottom:4,textTransform:"uppercase"}}>{l}</div>
-                <input type={t} value={editUser[k]||""} onChange={e=>setEditUser(u=>({...u,[k]:e.target.value}))}
-                  style={{width:"100%",boxSizing:"border-box",background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:7,padding:"9px 12px",fontSize:13,color:T.text,outline:"none"}}
-                />
-              </div>
-            ))}
-            <div style={{marginBottom:20}}>
-              <div style={{fontSize:11,color:T.muted,fontWeight:600,marginBottom:4,textTransform:"uppercase"}}>Role</div>
-              <select value={editUser.role} onChange={e=>setEditUser(u=>({...u,role:e.target.value}))}
-                style={{width:"100%",background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:7,padding:"9px 12px",fontSize:13,color:T.text,outline:"none"}}>
-                <option value="viewer">Viewer</option>
-                <option value="admin">Admin</option>
-              </select>
-            </div>
-            <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>{
-                setUsers(prev=>prev.map(u=>u.id===editUser.id?{...editUser}:u));
-                setEditUser(null);
-              }} style={{flex:1,background:T.accent,color:"#fff",border:"none",borderRadius:8,padding:10,fontSize:13,fontWeight:600,cursor:"pointer"}}>Save Changes</button>
-              <button onClick={()=>setEditUser(null)} style={{flex:1,background:"transparent",border:`1px solid ${T.border}`,borderRadius:8,padding:10,fontSize:13,color:T.muted,cursor:"pointer"}}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Status bar */}
-      <div style={{position:"fixed",bottom:0,left:0,right:0,background:T.headerBg,borderTop:`1px solid ${T.headerBorder}`,padding:"5px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,zIndex:50}}>
-        <div style={{display:"flex",gap:16,alignItems:"center",flexWrap:"wrap"}}>
-          <span style={{color:T.muted}}>Last sync: <span style={{color:T.accent,fontWeight:600}}>{lastR} Dubai</span></span>
-          {[{k:"Solmar",v:10345},{k:"Snowtravel",v:6720},{k:"Interbus",v:2824},{k:"Solmar DE",v:64}].map(({k,v})=>(
-            <span key={k} style={{color:T.muted2}}><span style={{color:T.text,fontWeight:600}}>{k}</span>: {fmtNum(v)}</span>
           ))}
         </div>
-        <span style={{color:T.muted2}}>Auto-refresh 00:00 Dubai &middot; TTP Analytics v1.3</span>
+      </Card>
+
+      {/* User Management */}
+      <Card T={T} style={{ overflow: "hidden" }}>
+        <div style={{ padding: "14px 20px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>User Management</div>
+          <Btn onClick={() => setShowAdd(true)} T={T} style={{ padding: "7px 14px" }}>+ Add User</Btn>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ background: T.tableHead }}>
+              {["Name","Username","Email","Role","Actions"].map(h => (
+                <th key={h} style={{ padding: "10px 16px", textAlign: "left", fontWeight: 600, fontSize: 11,
+                  color: T.muted, textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: `2px solid ${T.border}` }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((u, i) => (
+              <tr key={u.id || i} style={{ background: i%2===0?T.tableRow:T.tableRowAlt, borderBottom: `1px solid ${T.border}` }}>
+                <td style={{ padding: "10px 16px", fontWeight: 600, color: T.text }}>{u.name}</td>
+                <td style={{ padding: "10px 16px", color: T.textSub }}>{u.username}</td>
+                <td style={{ padding: "10px 16px", color: T.muted }}>{u.email}</td>
+                <td style={{ padding: "10px 16px" }}>
+                  <span style={{ background: u.role==="admin"?T.accentLight:T.badge, color: u.role==="admin"?T.accent:T.muted, padding: "2px 8px", borderRadius: 10, fontSize: 11, fontWeight: 600 }}>{u.role}</span>
+                </td>
+                <td style={{ padding: "10px 16px" }}>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <Btn onClick={() => setEditUser({ ...u })} variant="ghost" T={T} style={{ padding: "4px 10px", fontSize: 12 }}>Edit</Btn>
+                    <Btn onClick={() => deleteUser(u.id)} variant="danger" T={T} style={{ padding: "4px 10px", fontSize: 12 }}>Delete</Btn>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+
+      {/* Edit/Add User Modal */}
+      {(editUser || showAdd) && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 28, width: 440, boxShadow: T.shadowMd }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{editUser ? "Edit User" : "Add New User"}</div>
+              <button onClick={() => { setEditUser(null); setShowAdd(false); }} style={{ background: "none", border: "none", fontSize: 20, color: T.muted, cursor: "pointer" }}>×</button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {[["Name","name","text"],["Username","username","text"],["Email","email","email"],["Password","password","password"]].map(([label,key,type]) => (
+                <div key={key}>
+                  <div style={{ fontSize: 12, color: T.muted, marginBottom: 4, fontWeight: 600 }}>{label}</div>
+                  <input type={type} value={editUser ? (editUser[key]||"") : (newUser[key]||"")}
+                    onChange={e => editUser ? setEditUser(u => ({...u,[key]:e.target.value})) : setNewUser(u => ({...u,[key]:e.target.value}))}
+                    style={fieldStyle} />
+                </div>
+              ))}
+              <div>
+                <div style={{ fontSize: 12, color: T.muted, marginBottom: 4, fontWeight: 600 }}>Role</div>
+                <select value={editUser ? editUser.role : newUser.role}
+                  onChange={e => editUser ? setEditUser(u => ({...u,role:e.target.value})) : setNewUser(u => ({...u,role:e.target.value}))}
+                  style={fieldStyle}>
+                  <option value="viewer">Viewer</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", paddingTop: 8 }}>
+                <Btn onClick={() => { setEditUser(null); setShowAdd(false); }} variant="secondary" T={T}>Cancel</Btn>
+                <Btn onClick={() => saveUser(editUser || newUser)} T={T}>Save</Btn>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* API Keys */}
+      <Card T={T} style={{ padding: 20 }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 16 }}>API Keys</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {[["OpenAI API Key","openai","sk-proj-..."],["Anthropic API Key","anthropic","sk-ant-..."]].map(([label,key,ph]) => (
+            <div key={key}>
+              <div style={{ fontSize: 12, color: T.muted, marginBottom: 4, fontWeight: 600, textTransform: "uppercase" }}>{label}</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input type="password" value={apiKeys[key]} onChange={e => setApiKeys(k => ({...k,[key]:e.target.value}))}
+                  placeholder={ph} style={{ ...fieldStyle, flex: 1 }} />
+              </div>
+            </div>
+          ))}
+          <div style={{ fontSize: 12, color: T.muted }}>Note: API keys are configured in the backend .env file. Contact your system administrator to update them.</div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ── MAIN APP ──────────────────────────────────────────────────────────────────
+export default function App() {
+  const [token, setToken] = useState(() => localStorage.getItem("ttp_token"));
+  const [user, setUser] = useState(() => { try { return JSON.parse(localStorage.getItem("ttp_user")); } catch { return null; } });
+  const [tab, setTab] = useState("overview");
+  const [themeName, setThemeName] = useState(() => localStorage.getItem("ttp_theme") || "gray");
+  const [filters, setFilters] = useState({ datasets:[], statuses:[], transportTypes:[], departureDateFrom:"", departureDateTo:"", bookingDateFrom:"", bookingDateTo:"" });
+  const [applied, setApplied] = useState({});
+  const [slicers, setSlicers] = useState({});
+  const [lastRefresh, setLastRefresh] = useState(dubaiTime());
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  const T = THEMES[themeName] || THEMES.gray;
+  const isAdmin = user?.role === "admin";
+
+  useEffect(() => {
+    localStorage.setItem("ttp_theme", themeName);
+  }, [themeName]);
+
+  useEffect(() => {
+    if (!token) return;
+    apiFetch("/api/dashboard/slicers").then(d => { if (d && !d.error) setSlicers(d); }).catch(() => {});
+    const interval = setInterval(() => {
+      const now = new Date();
+      const dubai = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Dubai" }));
+      if (dubai.getHours() === 0 && dubai.getMinutes() === 0) {
+        setApplied(a => ({ ...a }));
+        setLastRefresh(dubaiTime());
+      }
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [token]);
+
+  const handleLogin = (tok, u) => {
+    localStorage.setItem("ttp_token", tok);
+    localStorage.setItem("ttp_user", JSON.stringify(u));
+    setToken(tok); setUser(u);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("ttp_token");
+    localStorage.removeItem("ttp_user");
+    setToken(null); setUser(null);
+  };
+
+  const handleUnauth = () => { handleLogout(); };
+
+  const applyFilters = () => { setApplied({ ...filters }); setLastRefresh(dubaiTime()); };
+  const resetFilters = () => {
+    const empty = { datasets:[], statuses:[], transportTypes:[], departureDateFrom:"", departureDateTo:"", bookingDateFrom:"", bookingDateTo:"" };
+    setFilters(empty); setApplied({});
+  };
+
+  if (!token) return <Login onLogin={handleLogin} themeName={themeName} setThemeName={setThemeName} />;
+
+  const navItems = [
+    { id: "overview", label: "Overview", icon: "📊" },
+    { id: "bus", label: "Bus Occupancy", icon: "🚌" },
+    { id: "data", label: "Data Table", icon: "📋" },
+    { id: "ai", label: "AI Assistant", icon: "🤖" },
+    ...(isAdmin ? [{ id: "settings", label: "Settings", icon: "⚙️" }] : []),
+  ];
+
+  return (
+    <div style={{ display: "flex", minHeight: "100vh", background: T.bg, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+      {/* Sidebar */}
+      <div style={{ width: sidebarOpen ? 220 : 60, background: T.sidebar, borderRight: `1px solid ${T.border}`,
+        display: "flex", flexDirection: "column", flexShrink: 0, transition: "width 0.2s", overflow: "hidden",
+        boxShadow: T.shadowMd, zIndex: 10 }}>
+
+        {/* Logo */}
+        <div style={{ padding: sidebarOpen ? "18px 20px" : "18px 14px", borderBottom: `1px solid ${T.border}`,
+          display: "flex", alignItems: "center", gap: 10, minHeight: 64 }}>
+          <img src="/assets/logo.png" alt="TTP" style={{ width: 32, height: 32, objectFit: "contain", flexShrink: 0 }}
+            onError={e => { e.target.style.display = "none"; e.target.nextSibling.style.display = "flex"; }} />
+          <div style={{ display: "none", width: 32, height: 32, background: T.accent, borderRadius: 6,
+            alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 900, fontSize: 13, flexShrink: 0 }}>TTP</div>
+          {sidebarOpen && (
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: T.text, letterSpacing: "-0.02em" }}>TTP</div>
+              <div style={{ fontSize: 10, color: T.muted, textTransform: "uppercase", letterSpacing: "0.1em" }}>Analytics</div>
+            </div>
+          )}
+        </div>
+
+        {/* Nav */}
+        <nav style={{ flex: 1, padding: "12px 8px" }}>
+          {navItems.map(item => (
+            <button key={item.id} onClick={() => setTab(item.id)}
+              style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: sidebarOpen ? "10px 14px" : "10px",
+                borderRadius: 8, border: "none", marginBottom: 2, cursor: "pointer", textAlign: "left", justifyContent: sidebarOpen ? "flex-start" : "center",
+                background: tab === item.id ? T.accentLight : "transparent",
+                color: tab === item.id ? T.accent : T.muted, fontWeight: tab === item.id ? 700 : 500, fontSize: 13,
+                transition: "all 0.15s" }}
+              title={!sidebarOpen ? item.label : undefined}>
+              <span style={{ fontSize: 16, flexShrink: 0 }}>{item.icon}</span>
+              {sidebarOpen && item.label}
+            </button>
+          ))}
+        </nav>
+
+        {/* Footer */}
+        <div style={{ padding: "12px 8px", borderTop: `1px solid ${T.border}` }}>
+          {sidebarOpen && (
+            <div style={{ padding: "8px 14px", marginBottom: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: T.text }}>{user?.name}</div>
+              <div style={{ fontSize: 11, color: T.muted }}>{user?.role}</div>
+            </div>
+          )}
+          <button onClick={handleLogout} title="Logout"
+            style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: sidebarOpen ? "10px 14px" : "10px",
+              borderRadius: 8, border: "none", cursor: "pointer", background: "transparent", color: T.muted, fontSize: 13,
+              justifyContent: sidebarOpen ? "flex-start" : "center", fontWeight: 500 }}>
+            <span style={{ fontSize: 16 }}>🚪</span>
+            {sidebarOpen && "Logout"}
+          </button>
+        </div>
       </div>
 
-      <style>{`
-        @media (max-width: 768px) {
-          .kpi-grid { grid-template-columns: 1fr !important; }
-          .chart-grid { grid-template-columns: 1fr !important; }
-        }
-        @keyframes bounce { 0%,80%,100%{transform:scale(0)} 40%{transform:scale(1)} }
-        ::-webkit-scrollbar{width:5px;height:5px}
-        ::-webkit-scrollbar-track{background:transparent}
-        ::-webkit-scrollbar-thumb{background:#94a3b855;border-radius:10px}
-      `}</style>
+      {/* Main Content */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
+        {/* Top bar */}
+        <div style={{ background: T.card, borderBottom: `1px solid ${T.border}`, padding: "0 20px",
+          display: "flex", alignItems: "center", height: 56, gap: 12, flexShrink: 0, boxShadow: T.shadow }}>
+          <button onClick={() => setSidebarOpen(o => !o)}
+            style={{ background: "none", border: "none", cursor: "pointer", color: T.muted, fontSize: 18, padding: 4 }}>☰</button>
+          <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>
+            {navItems.find(n => n.id === tab)?.label}
+          </div>
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ fontSize: 12, color: T.muted }}>Last sync: {lastRefresh} Dubai</div>
+            <div style={{ width: 32, height: 32, borderRadius: "50%", background: T.accent, display: "flex",
+              alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13, fontWeight: 700 }}>
+              {user?.name?.[0]?.toUpperCase() || "U"}
+            </div>
+          </div>
+        </div>
+
+        {/* Filters bar (not on settings/AI) */}
+        {["overview","bus","data"].includes(tab) && (
+          <FiltersBar filters={filters} setFilters={setFilters} onApply={applyFilters} onReset={resetFilters} slicers={slicers} T={T} />
+        )}
+
+        {/* Tab content */}
+        <div style={{ flex: 1, overflowY: "auto" }}>
+          {tab === "overview"  && <OverviewTab T={T} applied={applied} onUnauth={handleUnauth} />}
+          {tab === "bus"       && <BusOccupancyTab T={T} onUnauth={handleUnauth} />}
+          {tab === "data"      && <DataTableTab T={T} user={user} onUnauth={handleUnauth} />}
+          {tab === "ai"        && <AITab T={T} onUnauth={handleUnauth} />}
+          {tab === "settings" && isAdmin && <SettingsTab T={T} setThemeName={setThemeName} themeName={themeName} onUnauth={handleUnauth} />}
+        </div>
+      </div>
     </div>
   );
 }

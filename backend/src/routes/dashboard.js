@@ -154,29 +154,16 @@ router.get('/year-month-comparison', async (req, res) => {
     const cy = new Date().getFullYear();
     const py = cy - 1;
     const result = await query(`
-      WITH base AS (
-        SELECT year, month,
-          COUNT(*)    AS bookings,
-          SUM(pax)    AS pax,
-          SUM(revenue) AS revenue
-        FROM bookings
-        ${whereClause}
-        GROUP BY year, month
-      )
       SELECT
-        ISNULL(c.month, p.month) AS month,
-        ISNULL(c.bookings, 0)    AS currentBookings,
-        ISNULL(p.bookings, 0)    AS previousBookings,
-        ISNULL(c.bookings,0) - ISNULL(p.bookings,0) AS diffBookings,
-        ISNULL(c.pax, 0)         AS currentPax,
-        ISNULL(p.pax, 0)         AS previousPax,
-        ISNULL(c.pax,0) - ISNULL(p.pax,0) AS diffPax,
-        ISNULL(c.revenue, 0)     AS currentRevenue,
-        ISNULL(p.revenue, 0)     AS previousRevenue,
-        ISNULL(c.revenue,0) - ISNULL(p.revenue,0) AS diffRevenue
-      FROM (SELECT * FROM base WHERE year = ${cy}) c
-      FULL OUTER JOIN (SELECT * FROM base WHERE year = ${py}) p ON c.month = p.month
-      ORDER BY ISNULL(c.month, p.month) DESC
+        year,
+        month,
+        COUNT(*)             AS currentBookings,
+        SUM(pax)             AS currentPax,
+        ROUND(SUM(revenue),0) AS currentRevenue
+      FROM bookings
+      ${whereClause}
+      GROUP BY year, month
+      ORDER BY year DESC, month DESC
     `, params);
     res.json(result.recordset || []);
   } catch (err) {
