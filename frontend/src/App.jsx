@@ -372,14 +372,11 @@ export default function App() {
 
   // Settings state
   const [stTab, setStTab] = useState("users");
-  const [users, setUsers] = useState([
-    {id:1,name:"Abdul Rahman",username:"abdulrahman",email:"abdrah1264@gmail.com",role:"admin"},
-    {id:2,name:"TTP Admin",username:"ttp_admin",email:"admin@ttp-services.com",role:"admin"},
-    {id:3,name:"Robbert Jan",username:"robbert",email:"robbert@ttp-services.com",role:"viewer"},
-    {id:4,name:"Samir",username:"samir",email:"samir@ttp-services.com",role:"viewer"},
-  ]);
+  const [users, setUsers] = useState([]);
+  const [fetchingUsers, setFetchingUsers] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [userToast, setUserToast] = useState(null);
   const [showAddUser, setShowAddUser] = useState(false);
-  const [editUser, setEditUser] = useState(null);
   const [newUser, setNewUser] = useState({name:"",username:"",email:"",password:"",role:"viewer"});
   const [apiKeys, setApiKeys] = useState({ openai: "", grip: "", traveltrustit: "" });
 
@@ -448,6 +445,81 @@ export default function App() {
   },[token]);
 
   useEffect(()=>{ if(token) loadBus({}); },[token]);
+
+  const showUserToast = (type, message) => {
+    setUserToast({ type, message });
+    window.setTimeout(() => setUserToast(null), 3800);
+  };
+
+  const loadUsers = useCallback(async () => {
+    if (!token) return;
+    setFetchingUsers(true);
+    try {
+      const result = await apiFetch("/api/users");
+      const list = Array.isArray(result) ? result : [];
+      setUsers([...list].sort((a, b) => (b.id || 0) - (a.id || 0)));
+    } catch (err) {
+      showUserToast("danger", "Could not load users from backend");
+    } finally {
+      setFetchingUsers(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (tab === "settings" && stTab === "users" && token) {
+      loadUsers();
+    }
+  }, [tab, stTab, token, loadUsers]);
+
+  const handleAddUser = async (e) => {
+    e.preventDefault();
+    if (!newUser.username.trim() || !newUser.password.trim()) {
+      return showUserToast("danger", "Username and password are required");
+    }
+    setActionLoading(true);
+    try {
+      const res = await fetch(`${BASE}/api/users/add`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newUser),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to add user");
+      }
+      showUserToast("success", data?.message || "User added successfully");
+      setShowAddUser(false);
+      setNewUser({ name: "", username: "", email: "", password: "", role: "viewer" });
+      await loadUsers();
+    } catch (err) {
+      showUserToast("danger", err.message || "Failed to add user");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId, username) => {
+    if (username === "admin_ttp") {
+      return showUserToast("danger", "Cannot delete admin_ttp");
+    }
+    if (!window.confirm(`Delete user ${username}? This cannot be undone.`)) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(`${BASE}/api/users/${userId}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || "Failed to delete user");
+      }
+      showUserToast("success", data?.message || "User deleted successfully");
+      setUsers((prev) => prev.filter((u) => u.id !== userId));
+    } catch (err) {
+      showUserToast("danger", err.message || "Delete failed");
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   // Load table
   const loadTable = useCallback(()=>{
@@ -1040,39 +1112,96 @@ export default function App() {
               {stTab==="users"&&(
                 <div>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-                    <span style={{fontSize:15,fontWeight:700,color:C.text}}>User Accounts ({users.length})</span>
-                    <Btn onClick={()=>setShowAddUser(true)}>{Icon.plus} Add New User</Btn>
+                    <span style={{fontSize:15,fontWeight:700,color:C.text}}>User Management ({users.length})</span>
+                    <Btn onClick={()=>setShowAddUser(true)}>{Icon.plus} Add User</Btn>
                   </div>
-                  <Card>
-                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-                      <thead>
-                        <tr style={{background:C.tableAlt}}>
-                          {["NAME","USERNAME","EMAIL","ROLE","STATUS","ACTIONS"].map(h=>(
-                            <th key={h} style={{padding:"11px 16px",textAlign:"left",fontSize:10,fontWeight:700,color:C.textMuted,textTransform:"uppercase",letterSpacing:"0.06em",borderBottom:`1px solid ${C.border}`}}>{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {users.map((u,i)=>(
-                          <tr key={u.id} style={{borderBottom:`1px solid ${C.border}`,background:i%2===0?"#fff":C.tableAlt}}
-                            onMouseEnter={e=>e.currentTarget.style.background=C.tableHover}
-                            onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"#fff":C.tableAlt}>
-                            <td style={{padding:"12px 16px",fontWeight:600,color:C.text}}>{u.name}</td>
-                            <td style={{padding:"12px 16px",fontFamily:"monospace",fontSize:12,color:C.textMuted}}>{u.username}</td>
-                            <td style={{padding:"12px 16px",color:C.textMuted}}>{u.email}</td>
-                            <td style={{padding:"12px 16px"}}><Badge color={u.role==="admin"?"accent":"muted"}>{u.role==="admin"?"Admin":"Viewer"}</Badge></td>
-                            <td style={{padding:"12px 16px"}}><Badge color="success">Active</Badge></td>
-                            <td style={{padding:"12px 16px"}}>
-                              <div style={{display:"flex",gap:6}}>
-                                <Btn size="sm" variant="ghost" onClick={()=>setEditUser({...u})}>{Icon.edit} Edit</Btn>
-                                <Btn size="sm" variant="danger" onClick={()=>{if(window.confirm(`Delete ${u.name}?`)) setUsers(p=>p.filter(x=>x.id!==u.id));}}>{Icon.trash} Delete</Btn>
-                              </div>
-                            </td>
+
+                  {/* Toast */}
+                  {userToast && (
+                    <div style={{marginBottom:12,padding:"10px 14px",borderRadius:8,fontWeight:600,color:userToast.type==="success"?"#1E3A8A":"#991B1B",background:userToast.type==="success"?"#DBEAFE":"#FEE2E2"}}>
+                      {userToast.message}
+                    </div>
+                  )}
+
+                  <Card style={{background:"#1a1d23",border:"1px solid #2a2e36"}}>
+                    <div style={{overflowX:"auto"}}>
+                      <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                        <thead>
+                          <tr style={{background:"#161a20"}}>
+                            {["NAME","USERNAME","EMAIL","ROLE","ACTIONS"].map(h=>(
+                              <th key={h} style={{padding:"11px 16px",textAlign:"left",fontSize:10,fontWeight:700,color:"#9398a8",textTransform:"uppercase",letterSpacing:"0.06em",borderBottom:"1px solid #2a2e36"}}>{h}</th>
+                            ))}
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {fetchingUsers && (
+                            <tr><td colSpan={5} style={{padding:18,textAlign:"center",color:"#9ca3af"}}>Loading users...</td></tr>
+                          )}
+                          {!fetchingUsers && users.length === 0 && (
+                            <tr><td colSpan={5} style={{padding:18,textAlign:"center",color:"#9ca3af"}}>No user accounts found.</td></tr>
+                          )}
+                          {!fetchingUsers && users.sort((a,b)=>(b.id||0)-(a.id||0)).map((u,i)=>(
+                            <tr key={u.id || i} style={{borderBottom:"1px solid #2a2e36",background:i%2===0?"#1a1d23":"#151820"}}
+                              onMouseEnter={e=>e.currentTarget.style.background="#222635"}
+                              onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"#1a1d23":"#151820"}>
+                              <td style={{padding:"12px 16px",fontWeight:600,color:"#eef2ff"}}>{u.name}</td>
+                              <td style={{padding:"12px 16px",fontFamily:"monospace",fontSize:12,color:"#9ca3af"}}>{u.username}</td>
+                              <td style={{padding:"12px 16px",color:"#9ca3af"}}>{u.email}</td>
+                              <td style={{padding:"12px 16px"}}>
+                                <Badge color={u.role==="admin"?"accent":"muted"}>{u.role==="admin"?"Admin":"Viewer"}</Badge>
+                              </td>
+                              <td style={{padding:"12px 16px"}}>
+                                <div style={{display:"flex",gap:6}}>
+                                  <button disabled style={{padding:"6px 10px",borderRadius:7,border:"1px solid #2a2e36",background:"transparent",color:"#9ca3af",fontSize:12,opacity:0.6}}>Edit</button>
+                                  <button onClick={()=>handleDeleteUser(u.id, u.username)} disabled={u.username==="admin_ttp"||actionLoading}
+                                    style={{padding:"6px 10px",borderRadius:7,border:"1px solid #ff4d4f",background:u.username==="admin_ttp"?"#3f2b2b":"#2d1017",color:"#ffb3b4",fontSize:12,cursor:u.username==="admin_ttp"?"not-allowed":"pointer"}}>
+                                    {Icon.trash} Delete
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </Card>
+                </div>
+              )}
+
+              {/* Add User Modal */}
+              {showAddUser && (
+                <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999}}>
+                  <div style={{width:490,maxWidth:"96%",background:"#0f1115",border:"1px solid #2a2e36",borderRadius:14,padding:20,boxShadow:"0 18px 40px rgba(0,0,0,0.6)"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                      <h3 style={{margin:0,color:"#f8fafc",fontSize:18,fontWeight:700}}>Add New User</h3>
+                      <button onClick={()=>setShowAddUser(false)} style={{background:"transparent",border:"none",color:"#9ca3af",cursor:"pointer"}}>{Icon.close}</button>
+                    </div>
+                    <form onSubmit={handleAddUser} style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                      {[["Name","name"],["Username","username"],["Email","email"],["Password","password"]].map(([label,key])=> (
+                        <div key={key} style={{display:"flex",flexDirection:"column",gridColumn:key==="name"||key==="email"?"span 2":"span 1"}}>
+                          <label style={{fontSize:12,color:"#9ca3af",marginBottom:4}}>{label}</label>
+                          <input required value={newUser[key]} onChange={e=>setNewUser(n=>({...n,[key]:e.target.value}))}
+                            type={key==="password"?"password":"text"}
+                            style={{background:"#1a1d23",border:"1px solid #2a2e36",borderRadius:8,padding:"9px 10px",color:"#eef2ff"}} />
+                        </div>
+                      ))}
+                      <div style={{display:"flex",flexDirection:"column",gridColumn:"span 2"}}>
+                        <label style={{fontSize:12,color:"#9ca3af",marginBottom:4}}>Role</label>
+                        <select value={newUser.role} onChange={e=>setNewUser(n=>({...n,role:e.target.value}))}
+                          style={{background:"#1a1d23",border:"1px solid #2a2e36",borderRadius:8,padding:"9px 10px",color:"#eef2ff"}}>
+                          <option value="viewer">Viewer</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                      </div>
+
+                      <div style={{gridColumn:"span 2",display:"flex",justifyContent:"flex-end",gap:8,marginTop:4}}>
+                        <button type="button" onClick={()=>setShowAddUser(false)} style={{padding:"8px 14px",borderRadius:8,border:"1px solid #2a2e36",background:"transparent",color:"#9ca3af",cursor:"pointer"}}>Cancel</button>
+                        <button type="submit" disabled={actionLoading} style={{padding:"8px 14px",borderRadius:8,border:"none",background:actionLoading?"#4f46e5":"#5b3dd9",color:"#fff",fontWeight:700,cursor:actionLoading?"not-allowed":"pointer"}}>
+                          {actionLoading ? "Saving..." : "Save user"}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
                 </div>
               )}
 
@@ -1147,61 +1276,6 @@ export default function App() {
         </div>
       </main>
 
-      {/* Add User Modal */}
-      {showAddUser&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowAddUser(false)}>
-          <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:28,width:400,boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:15,fontWeight:700,color:C.text,marginBottom:20}}>Add New User</div>
-            {[["Full Name","name","text"],["Username","username","text"],["Email","email","email"],["Password","password","password"]].map(([l,k,t])=>(
-              <div key={k} style={{marginBottom:12}}>
-                <div style={{fontSize:11,fontWeight:600,color:C.textMuted,marginBottom:4,textTransform:"uppercase"}}>{l}</div>
-                <input type={t} value={newUser[k]||""} onChange={e=>setNewUser(u=>({...u,[k]:e.target.value}))}
-                  style={{width:"100%",boxSizing:"border-box",background:"#f9fafb",border:`1px solid ${C.border}`,borderRadius:7,padding:"9px 12px",fontSize:13,color:C.text,outline:"none"}}/>
-              </div>
-            ))}
-            <div style={{marginBottom:18}}>
-              <div style={{fontSize:11,fontWeight:600,color:C.textMuted,marginBottom:4,textTransform:"uppercase"}}>Role</div>
-              <select value={newUser.role} onChange={e=>setNewUser(u=>({...u,role:e.target.value}))}
-                style={{width:"100%",background:"#f9fafb",border:`1px solid ${C.border}`,borderRadius:7,padding:"9px 12px",fontSize:13,color:C.text,outline:"none"}}>
-                <option value="viewer">Viewer</option>
-                <option value="admin">Admin</option>
-              </select>
-            </div>
-            <div style={{display:"flex",gap:10}}>
-              <Btn onClick={()=>{if(!newUser.name||!newUser.username||!newUser.password) return; setUsers(p=>[...p,{...newUser,id:Date.now()}]); setNewUser({name:"",username:"",email:"",password:"",role:"viewer"}); setShowAddUser(false);}} style={{flex:1,justifyContent:"center"}}>Add User</Btn>
-              <Btn variant="ghost" onClick={()=>setShowAddUser(false)} style={{flex:1,justifyContent:"center"}}>Cancel</Btn>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit User Modal */}
-      {editUser&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setEditUser(null)}>
-          <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:28,width:400,boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:15,fontWeight:700,color:C.text,marginBottom:20}}>Edit User — {editUser.name}</div>
-            {[["Full Name","name","text"],["Email","email","email"]].map(([l,k,t])=>(
-              <div key={k} style={{marginBottom:12}}>
-                <div style={{fontSize:11,fontWeight:600,color:C.textMuted,marginBottom:4,textTransform:"uppercase"}}>{l}</div>
-                <input type={t} value={editUser[k]||""} onChange={e=>setEditUser(u=>({...u,[k]:e.target.value}))}
-                  style={{width:"100%",boxSizing:"border-box",background:"#f9fafb",border:`1px solid ${C.border}`,borderRadius:7,padding:"9px 12px",fontSize:13,color:C.text,outline:"none"}}/>
-              </div>
-            ))}
-            <div style={{marginBottom:18}}>
-              <div style={{fontSize:11,fontWeight:600,color:C.textMuted,marginBottom:4,textTransform:"uppercase"}}>Role</div>
-              <select value={editUser.role} onChange={e=>setEditUser(u=>({...u,role:e.target.value}))}
-                style={{width:"100%",background:"#f9fafb",border:`1px solid ${C.border}`,borderRadius:7,padding:"9px 12px",fontSize:13,color:C.text,outline:"none"}}>
-                <option value="viewer">Viewer</option>
-                <option value="admin">Admin</option>
-              </select>
-            </div>
-            <div style={{display:"flex",gap:10}}>
-              <Btn onClick={()=>{setUsers(p=>p.map(u=>u.id===editUser.id?{...editUser}:u));setEditUser(null);}} style={{flex:1,justifyContent:"center"}}>Save Changes</Btn>
-              <Btn variant="ghost" onClick={()=>setEditUser(null)} style={{flex:1,justifyContent:"center"}}>Cancel</Btn>
-            </div>
-          </div>
-        </div>
-      )}
 
       <style>{`
         @media (max-width: 768px) {
