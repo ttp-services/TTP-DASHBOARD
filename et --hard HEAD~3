@@ -1,0 +1,23 @@
+[33m01b47eb[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m fix: prevent crash on 401 unauthorized errors
+[33m8221eb2[m feat: add management users tab, fix date sorting 2026-2023, and remove transport types
+[33m6a3490f[m Fix date sorting, add management settings, and enable CSV export
+[33md5bed21[m fix table ordering, settings tab, data table, AI
+[33m8bd43e6[m v2.0 complete rebuild - gray theme, sidebar, all fixes
+[33m4d45a0c[m v1.4 - clean nav, two themes, users CRUD, AI fix, mobile
+[33meb1f817[m v1.3 clean rebuild
+[33m73c71f8[m fix layout and bustrips
+[33md96d7bf[m fix bustrips rows wrapper
+[33m73cc207[m fix bustrips rows wrapper, new layout
+[33m42dff3c[m v1.3 clean rebuild - two themes, DataHub style
+[33mfc53a9d[m Monday review - theme fix, OpenAI, data fixes
+[33maaa9468[m Add GitHub Pages deployment
+[33m1cf4e54[m Fix Azure build - remove dist from gitignore
+[33m26a06e1[m Fix workflow - let Azure build frontend
+[33mdb2ce89[m Fix MIME types for static web app
+[33m49db372[m Fix vite build config
+[33mcd4e9ec[m Fix deployment workflow
+[33mf60d891[m Update API URL for production
+[33mb2bbe08[m TTP Analytics Platform - initial commit
+[33m6af70dd[m Add files via upload
+[33m5824703[m Update README.md
+[33m74804da[m Initial commit
