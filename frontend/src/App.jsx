@@ -344,10 +344,9 @@ export default function App(){
 
   // Settings
   const[stTab,setStTab]=useState("users");
-  const[users,setUsers]=useState([
-    {id:1,name:"TTP Admin",username:"ttp_admin",email:"datateamttpservices@gmail.com",role:"admin"},
-    {id:2,name:"Abdul",username:"abdul",email:"abdrah1264@gmail.com",role:"viewer"},
-  ]);
+  const[users,setUsers]=useState([]);
+  const[usersLoad,setUsersLoad]=useState(false);
+  const[usersError,setUsersError]=useState("");
   const[showAddUser,setShowAddUser]=useState(false);
   const[editUser,setEditUser]=useState(null);
   const[newUser,setNewUser]=useState({name:"",username:"",email:"",password:"",role:"viewer"});
@@ -388,11 +387,26 @@ export default function App(){
     }).catch(console.error).finally(()=>setOLoad(false));
   },[token,buildP]);
 
+  // Load users from backend
+  const loadUsers = useCallback(async()=>{
+    if(!token||user?.role!=="admin") return;
+    setUsersLoad(true); setUsersError("");
+    try {
+      const t = localStorage.getItem("ttp_token");
+      const r = await fetch(`${BASE}/api/auth/users`,{headers:{"Authorization":`Bearer ${t}`}});
+      if(r.ok){ const d=await r.json(); if(Array.isArray(d)) setUsers(d); }
+      else setUsersError("Failed to load users");
+    } catch { setUsersError("Cannot connect to server"); }
+    finally { setUsersLoad(false); }
+  },[token,user]);
+
   useEffect(()=>{
     if(!token)return;
     apiFetch("/api/dashboard/slicers",{}).then(d=>{if(d&&!d.error)setSlicers(d);}).catch(()=>{});
     loadOverview({});
   },[token]);
+
+  useEffect(()=>{ if(token&&user?.role==="admin") loadUsers(); },[token,user]);
   useEffect(()=>{if(token)loadOverview(applied);},[applied]);
 
   const loadBus=useCallback(f=>{
@@ -917,8 +931,12 @@ export default function App(){
               {stTab==="users"&&(
                 <div>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-                    <span style={{fontSize:15,fontWeight:700,color:T.text}}>User Accounts ({users.length})</span>
-                    <Btn onClick={()=>setShowAddUser(true)} T={T}>{Ic.plus} Add New User</Btn>
+                    <span style={{fontSize:15,fontWeight:700,color:T.text}}>User Accounts ({users.length}){usersLoad&&<span style={{fontSize:12,color:T.textMuted,fontWeight:400,marginLeft:8}}>Loading...</span>}</span>
+                    <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                      {usersError&&<span style={{fontSize:12,color:T.danger}}>{usersError}</span>}
+                      <Btn size="sm" variant="ghost" onClick={loadUsers} T={T}>{Ic.refresh} Refresh</Btn>
+                      <Btn onClick={()=>setShowAddUser(true)} T={T}>{Ic.plus} Add New User</Btn>
+                    </div>
                   </div>
                   <Card T={T}>
                     <DataTable T={T} maxHeight={600} columns={[
@@ -929,7 +947,15 @@ export default function App(){
                       {label:"ACTIONS",key:"a",render:r=>(
                         <div style={{display:"flex",gap:5}}>
                           <Btn size="sm" variant="ghost" onClick={()=>setEditUser({...r})} T={T}>{Ic.edit} Edit</Btn>
-                          <Btn size="sm" variant="danger" onClick={()=>{if(window.confirm(`Delete ${r.name}?`))setUsers(p=>p.filter(x=>x.id!==r.id));}} T={T}>{Ic.trash} Delete</Btn>
+                          <Btn size="sm" variant="danger" onClick={async()=>{
+                            if(!window.confirm(`Delete ${r.name}? This cannot be undone.`)) return;
+                            try{
+                              const t=localStorage.getItem("ttp_token");
+                              const res=await fetch(`${BASE}/api/auth/users/${r.id}`,{method:"DELETE",headers:{"Authorization":`Bearer ${t}`}});
+                              if(res.ok) setUsers(p=>p.filter(x=>x.id!==r.id));
+                              else { const d=await res.json(); alert(d.error||"Failed to delete"); }
+                            }catch{alert("Connection error");}
+                          }} T={T}>{Ic.trash} Delete</Btn>
                         </div>
                       )},
                     ]} rows={users}/>
@@ -1042,7 +1068,16 @@ export default function App(){
               </select>
             </div>
             <div style={{display:"flex",gap:8}}>
-              <Btn onClick={()=>{if(!newUser.name||!newUser.username||!newUser.password)return;setUsers(p=>[...p,{...newUser,id:Date.now()}]);setNewUser({name:"",username:"",email:"",password:"",role:"viewer"});setShowAddUser(false);}} T={T} style={{flex:1,justifyContent:"center"}}>Add User</Btn>
+              <Btn onClick={async()=>{
+                if(!newUser.name||!newUser.username||!newUser.password)return;
+                try{
+                  const t=localStorage.getItem("ttp_token");
+                  const r=await fetch(`${BASE}/api/auth/users`,{method:"POST",headers:{"Authorization":`Bearer ${t}`,"Content-Type":"application/json"},body:JSON.stringify(newUser)});
+                  const d=await r.json();
+                  if(r.ok){setUsers(p=>[...p,d]);setNewUser({name:"",username:"",email:"",password:"",role:"viewer"});setShowAddUser(false);}
+                  else alert(d.error||"Failed to add user");
+                }catch{alert("Connection error");}
+              }} T={T} style={{flex:1,justifyContent:"center"}}>Add User</Btn>
               <Btn variant="ghost" onClick={()=>setShowAddUser(false)} T={T} style={{flex:1,justifyContent:"center"}}>Cancel</Btn>
             </div>
           </div>
@@ -1063,7 +1098,15 @@ export default function App(){
               </select>
             </div>
             <div style={{display:"flex",gap:8}}>
-              <Btn onClick={()=>{setUsers(p=>p.map(u=>u.id===editUser.id?{...editUser}:u));setEditUser(null);}} T={T} style={{flex:1,justifyContent:"center"}}>Save Changes</Btn>
+              <Btn onClick={async()=>{
+                try{
+                  const t=localStorage.getItem("ttp_token");
+                  const r=await fetch(`${BASE}/api/auth/users/${editUser.id}`,{method:"PUT",headers:{"Authorization":`Bearer ${t}`,"Content-Type":"application/json"},body:JSON.stringify(editUser)});
+                  const d=await r.json();
+                  if(r.ok){setUsers(p=>p.map(u=>u.id===editUser.id?d:u));setEditUser(null);}
+                  else alert(d.error||"Failed to update user");
+                }catch{alert("Connection error");}
+              }} T={T} style={{flex:1,justifyContent:"center"}}>Save Changes</Btn>
               <Btn variant="ghost" onClick={()=>setEditUser(null)} T={T} style={{flex:1,justifyContent:"center"}}>Cancel</Btn>
             </div>
           </div>
