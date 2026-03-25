@@ -1,274 +1,271 @@
-﻿import { Router } from 'express';
+import { Router } from 'express';
 import { query } from '../db/azureSql.js';
 
 const router = Router();
 
-// ── HELPERS ──────────────────────────────────────────────────────────────────
-function asArray(v) {
-  if (!v) return [];
-  return Array.isArray(v) ? v : [v];
-}
-
-function buildWhere(filters = {}) {
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+function buildWhere(q) {
   const conditions = [];
   const params = {};
-
-  const datasets = asArray(filters.dataset).filter(Boolean);
+  if (q.departureDateFrom) { conditions.push('departure_date >= @depFrom'); params.depFrom = q.departureDateFrom; }
+  if (q.departureDateTo)   { conditions.push('departure_date <= @depTo');   params.depTo   = q.departureDateTo;   }
+  if (q.bookingDateFrom)   { conditions.push('booking_date >= @bkFrom');    params.bkFrom  = q.bookingDateFrom;   }
+  if (q.bookingDateTo)     { conditions.push('booking_date <= @bkTo');      params.bkTo    = q.bookingDateTo;     }
+  const datasets = [].concat(q.dataset || []).filter(Boolean);
   if (datasets.length) {
-    conditions.push(`dataset IN (${datasets.map((_, i) => `@ds${i}`).join(',')})`);
-    datasets.forEach((d, i) => { params[`ds${i}`] = d; });
+    datasets.forEach((d, i) => { conditions.push(`dataset = @ds${i}`); params[`ds${i}`] = d; });
+    // wrap in OR
+    const dsConds = datasets.map((_, i) => `dataset = @ds${i}`);
+    // remove individual and add grouped
+    datasets.forEach((_, i) => { const idx = conditions.indexOf(`dataset = @ds${i}`); if(idx>-1) conditions.splice(idx,1); });
+    conditions.push(`(${dsConds.join(' OR ')})`);
   }
-
-  const statuses = asArray(filters.status).filter(Boolean);
+  const statuses = [].concat(q.status || []).filter(Boolean);
   if (statuses.length) {
-    conditions.push(`status IN (${statuses.map((_, i) => `@st${i}`).join(',')})`);
     statuses.forEach((s, i) => { params[`st${i}`] = s; });
-  } else {
-    conditions.push(`status IN ('ok','cancelled')`);
+    conditions.push(`(${statuses.map((_,i)=>`status = @st${i}`).join(' OR ')})`);
   }
-
-  const transports = asArray(filters.transportType).filter(Boolean);
+  const transports = [].concat(q.transportType || []).filter(Boolean);
   if (transports.length) {
-    conditions.push(`transport_type IN (${transports.map((_, i) => `@tr${i}`).join(',')})`);
     transports.forEach((t, i) => { params[`tr${i}`] = t; });
+    conditions.push(`(${transports.map((_,i)=>`transport_type = @tr${i}`).join(' OR ')})`);
   }
-
-  const busTypes = asArray(filters.busType).filter(Boolean);
-  if (busTypes.length) {
-    conditions.push(`bus_type_name IN (${busTypes.map((_, i) => `@bt${i}`).join(',')})`);
-    busTypes.forEach((b, i) => { params[`bt${i}`] = b; });
-  }
-
-  if (filters.departureDateFrom) { conditions.push('departure_date >= @ddFrom'); params.ddFrom = filters.departureDateFrom; }
-  if (filters.departureDateTo)   { conditions.push('departure_date <= @ddTo');   params.ddTo   = filters.departureDateTo;   }
-  if (filters.bookingDateFrom)   { conditions.push('booking_date >= @bdFrom');   params.bdFrom = filters.bookingDateFrom;   }
-  if (filters.bookingDateTo)     { conditions.push('booking_date <= @bdTo');     params.bdTo   = filters.bookingDateTo;     }
-
-  return {
-    whereClause: conditions.length ? 'WHERE ' + conditions.join(' AND ') : '',
-    params
-  };
+  return { whereClause: conditions.length ? 'WHERE ' + conditions.join(' AND ') : '', params };
 }
 
-// ── SLICERS ───────────────────────────────────────────────────────────────────
+// ─── SLICERS ──────────────────────────────────────────────────────────────────
 router.get('/slicers', async (req, res) => {
   try {
-    const [tr, bt, ds] = await Promise.all([
-      query(`SELECT DISTINCT ISNULL(transport_type,'Unknown') AS val FROM bookings WHERE status IN ('ok','cancelled') AND transport_type IS NOT NULL ORDER BY val`),
-      query(`SELECT DISTINCT ISNULL(bus_type_name,'Unknown') AS val FROM bookings WHERE status IN ('ok','cancelled') AND bus_type_name IS NOT NULL AND bus_type_name != 'Other' ORDER BY val`),
-      query(`SELECT DISTINCT dataset AS val FROM bookings WHERE status IN ('ok','cancelled') ORDER BY val`),
+    const [tr, ds, lb] = await Promise.all([
+      query(`SELECT DISTINCT transport_type FROM bookings WHERE transport_type IS NOT NULL ORDER BY transport_type`),
+      query(`SELECT DISTINCT dataset FROM bookings WHERE dataset IS NOT NULL ORDER BY dataset`),
+      query(`SELECT DISTINCT LabelName FROM CustomerOverview WHERE LabelName IS NOT NULL ORDER BY LabelName`),
     ]);
     res.json({
-      transportTypes: tr.recordset.map(r => r.val),
-      busTypes: bt.recordset.map(r => r.val),
-      datasets: ds.recordset.map(r => r.val),
+      transportTypes: [...new Set((tr.recordset||[]).map(r=>r.transport_type).map(t=>(t||'').toLowerCase().replace('owntransport','own transport').trim()))].filter(Boolean),
+      datasets: (ds.recordset||[]).map(r=>r.dataset),
+      labels: (lb.recordset||[]).map(r=>r.LabelName),
     });
-  } catch (err) {
-    console.error('Slicers error:', err.message);
-    res.status(500).json({ error: 'Failed', details: err.message });
-  }
+  } catch(err) { res.status(500).json({ error: 'Slicers failed', details: err.message }); }
 });
 
-// ── KPIs ──────────────────────────────────────────────────────────────────────
+// ─── KPIs ─────────────────────────────────────────────────────────────────────
 router.get('/kpis', async (req, res) => {
   try {
     const { whereClause, params } = buildWhere(req.query);
-
-    const hasDateFilter = req.query.departureDateFrom || req.query.departureDateTo || req.query.bookingDateFrom || req.query.bookingDateTo;
-    const cy = new Date().getFullYear();
-    const py = cy - 1;
-
-    // Current period
+    const baseWhere = whereClause || 'WHERE status IN (\'ok\',\'cancelled\')';
+    const addAnd = whereClause ? ' AND status IN (\'ok\',\'cancelled\')' : ' AND status IN (\'ok\',\'cancelled\')';
     const result = await query(`
       SELECT
-        COUNT(*)               AS currentBookings,
-        SUM(pax)               AS currentPax,
-        ROUND(SUM(revenue), 2) AS currentRevenue
-      FROM bookings
-      ${whereClause}
+        SUM(CASE WHEN year = DATEPART(YEAR,GETDATE()) THEN revenue  ELSE 0 END) AS cr,
+        SUM(CASE WHEN year = DATEPART(YEAR,GETDATE())-1 THEN revenue ELSE 0 END) AS pr,
+        SUM(CASE WHEN year = DATEPART(YEAR,GETDATE()) THEN pax     ELSE 0 END) AS cp,
+        SUM(CASE WHEN year = DATEPART(YEAR,GETDATE())-1 THEN pax    ELSE 0 END) AS pp,
+        COUNT(CASE WHEN year = DATEPART(YEAR,GETDATE()) THEN 1 END)             AS cb,
+        COUNT(CASE WHEN year = DATEPART(YEAR,GETDATE())-1 THEN 1 END)           AS pb
+      FROM bookings ${whereClause || ''} ${whereClause ? 'AND' : 'WHERE'} status IN ('ok','cancelled')
     `, params);
-
-    // Previous period - shift dates back 1 year if date filter applied, else use previous year
-    const prevParams = { ...params };
-    let prevWhere = whereClause;
-
-    if (hasDateFilter) {
-      if (prevParams.ddFrom) { const d = new Date(prevParams.ddFrom); d.setFullYear(d.getFullYear()-1); prevParams.ddFrom = d.toISOString().split('T')[0]; }
-      if (prevParams.ddTo)   { const d = new Date(prevParams.ddTo);   d.setFullYear(d.getFullYear()-1); prevParams.ddTo   = d.toISOString().split('T')[0]; }
-      if (prevParams.bdFrom) { const d = new Date(prevParams.bdFrom); d.setFullYear(d.getFullYear()-1); prevParams.bdFrom = d.toISOString().split('T')[0]; }
-      if (prevParams.bdTo)   { const d = new Date(prevParams.bdTo);   d.setFullYear(d.getFullYear()-1); prevParams.bdTo   = d.toISOString().split('T')[0]; }
-    } else {
-      prevWhere = whereClause ? whereClause + ` AND year = ${py}` : `WHERE year = ${py}`;
-    }
-
-    const prevResult = await query(`
-      SELECT
-        COUNT(*)               AS previousBookings,
-        SUM(pax)               AS previousPax,
-        ROUND(SUM(revenue), 2) AS previousRevenue
-      FROM bookings
-      ${prevWhere}
-    `, prevParams);
-
     const r = result.recordset[0] || {};
-    const p = prevResult.recordset[0] || {};
-    const diff = (a, b) => a - b;
-    const pct  = (a, b) => b > 0 ? Math.round(((a - b) / b) * 100) : null;
-
+    const diffB = (r.cb||0)-(r.pb||0), diffP = (r.cp||0)-(r.pp||0), diffR = (r.cr||0)-(r.pr||0);
     res.json({
-      currentBookings:    r.currentBookings   || 0,
-      previousBookings:   p.previousBookings  || 0,
-      differenceBookings: diff(r.currentBookings || 0, p.previousBookings || 0),
-      percentBookings:    pct(r.currentBookings  || 0, p.previousBookings || 0),
-      currentPax:         r.currentPax        || 0,
-      previousPax:        p.previousPax       || 0,
-      differencePax:      diff(r.currentPax || 0, p.previousPax || 0),
-      percentPax:         pct(r.currentPax  || 0, p.previousPax || 0),
-      currentRevenue:     r.currentRevenue    || 0,
-      previousRevenue:    p.previousRevenue   || 0,
-      differenceRevenue:  diff(r.currentRevenue || 0, p.previousRevenue || 0),
-      percentRevenue:     pct(r.currentRevenue || 0, p.previousRevenue || 0),
+      currentBookings: r.cb||0, previousBookings: r.pb||0, differenceBookings: diffB,
+      percentBookings: r.pb ? (diffB/r.pb*100) : null,
+      currentPax: r.cp||0, previousPax: r.pp||0, differencePax: diffP,
+      percentPax: r.pp ? (diffP/r.pp*100) : null,
+      currentRevenue: r.cr||0, previousRevenue: r.pr||0, differenceRevenue: diffR,
+      percentRevenue: r.pr ? (diffR/r.pr*100) : null,
     });
-  } catch (err) {
-    console.error('KPIs error:', err.message);
-    res.status(500).json({ error: 'Failed', details: err.message });
-  }
+  } catch(err) { res.status(500).json({ error: 'KPIs failed', details: err.message }); }
 });
 
-// ── REVENUE BY YEAR ───────────────────────────────────────────────────────────
+// ─── REVENUE BY YEAR ──────────────────────────────────────────────────────────
 router.get('/revenue-by-year', async (req, res) => {
   try {
     const { whereClause, params } = buildWhere(req.query);
     const result = await query(`
       SELECT year, month,
-        SUM(revenue)  AS revenue,
-        COUNT(*)      AS bookings,
-        SUM(pax)      AS pax
+        COUNT(*) AS bookings, SUM(pax) AS pax, SUM(revenue) AS revenue
       FROM bookings
-      ${whereClause}
-      GROUP BY year, month
-      ORDER BY year, month
+      ${whereClause || ''} ${whereClause ? 'AND' : 'WHERE'} status IN ('ok','cancelled')
+      AND year BETWEEN 2023 AND 2026
+      GROUP BY year, month ORDER BY year, month
     `, params);
     res.json(result.recordset || []);
-  } catch (err) {
-    console.error('Revenue-by-year error:', err.message);
-    res.status(500).json({ error: 'Failed', details: err.message });
-  }
+  } catch(err) { res.status(500).json({ error: 'Revenue failed', details: err.message }); }
 });
 
-// ── YEAR-MONTH COMPARISON ─────────────────────────────────────────────────────
+// ─── YEAR-MONTH COMPARISON ────────────────────────────────────────────────────
 router.get('/year-month-comparison', async (req, res) => {
   try {
     const { whereClause, params } = buildWhere(req.query);
     const result = await query(`
+      WITH base AS (
+        SELECT year, month,
+          COUNT(*) AS bookings, SUM(pax) AS pax, SUM(revenue) AS revenue
+        FROM bookings
+        ${whereClause || ''} ${whereClause ? 'AND' : 'WHERE'} status IN ('ok','cancelled')
+        AND year BETWEEN 2023 AND 2026
+        GROUP BY year, month
+      )
       SELECT
-        year,
-        month,
-        COUNT(*)             AS currentBookings,
-        SUM(pax)             AS currentPax,
-        ROUND(SUM(revenue),0) AS currentRevenue
-      FROM bookings
-      ${whereClause}
-      GROUP BY year, month
-      ORDER BY year DESC, month ASC
+        a.year, a.month,
+        a.bookings AS currentBookings, ISNULL(b.bookings,0) AS previousBookings,
+        a.pax      AS currentPax,      ISNULL(b.pax,0)      AS previousPax,
+        a.revenue  AS currentRevenue,  ISNULL(b.revenue,0)  AS previousRevenue,
+        a.bookings - ISNULL(b.bookings,0) AS diffBookings,
+        a.pax      - ISNULL(b.pax,0)      AS diffPax,
+        a.revenue  - ISNULL(b.revenue,0)  AS diffRevenue,
+        CASE WHEN ISNULL(b.revenue,0)>0 THEN (a.revenue-b.revenue)/b.revenue*100 ELSE NULL END AS diffPct
+      FROM base a
+      LEFT JOIN base b ON b.year=a.year-1 AND b.month=a.month
+      ORDER BY a.year DESC, a.month DESC
     `, params);
     res.json(result.recordset || []);
-  } catch (err) {
-    console.error('YM comparison error:', err.message);
-    res.status(500).json({ error: 'Failed', details: err.message });
-  }
+  } catch(err) { res.status(500).json({ error: 'YoY failed', details: err.message }); }
 });
 
-// ── TRANSPORT BREAKDOWN ───────────────────────────────────────────────────────
+// ─── TRANSPORT BREAKDOWN ──────────────────────────────────────────────────────
 router.get('/transport-breakdown', async (req, res) => {
   try {
     const { whereClause, params } = buildWhere(req.query);
     const result = await query(`
-      SELECT
-        ISNULL(LOWER(REPLACE(transport_type,'ownTransport','own transport')), 'unknown') AS transport_type,
+      SELECT transport_type,
         COUNT(*) AS bookings, SUM(pax) AS pax, SUM(revenue) AS revenue
       FROM bookings
-      ${whereClause}
-      GROUP BY LOWER(REPLACE(transport_type,'ownTransport','own transport'))
-      ORDER BY bookings DESC
+      ${whereClause || ''} ${whereClause ? 'AND' : 'WHERE'} status IN ('ok','cancelled')
+      GROUP BY transport_type ORDER BY bookings DESC
     `, params);
     res.json(result.recordset || []);
-  } catch (err) {
-    console.error('Transport error:', err.message);
-    res.status(500).json({ error: 'Failed', details: err.message });
-  }
+  } catch(err) { res.status(500).json({ error: 'Transport failed', details: err.message }); }
 });
 
-// ── DEPARTURE PLACES ──────────────────────────────────────────────────────────
-router.get('/departure-places', async (req, res) => {
-  try {
-    const { whereClause, params } = buildWhere(req.query);
-    const result = await query(`
-      SELECT destination, COUNT(*) AS bookings, SUM(pax) AS pax, SUM(revenue) AS revenue
-      FROM bookings
-      ${whereClause}
-      AND destination IS NOT NULL AND destination != ''
-      GROUP BY destination
-      ORDER BY bookings DESC
-    `, params);
-    res.json(result.recordset || []);
-  } catch (err) {
-    console.error('Departure places error:', err.message);
-    res.status(500).json({ error: 'Failed', details: err.message });
-  }
-});
-
-// ── BUS CLASS SUMMARY ─────────────────────────────────────────────────────────
+// ─── BUS CLASS SUMMARY ────────────────────────────────────────────────────────
 router.get('/bus-class-summary', async (req, res) => {
   try {
-    const { whereClause, params } = buildWhere(req.query);
     const result = await query(`
       SELECT bus_type_name AS bus_class, dataset,
         COUNT(*) AS bookings, SUM(pax) AS pax, SUM(revenue) AS revenue
       FROM bookings
-      ${whereClause}
-      AND bus_type_name IS NOT NULL AND bus_type_name != 'Other'
+      WHERE bus_type_name IS NOT NULL AND bus_type_name NOT IN ('Other','')
+      AND status IN ('ok','cancelled')
       GROUP BY bus_type_name, dataset
       ORDER BY bookings DESC
-    `, params);
+    `);
     res.json(result.recordset || []);
-  } catch (err) {
-    console.error('Bus class error:', err.message);
-    res.status(500).json({ error: 'Failed', details: err.message });
-  }
+  } catch(err) { res.status(500).json({ error: 'Bus class failed', details: err.message }); }
 });
 
-// ── BUSTRIPS (DISTINCT DATES) ─────────────────────────────────────────────────
+// ─── BUSTRIPS (PENDEL OVERVIEW) ───────────────────────────────────────────────
 router.get('/bustrips', async (req, res) => {
   try {
     const conditions = [];
     const params = {};
     if (req.query.dateFrom) { conditions.push('StartDate >= @dateFrom'); params.dateFrom = req.query.dateFrom; }
-    if (req.query.dateTo)   { conditions.push('EndDate   <= @dateTo');   params.dateTo   = req.query.dateTo;   }
+    if (req.query.dateTo)   { conditions.push('EndDate <= @dateTo');     params.dateTo   = req.query.dateTo;   }
     if (req.query.pendel)   { conditions.push('NormalizedPendel = @pendel'); params.pendel = req.query.pendel; }
-
     const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
     const result = await query(`
       SELECT
         CONVERT(VARCHAR(10), StartDate, 103) AS StartDate,
         CONVERT(VARCHAR(10), EndDate,   103) AS EndDate,
-        SUM(ORC)  AS ORC,  SUM(OFC)  AS OFC,  SUM(OPRE)  AS OPRE,
-        SUM(RRC)  AS RRC,  SUM(RFC)  AS RFC,  SUM(RPRE)  AS RPRE,
+        NormalizedPendel,
+        SUM(ORC) AS ORC, SUM(OFC) AS OFC, SUM(OPRE) AS OPRE,
+        SUM(RRC) AS RRC, SUM(RFC) AS RFC, SUM(RPRE) AS RPRE,
         SUM(OTotal) AS OTotal, SUM(RTotal) AS RTotal,
-        SUM(RC_Diff)  AS RC_Diff,  SUM(FC_Diff)  AS FC_Diff,
+        SUM(RC_Diff) AS RC_Diff, SUM(FC_Diff) AS FC_Diff,
         SUM(PRE_Diff) AS PRE_Diff, SUM(Total_Difference) AS Total_Difference
       FROM BUStrips ${where}
-      GROUP BY StartDate, EndDate
-      ORDER BY StartDate DESC
+      GROUP BY StartDate, EndDate, NormalizedPendel
+      ORDER BY StartDate DESC, EndDate DESC
     `, params);
     res.json(result.recordset || []);
-  } catch (err) {
-    console.error('BUStrips error:', err.message);
-    res.status(500).json({ error: 'Failed', details: err.message });
-  }
+  } catch(err) { res.status(500).json({ error: 'BUStrips failed', details: err.message }); }
 });
 
-// ── SNOWTRAVEL BUS OCCUPANCY ──────────────────────────────────────────────────
+// ─── PENDEL OVERVIEW (VW_Solmar_Pendel_Overview) ──────────────────────────────
+router.get('/pendel-overview', async (req, res) => {
+  try {
+    const conditions = ["wayOfTransport = 'bus'"];
+    const params = {};
+    if (req.query.dateFrom) { conditions.push('dateDeparture >= @dateFrom'); params.dateFrom = req.query.dateFrom; }
+    if (req.query.dateTo)   { conditions.push('dateDeparture <= @dateTo');   params.dateTo   = req.query.dateTo;   }
+    if (req.query.label)    { conditions.push('Label = @label');             params.label    = req.query.label;    }
+    if (req.query.pendel)   { conditions.push('Pendel = @pendel');           params.pendel   = req.query.pendel;   }
+    if (req.query.destination) { conditions.push('Destination = @dest');     params.dest     = req.query.destination; }
+    const where = 'WHERE ' + conditions.join(' AND ');
+    const result = await query(`
+      SELECT
+        CONVERT(VARCHAR(10), dateDeparture, 103) AS dateDeparture,
+        CONVERT(VARCHAR(10), dateReturn,    103) AS dateReturn,
+        Label, Pendel, Destination, Weekday,
+        SUM(Total) AS Total,
+        SUM(Total_Lower) AS Total_Lower, SUM(Total_Upper) AS Total_Upper, SUM(Total_NoDeck) AS Total_NoDeck,
+        SUM(Royal_Total) AS Royal_Total, SUM(Royal_Lower) AS Royal_Lower, SUM(Royal_Upper) AS Royal_Upper, SUM(Royal_NoDeck) AS Royal_NoDeck,
+        SUM(First_Total) AS First_Total, SUM(First_Lower) AS First_Lower, SUM(First_Upper) AS First_Upper, SUM(First_NoDeck) AS First_NoDeck,
+        SUM(Premium_Total) AS Premium_Total, SUM(Premium_Lower) AS Premium_Lower, SUM(Premium_Upper) AS Premium_Upper, SUM(Premium_NoDeck) AS Premium_NoDeck
+      FROM VW_Solmar_Pendel_Overview ${where}
+      GROUP BY dateDeparture, dateReturn, Label, Pendel, Destination, Weekday
+      ORDER BY dateDeparture DESC
+    `, params);
+    res.json(result.recordset || []);
+  } catch(err) { res.status(500).json({ error: 'Pendel failed', details: err.message }); }
+});
+
+// ─── FEEDER OVERVIEW ─────────────────────────────────────────────────────────
+router.get('/feeder-overview', async (req, res) => {
+  try {
+    const conditions = ["wayOfTransport = 'bus'"];
+    const params = {};
+    if (req.query.dateFrom) { conditions.push('dateDeparture >= @dateFrom'); params.dateFrom = req.query.dateFrom; }
+    if (req.query.dateTo)   { conditions.push('dateDeparture <= @dateTo');   params.dateTo   = req.query.dateTo;   }
+    if (req.query.label)    { conditions.push('Label = @label');             params.label    = req.query.label;    }
+    if (req.query.departurePlace) { conditions.push('departurePlace = @dp'); params.dp = req.query.departurePlace; }
+    const where = 'WHERE ' + conditions.join(' AND ');
+    const result = await query(`
+      SELECT
+        CONVERT(VARCHAR(10), dateDeparture, 103) AS dateDeparture,
+        CONVERT(VARCHAR(10), dateReturn,    103) AS dateReturn,
+        departurePlace, wayOfTransport,
+        participantBusClass AS busClass,
+        participantBusType  AS busType,
+        SUM(totalParticipants) AS totalParticipants
+      FROM VW_Solmar_Feeder_Overview ${where}
+      GROUP BY dateDeparture, dateReturn, departurePlace, wayOfTransport, participantBusClass, participantBusType
+      ORDER BY dateDeparture DESC
+    `, params);
+    res.json(result.recordset || []);
+  } catch(err) { res.status(500).json({ error: 'Feeder failed', details: err.message }); }
+});
+
+// ─── DECK CLASS ───────────────────────────────────────────────────────────────
+router.get('/deck-class', async (req, res) => {
+  try {
+    const conditions = [];
+    const params = {};
+    if (req.query.dateFrom) { conditions.push('dateDeparture >= @dateFrom'); params.dateFrom = req.query.dateFrom; }
+    if (req.query.dateTo)   { conditions.push('dateDeparture <= @dateTo');   params.dateTo   = req.query.dateTo;   }
+    if (req.query.label)    { conditions.push('Label = @label');             params.label    = req.query.label;    }
+    if (req.query.pendel)   { conditions.push('Pendel = @pendel');           params.pendel   = req.query.pendel;   }
+    const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
+    const result = await query(`
+      SELECT
+        CONVERT(VARCHAR(10), dateDeparture, 103) AS dateDeparture,
+        CONVERT(VARCHAR(10), dateReturn,    103) AS dateReturn,
+        Label, Pendel, Destination, Weekday,
+        SUM(Total) AS Total,
+        SUM(Total_Lower) AS Total_Lower, SUM(Total_Upper) AS Total_Upper, SUM(Total_NoDeck) AS Total_NoDeck,
+        SUM(Royal_Total) AS Royal_Total, SUM(Royal_Lower) AS Royal_Lower, SUM(Royal_Upper) AS Royal_Upper, SUM(Royal_NoDeck) AS Royal_NoDeck,
+        SUM(First_Total) AS First_Total, SUM(First_Lower) AS First_Lower, SUM(First_Upper) AS First_Upper, SUM(First_NoDeck) AS First_NoDeck,
+        SUM(Premium_Total) AS Premium_Total, SUM(Premium_Lower) AS Premium_Lower, SUM(Premium_Upper) AS Premium_Upper, SUM(Premium_NoDeck) AS Premium_NoDeck
+      FROM VW_Solmar_Deck_Class ${where}
+      GROUP BY dateDeparture, dateReturn, Label, Pendel, Destination, Weekday
+      ORDER BY dateDeparture DESC
+    `, params);
+    res.json(result.recordset || []);
+  } catch(err) { res.status(500).json({ error: 'Deck class failed', details: err.message }); }
+});
+
+// ─── SNOWTRAVEL BUS ───────────────────────────────────────────────────────────
 router.get('/snowtravel-bus', async (req, res) => {
   try {
     const conditions = ["dataset = 'Snowtravel'", "status = 'ok'", "bus_type_name IS NOT NULL", "bus_type_name != 'Other'"];
@@ -279,101 +276,122 @@ router.get('/snowtravel-bus', async (req, res) => {
       SELECT
         CONVERT(VARCHAR(10), departure_date, 103) AS departure_date,
         CONVERT(VARCHAR(10), return_date,    103) AS return_date,
-        SUM(CASE WHEN bus_type_name = 'Dream Class'      THEN pax ELSE 0 END) AS dream_class,
-        SUM(CASE WHEN bus_type_name = 'First Class'      THEN pax ELSE 0 END) AS first_class,
-        SUM(CASE WHEN bus_type_name LIKE '%Sleep%' OR bus_type_name LIKE '%Royal%' THEN pax ELSE 0 END) AS sleep_royal,
+        SUM(CASE WHEN bus_type_name='Dream Class'  THEN pax ELSE 0 END) AS dream_class,
+        SUM(CASE WHEN bus_type_name='First Class'  THEN pax ELSE 0 END) AS first_class,
+        SUM(CASE WHEN bus_type_name LIKE '%Sleep%' OR bus_type_name LIKE '%Royal%' THEN pax ELSE 0 END) AS sleep_royal_class,
         SUM(pax) AS total_pax
-      FROM bookings
-      WHERE ${conditions.join(' AND ')}
+      FROM bookings WHERE ${conditions.join(' AND ')}
       GROUP BY departure_date, return_date
       ORDER BY departure_date DESC
     `, params);
     res.json(result.recordset || []);
-  } catch (err) {
-    console.error('Snowtravel bus error:', err.message);
-    res.status(500).json({ error: 'Failed', details: err.message });
-  }
+  } catch(err) { res.status(500).json({ error: 'Snowtravel bus failed', details: err.message }); }
 });
 
-// ── SNOWTRAVEL MONTHLY BY BUS TYPE ────────────────────────────────────────────
-router.get('/snowtravel-monthly', async (req, res) => {
+// ─── DATA TABLE (BOOKINGS) ────────────────────────────────────────────────────
+router.get('/bookings-table', async (req, res) => {
   try {
-    const conditions = ["dataset = 'Snowtravel'", "status = 'ok'", "bus_type_name IS NOT NULL", "bus_type_name != 'Other'"];
+    const conditions = [];
     const params = {};
-    if (req.query.dateFrom) { conditions.push('departure_date >= @dateFrom'); params.dateFrom = req.query.dateFrom; }
-    if (req.query.dateTo)   { conditions.push('departure_date <= @dateTo');   params.dateTo   = req.query.dateTo;   }
-    const result = await query(`
-      SELECT year, month, bus_type_name AS bus_class,
-        COUNT(*) AS bookings, SUM(pax) AS pax, SUM(revenue) AS revenue
-      FROM bookings
-      WHERE ${conditions.join(' AND ')}
-      GROUP BY year, month, bus_type_name
-      ORDER BY year, month, bus_type_name
-    `, params);
-    res.json(result.recordset || []);
-  } catch (err) {
-    console.error('Snowtravel monthly error:', err.message);
-    res.status(500).json({ error: 'Failed', details: err.message });
-  }
+    if (req.query.dataset)   { conditions.push('Dataset = @dataset');   params.dataset = req.query.dataset; }
+    if (req.query.status)    { conditions.push('Status = @status');     params.status  = req.query.status;  }
+    if (req.query.depFrom)   { conditions.push('DepartureDate >= @depFrom'); params.depFrom = req.query.depFrom; }
+    if (req.query.depTo)     { conditions.push('DepartureDate <= @depTo');   params.depTo   = req.query.depTo;   }
+    if (req.query.bkFrom)    { conditions.push('BookingDate >= @bkFrom');    params.bkFrom  = req.query.bkFrom;  }
+    if (req.query.bkTo)      { conditions.push('BookingDate <= @bkTo');      params.bkTo    = req.query.bkTo;    }
+    if (req.query.search)    {
+      conditions.push('(BookingID LIKE @search OR LabelCode LIKE @search)');
+      params.search = `%${req.query.search}%`;
+    }
+    const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
+    const page = Math.max(1, parseInt(req.query.page)||1);
+    const limit = Math.min(200, parseInt(req.query.limit)||50);
+    const offset = (page-1)*limit;
+    const [rows, cnt] = await Promise.all([
+      query(`
+        SELECT TOP ${limit}
+          BookingID, Dataset, Status, LabelName, LabelCode,
+          CONVERT(VARCHAR(10), BookingDate,    103) AS BookingDate,
+          CONVERT(VARCHAR(10), DepartureDate,  103) AS DepartureDate,
+          CONVERT(VARCHAR(10), ReturnDate,     103) AS ReturnDate,
+          PAXCount, TotalRevenue, TransportType,
+          BusType, DeparturePlace,
+          CustomerCity, CustomerCountry,
+          DestinationResort, DepartureYear, DepartureMonth,
+          Reseller
+        FROM CustomerOverview ${where}
+        ORDER BY DepartureDate DESC
+        OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+      `, params),
+      query(`SELECT COUNT(*) AS total FROM CustomerOverview ${where}`, params),
+    ]);
+    res.json({ rows: rows.recordset||[], total: cnt.recordset[0]?.total||0, page, limit });
+  } catch(err) { res.status(500).json({ error: 'Bookings table failed', details: err.message }); }
 });
 
-// ── EXPORT CSV ────────────────────────────────────────────────────────────────
+// ─── SNOWTRAVEL DATA TABLE ────────────────────────────────────────────────────
+router.get('/snowtravel-table', async (req, res) => {
+  try {
+    const conditions = ["status IN ('ok','cancelled')"];
+    const params = {};
+    if (req.query.status)  { conditions[0] = `status = @status`; params.status = req.query.status; }
+    if (req.query.depFrom) { conditions.push('dateDeparture >= @depFrom'); params.depFrom = req.query.depFrom; }
+    if (req.query.depTo)   { conditions.push('dateDeparture <= @depTo');   params.depTo   = req.query.depTo;   }
+    if (req.query.bkFrom)  { conditions.push('creationTime >= @bkFrom');   params.bkFrom  = req.query.bkFrom;  }
+    if (req.query.bkTo)    { conditions.push('creationTime <= @bkTo');     params.bkTo    = req.query.bkTo;    }
+    if (req.query.search)  { conditions.push('(fileNr LIKE @search OR travelFileId LIKE @search)'); params.search = `%${req.query.search}%`; }
+    const where = 'WHERE ' + conditions.join(' AND ');
+    const page  = Math.max(1, parseInt(req.query.page)||1);
+    const limit = Math.min(200, parseInt(req.query.limit)||50);
+    const offset = (page-1)*limit;
+    const [rows, cnt] = await Promise.all([
+      query(`
+        SELECT TOP ${limit}
+          travelFileId AS BookingID, fileNr, status AS Status,
+          CONVERT(VARCHAR(10), dateDeparture, 103) AS DepartureDate,
+          CONVERT(VARCHAR(10), dateReturn,    103) AS ReturnDate,
+          CONVERT(VARCHAR(19), creationTime,  103) AS BookingDate,
+          paxCount AS PAXCount, totalPrice AS TotalRevenue,
+          wayOfTransport AS TransportType,
+          busType, busClass, departurePlace AS DeparturePlace,
+          packetCode, customerCity AS CustomerCity, customerCountry AS CustomerCountry
+        FROM ST_Bookings ${where}
+        ORDER BY dateDeparture DESC
+        OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+      `, params),
+      query(`SELECT COUNT(*) AS total FROM ST_Bookings ${where}`, params),
+    ]);
+    res.json({ rows: rows.recordset||[], total: cnt.recordset[0]?.total||0, page, limit });
+  } catch(err) { res.status(500).json({ error: 'Snowtravel table failed', details: err.message }); }
+});
+
+// ─── EXPORT CSV ───────────────────────────────────────────────────────────────
 router.get('/export', async (req, res) => {
   try {
-    const token = req.query.token || req.headers.authorization?.split(' ')[1];
-    if (token) {
-      try {
-        const jwt = (await import('jsonwebtoken')).default;
-        jwt.verify(token, process.env.JWT_SECRET || 'ttp-secret-key');
-      } catch {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-    }
-
     const { whereClause, params } = buildWhere(req.query);
     const result = await query(`
-      SELECT TOP 100000
-        booking_id                                                       AS [Booking ID],
-        dataset                                                          AS [Dataset],
-        status                                                           AS [Status],
-        CONVERT(VARCHAR(10), booking_date,   103)                        AS [Booking Date],
-        CONVERT(VARCHAR(10), departure_date, 103)                        AS [Departure Date],
-        CONVERT(VARCHAR(10), return_date,    103)                        AS [Return Date],
-        CAST(year AS VARCHAR)                                            AS [Year],
-        LEFT(DATENAME(month, DATEFROMPARTS(year, month, 1)), 3)          AS [Month],
-        pax                                                              AS [PAX],
-        ROUND(revenue, 2)                                                AS [Revenue],
-        ISNULL(bus_type_name, '')                                        AS [Bus Type],
-        ISNULL(packet_code, '')                                          AS [Packet Code],
-        ISNULL(destination, '')                                          AS [Destination],
-        ISNULL(transport_type, '')                                       AS [Transport Type],
-        ISNULL(customer_country, '')                                     AS [Country]
-      FROM bookings
-      ${whereClause}
+      SELECT TOP 50000
+        booking_id AS [Booking ID], dataset AS [Dataset], status AS [Status],
+        CONVERT(VARCHAR(10), booking_date,    105) AS [Booking Date],
+        CONVERT(VARCHAR(10), departure_date,  105) AS [Departure Date],
+        CONVERT(VARCHAR(10), return_date,     105) AS [Return Date],
+        CAST(year AS VARCHAR) AS [Year],
+        LEFT(DATENAME(month, DATEFROMPARTS(year,month,1)),3) AS [Month],
+        pax AS [PAX], ROUND(revenue,2) AS [Revenue],
+        transport_type AS [Transport], bus_type_name AS [Bus Type],
+        destination AS [Destination], region AS [Region],
+        customer_country AS [Country]
+      FROM bookings ${whereClause}
       ORDER BY departure_date DESC
     `, params);
-
-    const rows = result.recordset || [];
-    if (!rows.length) return res.status(200).send('No data found for selected filters');
-
+    const rows = result.recordset||[];
+    if (!rows.length) return res.status(200).send('No data');
     const cols = Object.keys(rows[0]);
-    const csv = [
-      cols.join(','),
-      ...rows.map(r => cols.map(c => {
-        const v = r[c] ?? '';
-        const s = String(v);
-        return s.includes(',') || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
-      }).join(','))
-    ].join('\n');
-
-    const date = new Date().toISOString().split('T')[0];
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename=ttp-export-${date}.csv`);
-    res.send('\ufeff' + csv);
-  } catch (err) {
-    console.error('Export error:', err.message);
-    res.status(500).json({ error: 'Export failed', details: err.message });
-  }
+    const csv = [cols.join(','), ...rows.map(r=>cols.map(c=>{ const v=r[c]??''; const s=String(v); return s.includes(',')||s.includes('"')?`"${s.replace(/"/g,'""')}"`:s; }).join(','))].join('\n');
+    res.setHeader('Content-Type','text/csv;charset=utf-8');
+    res.setHeader('Content-Disposition',`attachment;filename=ttp-export-${new Date().toISOString().split('T')[0]}.csv`);
+    res.send('\ufeff'+csv);
+  } catch(err) { res.status(500).json({ error: 'Export failed', details: err.message }); }
 });
 
 export default router;

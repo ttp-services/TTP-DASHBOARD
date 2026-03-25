@@ -3,6 +3,9 @@
  * Uses environment variables only.
  */
 import sql from 'mssql';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const config = {
   server: process.env.AZURE_SQL_SERVER,

@@ -1,37 +1,34 @@
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { query } from '../db/azureSql.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
 const router = Router();
-
-function getUsers() {
-  try {
-    const path = join(__dirname, '../data/users.json');
-    return JSON.parse(readFileSync(path, 'utf8'));
-  } catch { return []; }
-}
 
 router.post('/login', async (req, res) => {
   try {
     const { identifier, password } = req.body;
     if (!identifier || !password) return res.status(400).json({ error: 'Credentials required' });
-    const users = getUsers();
-    const user = users.find(u => u.username === identifier || u.email === identifier);
+
+    const sql = 'SELECT id, name, username, email, password, role FROM users WHERE username = @identifier OR email = @identifier';
+    const result = await query(sql, { identifier });
+    const user = Array.isArray(result?.recordset) ? result.recordset[0] : null;
+
     if (!user) return res.status(401).json({ error: 'Invalid credentials' });
-    const valid = user.password.startsWith('$2')
+
+    const valid = user.password && user.password.startsWith('$2')
       ? await bcrypt.compare(password, user.password)
       : password === user.password;
+
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+
     const token = jwt.sign(
-      { user: { id: user.id, name: user.name, email: user.email, username: user.username } },
+      { user: { id: user.id, name: user.name, email: user.email, username: user.username, role: user.role } },
       process.env.JWT_SECRET || 'ttp-secret-key',
       { expiresIn: '8h' }
     );
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email, username: user.username } });
+
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email, username: user.username, role: user.role } });
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ error: 'Login failed' });
