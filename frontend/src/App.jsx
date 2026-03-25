@@ -907,27 +907,40 @@ export default function App(){
               {oLoad&&<div style={{textAlign:"center",padding:16,color:T.textMuted,fontSize:13}}>Loading...</div>}
               {/* KPI Cards */}
               <div className="kpi-grid" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:16}}>
-                {[
-                  {label:"Total Bookings",curr:kpis?.currentBookings,prev:kpis?.previousBookings,diff:kpis?.differenceBookings,pct:kpis?.percentBookings,f:fmtN,c:"#3b82f6"},
-                  {label:"Total PAX",curr:kpis?.currentPax,prev:kpis?.previousPax,diff:kpis?.differencePax,pct:kpis?.percentPax,f:fmtN,c:"#22c55e"},
-                  {label:"Gross Revenue",curr:kpis?.currentRevenue,prev:kpis?.previousRevenue,diff:kpis?.differenceRevenue,pct:kpis?.percentRevenue,f:fmtEur,c:"#f59e0b"},
-                ].map(({label,curr,prev,diff,pct,f,c})=>(
-                  <Card key={label} style={{padding:"18px 20px"}} T={T}>
-                    <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:12}}>
-                      <div style={{width:8,height:8,borderRadius:"50%",background:c,flexShrink:0}}/>
-                      <span style={{fontSize:11,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.07em"}}>{label}</span>
-                    </div>
-                    <div style={{fontSize:28,fontWeight:800,color:T.text,lineHeight:1,marginBottom:5}}>{curr!=null?f(curr):"—"}</div>
-                    <div style={{fontSize:12,color:T.textMuted,marginBottom:8}}>
-                      prev: <span style={{fontWeight:600}}>{prev!=null?f(prev):"—"}</span>
-                      {kpis?.periodLabel&&<span style={{marginLeft:6,fontSize:10,color:T.accent,background:T.accentLight,padding:"2px 7px",borderRadius:8,fontWeight:600}}>{kpis.periodLabel}</span>}
-                    </div>
-                    <div style={{display:"flex",alignItems:"center",gap:7}}>
-                      {diff!=null&&<span style={{display:"flex",alignItems:"center",gap:2,color:diffClr(diff,T),fontSize:12,fontWeight:700}}>{diff>=0?Ic.arrowUp:Ic.arrowDown}{f(Math.abs(diff))}</span>}
-                      {pct!=null&&<span style={{background:diffBg(diff,T),color:diffClr(diff,T),fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:10,border:`1px solid ${diffClr(diff,T)}33`}}>{diff>=0?"+":""}{Number(pct).toFixed(1)}%</span>}
-                    </div>
-                  </Card>
-                ))}
+                {/* Period badge above cards */}
+              {kpis?.periodLabel&&(
+                <div style={{gridColumn:"1/-1",display:"flex",alignItems:"center",gap:6,marginBottom:-6}}>
+                  <span style={{fontSize:11,color:T.textDim}}>Showing:</span>
+                  <span style={{fontSize:11,fontWeight:700,color:T.accent,background:T.accentLight,padding:"3px 10px",borderRadius:20,border:`1px solid ${T.accent}33`}}>{kpis.periodLabel}</span>
+                  {Object.values(applied).some(v=>v&&(Array.isArray(v)?v.length:true))&&(
+                    <button onClick={()=>{setFilters({depFrom:"",depTo:"",bkFrom:"",bkTo:"",dataset:[],status:[],transport:[],years:[]});setApplied({});loadOverview({});}}
+                      style={{fontSize:11,color:T.warning,background:T.warningBg,border:`1px solid ${T.warning}44`,borderRadius:12,padding:"2px 8px",cursor:"pointer",fontWeight:600}}>✕ Reset filters</button>
+                  )}
+                </div>
+              )}
+              {[
+                {label:"Total Bookings",curr:kpis?.currentBookings,prev:kpis?.previousBookings,diff:kpis?.differenceBookings,pct:kpis?.percentBookings,f:fmtN,c:"#3b82f6"},
+                {label:"Total PAX",curr:kpis?.currentPax,prev:kpis?.previousPax,diff:kpis?.differencePax,pct:kpis?.percentPax,f:fmtN,c:"#22c55e"},
+                {label:"Gross Revenue",curr:kpis?.currentRevenue,prev:kpis?.previousRevenue,diff:kpis?.differenceRevenue,pct:kpis?.percentRevenue,f:fmtEur,c:"#f59e0b"},
+              ].map(({label,curr,prev,diff,pct,f,c})=>(
+                <Card key={label} style={{padding:"18px 20px"}} T={T}>
+                  <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:12}}>
+                    <div style={{width:8,height:8,borderRadius:"50%",background:c,flexShrink:0}}/>
+                    <span style={{fontSize:11,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.07em"}}>{label}</span>
+                  </div>
+                  <div style={{fontSize:28,fontWeight:800,color:T.text,lineHeight:1,marginBottom:5}}>{curr!=null?f(curr):"—"}</div>
+                  <div style={{fontSize:12,color:T.textMuted,marginBottom:8}}>
+                    {prev!=null&&prev>0
+                      ? <>{kpis?.prevLabel||"prev"}: <span style={{fontWeight:600}}>{f(prev)}</span></>
+                      : <span style={{color:T.textDim}}>no previous data</span>
+                    }
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:7}}>
+                    {diff!=null&&diff!==0&&<span style={{display:"flex",alignItems:"center",gap:2,color:diffClr(diff,T),fontSize:12,fontWeight:700}}>{diff>=0?Ic.arrowUp:Ic.arrowDown}{f(Math.abs(diff))}</span>}
+                    {pct!=null&&<span style={{background:diffBg(diff,T),color:diffClr(diff,T),fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:10,border:`1px solid ${diffClr(diff,T)}33`}}>{diff>=0?"+":""}{Number(pct).toFixed(1)}%</span>}
+                  </div>
+                </Card>
+              ))}
               </div>
               {/* Charts */}
               <div className="chart-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:16}}>

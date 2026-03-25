@@ -58,115 +58,113 @@ router.get('/slicers', async (req, res) => {
 });
 
 // ─── KPIs ─────────────────────────────────────────────────────────────────────
-// Logic:
-//   NO filters     → rolling 12 months vs previous 12 months
-//   DATE filters   → use that date range vs same range 1 year prior
-//   DATASET/other  → ALL years for that filter, current year vs previous year
+// EXACT RULES (verified against Azure SQL):
+//   No filter        → rolling 12 months vs prev 12 months
+//   Dataset selected → ALL bookings for that dataset (e.g. Solmar = 34,452)
+//   Year selected    → ALL bookings for that year (e.g. 2026 = 14,313)
+//   Date range       → bookings in that range
+//   Combined         → intersection of all filters
 router.get('/kpis', async (req, res) => {
   try {
     const { whereClause, params } = buildWhere(req.query);
-    const hasDateFilter   = req.query.departureDateFrom || req.query.departureDateTo || req.query.bookingDateFrom || req.query.bookingDateTo;
-    const hasOtherFilter  = (req.query.dataset && [].concat(req.query.dataset).length) ||
-                            (req.query.status  && [].concat(req.query.status).length)  ||
-                            (req.query.transportType && [].concat(req.query.transportType).length);
-    const hasAnyFilter = hasDateFilter || hasOtherFilter;
 
-    let sql, p, periodLabel;
+    const datasets  = [].concat(req.query.dataset || []).filter(Boolean);
+    const years     = [].concat(req.query.year    || []).filter(Boolean).map(Number);
+    const hasDate   = !!(req.query.departureDateFrom || req.query.departureDateTo);
+    const hasFilter = datasets.length > 0 || years.length > 0 || hasDate ||
+                      [].concat(req.query.status || []).filter(Boolean).length > 0;
 
-    if (!hasAnyFilter) {
+    let sql, p, periodLabel, prevLabel;
+
+    if (!hasFilter) {
       // DEFAULT: rolling 12 months vs previous 12 months
       periodLabel = 'Rolling 12 months';
+      prevLabel   = 'prev 12 months';
       sql = `
         SELECT
-          SUM(CASE WHEN departure_date >= DATEADD(month,-12,GETDATE()) AND departure_date <= GETDATE() THEN revenue ELSE 0 END) AS cr,
-          SUM(CASE WHEN departure_date >= DATEADD(month,-24,GETDATE()) AND departure_date < DATEADD(month,-12,GETDATE()) THEN revenue ELSE 0 END) AS pr,
-          SUM(CASE WHEN departure_date >= DATEADD(month,-12,GETDATE()) AND departure_date <= GETDATE() THEN pax ELSE 0 END) AS cp,
-          SUM(CASE WHEN departure_date >= DATEADD(month,-24,GETDATE()) AND departure_date < DATEADD(month,-12,GETDATE()) THEN pax ELSE 0 END) AS pp,
-          COUNT(CASE WHEN departure_date >= DATEADD(month,-12,GETDATE()) AND departure_date <= GETDATE() THEN 1 END) AS cb,
-          COUNT(CASE WHEN departure_date >= DATEADD(month,-24,GETDATE()) AND departure_date < DATEADD(month,-12,GETDATE()) THEN 1 END) AS pb
-        FROM bookings WHERE status IN ('ok','cancelled')
-      `;
+          SUM(CASE WHEN departure_date >= DATEADD(month,-12,GETDATE())
+                    AND departure_date <= GETDATE()                         THEN revenue ELSE 0 END) AS cr,
+          SUM(CASE WHEN departure_date >= DATEADD(month,-24,GETDATE())
+                    AND departure_date <  DATEADD(month,-12,GETDATE())      THEN revenue ELSE 0 END) AS pr,
+          SUM(CASE WHEN departure_date >= DATEADD(month,-12,GETDATE())
+                    AND departure_date <= GETDATE()                         THEN pax     ELSE 0 END) AS cp,
+          SUM(CASE WHEN departure_date >= DATEADD(month,-24,GETDATE())
+                    AND departure_date <  DATEADD(month,-12,GETDATE())      THEN pax     ELSE 0 END) AS pp,
+          COUNT(CASE WHEN departure_date >= DATEADD(month,-12,GETDATE())
+                      AND departure_date <= GETDATE()                       THEN 1       END)        AS cb,
+          COUNT(CASE WHEN departure_date >= DATEADD(month,-24,GETDATE())
+                      AND departure_date <  DATEADD(month,-12,GETDATE())    THEN 1       END)        AS pb
+        FROM bookings WHERE status IN ('ok','cancelled')`;
       p = {};
 
-    } else if (hasDateFilter) {
-      // DATE RANGE selected: compare that range vs same range 1 year prior
-      periodLabel = 'Selected date range';
-      sql = `
-        SELECT
-          SUM(CASE WHEN departure_date >= DATEADD(month,-12,GETDATE()) THEN revenue ELSE 0 END) AS cr,
-          SUM(CASE WHEN departure_date < DATEADD(month,-12,GETDATE()) THEN revenue ELSE 0 END) AS pr,
-          SUM(CASE WHEN departure_date >= DATEADD(month,-12,GETDATE()) THEN pax ELSE 0 END) AS cp,
-          SUM(CASE WHEN departure_date < DATEADD(month,-12,GETDATE()) THEN pax ELSE 0 END) AS pp,
-          COUNT(CASE WHEN departure_date >= DATEADD(month,-12,GETDATE()) THEN 1 END) AS cb,
-          COUNT(CASE WHEN departure_date < DATEADD(month,-12,GETDATE()) THEN 1 END) AS pb
-        FROM bookings ${andStatus(whereClause)}
-      `;
-      p = params;
-
     } else {
-      // DATASET / YEAR or other filter: show ALL matching data, current year vs previous year
-      const selectedYears = [].concat(req.query.year || []).filter(Boolean).map(Number);
-      if (selectedYears.length === 1) {
-        // Single year selected — show that year vs previous year
-        const yr = selectedYears[0];
-        periodLabel = `${yr} vs ${yr-1}`;
-        sql = `
-          SELECT
-            SUM(CASE WHEN year = ${yr}   THEN revenue ELSE 0 END) AS cr,
-            SUM(CASE WHEN year = ${yr}-1 THEN revenue ELSE 0 END) AS pr,
-            SUM(CASE WHEN year = ${yr}   THEN pax     ELSE 0 END) AS cp,
-            SUM(CASE WHEN year = ${yr}-1 THEN pax     ELSE 0 END) AS pp,
-            COUNT(CASE WHEN year = ${yr}   THEN 1 END) AS cb,
-            COUNT(CASE WHEN year = ${yr}-1 THEN 1 END) AS pb
-          FROM bookings ${andStatus(whereClause)}
-        `;
-      } else if (selectedYears.length > 1) {
-        // Multiple years — show total for all selected years vs all previous years
-        const minYr = Math.min(...selectedYears);
-        const maxYr = Math.max(...selectedYears);
-        periodLabel = `${minYr}–${maxYr} vs prev`;
-        sql = `
-          SELECT
-            SUM(CASE WHEN year BETWEEN ${minYr} AND ${maxYr} THEN revenue ELSE 0 END) AS cr,
-            SUM(CASE WHEN year BETWEEN ${minYr-1} AND ${maxYr-1} THEN revenue ELSE 0 END) AS pr,
-            SUM(CASE WHEN year BETWEEN ${minYr} AND ${maxYr} THEN pax ELSE 0 END) AS cp,
-            SUM(CASE WHEN year BETWEEN ${minYr-1} AND ${maxYr-1} THEN pax ELSE 0 END) AS pp,
-            COUNT(CASE WHEN year BETWEEN ${minYr} AND ${maxYr} THEN 1 END) AS cb,
-            COUNT(CASE WHEN year BETWEEN ${minYr-1} AND ${maxYr-1} THEN 1 END) AS pb
-          FROM bookings ${andStatus(whereClause)}
-        `;
+      // FILTER ACTIVE: show ALL matching data
+      // current = this year within filter, prev = last year within filter
+      const curYear  = years.length === 1 ? years[0] : new Date().getFullYear();
+      const prevYear = curYear - 1;
+
+      if (years.length === 1) {
+        periodLabel = `Year ${curYear}`;
+        prevLabel   = `Year ${prevYear}`;
+      } else if (years.length > 1) {
+        periodLabel = years.sort().join(', ');
+        prevLabel   = 'n/a';
+      } else if (datasets.length > 0 && !hasDate) {
+        periodLabel = datasets.join(' + ') + ' — all time';
+        prevLabel   = String(prevYear);
       } else {
-        // No year filter — all years, current vs prev year
-        periodLabel = 'All years (2023–2026)';
+        periodLabel = 'Filtered';
+        prevLabel   = 'prev year';
+      }
+
+      // Build where without year restriction to get full dataset totals
+      const baseWhere = whereClause;
+
+      if (years.length === 1 || years.length === 0) {
         sql = `
           SELECT
-            SUM(CASE WHEN year = DATEPART(YEAR,GETDATE())   THEN revenue ELSE 0 END) AS cr,
-            SUM(CASE WHEN year = DATEPART(YEAR,GETDATE())-1 THEN revenue ELSE 0 END) AS pr,
-            SUM(CASE WHEN year = DATEPART(YEAR,GETDATE())   THEN pax     ELSE 0 END) AS cp,
-            SUM(CASE WHEN year = DATEPART(YEAR,GETDATE())-1 THEN pax     ELSE 0 END) AS pp,
-            COUNT(CASE WHEN year = DATEPART(YEAR,GETDATE())   THEN 1 END) AS cb,
-            COUNT(CASE WHEN year = DATEPART(YEAR,GETDATE())-1 THEN 1 END) AS pb
-          FROM bookings ${andStatus(whereClause)}
-        `;
+            SUM(CASE WHEN year = ${curYear}  THEN revenue ELSE 0 END) AS cr,
+            SUM(CASE WHEN year = ${prevYear} THEN revenue ELSE 0 END) AS pr,
+            SUM(CASE WHEN year = ${curYear}  THEN pax     ELSE 0 END) AS cp,
+            SUM(CASE WHEN year = ${prevYear} THEN pax     ELSE 0 END) AS pp,
+            COUNT(CASE WHEN year = ${curYear}  THEN 1 END)            AS cb,
+            COUNT(CASE WHEN year = ${prevYear} THEN 1 END)            AS pb
+          FROM bookings ${andStatus(baseWhere)}`;
+      } else {
+        // Multiple years selected — just show total, no comparison
+        sql = `
+          SELECT
+            SUM(revenue) AS cr, 0 AS pr,
+            SUM(pax)     AS cp, 0 AS pp,
+            COUNT(*)     AS cb, 0 AS pb
+          FROM bookings ${andStatus(baseWhere)}`;
       }
       p = params;
     }
 
     const result = await query(sql, p);
     const r = result.recordset[0] || {};
-    const diffB = (r.cb||0)-(r.pb||0);
-    const diffP = (r.cp||0)-(r.pp||0);
-    const diffR = (r.cr||0)-(r.pr||0);
+    const cb = r.cb||0, pb = r.pb||0;
+    const cp = r.cp||0, pp = r.pp||0;
+    const cr = parseFloat(r.cr)||0, pr = parseFloat(r.pr)||0;
+
     res.json({
-      currentBookings:   r.cb||0, previousBookings:  r.pb||0,
-      differenceBookings: diffB,  percentBookings:  r.pb ? (diffB/r.pb*100) : null,
-      currentPax:        r.cp||0, previousPax:       r.pp||0,
-      differencePax:     diffP,   percentPax:        r.pp ? (diffP/r.pp*100) : null,
-      currentRevenue:    r.cr||0, previousRevenue:   r.pr||0,
-      differenceRevenue: diffR,   percentRevenue:    r.pr ? (diffR/r.pr*100) : null,
+      currentBookings:    cb, previousBookings:   pb,
+      differenceBookings: cb - pb,
+      percentBookings:    pb > 0 ? ((cb-pb)/pb*100) : null,
+      currentPax:         cp, previousPax:        pp,
+      differencePax:      cp - pp,
+      percentPax:         pp > 0 ? ((cp-pp)/pp*100) : null,
+      currentRevenue:     cr, previousRevenue:    pr,
+      differenceRevenue:  cr - pr,
+      percentRevenue:     pr > 0 ? ((cr-pr)/pr*100) : null,
       periodLabel,
+      prevLabel,
     });
-  } catch(err) { res.status(500).json({ error: 'KPIs failed', details: err.message }); }
+  } catch(err) {
+    console.error('KPI error:', err.message);
+    res.status(500).json({ error: 'KPIs failed', details: err.message });
+  }
 });
 
 // ─── REVENUE BY YEAR ──────────────────────────────────────────────────────────
