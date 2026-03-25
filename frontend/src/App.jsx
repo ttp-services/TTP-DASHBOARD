@@ -18,15 +18,15 @@ const LIGHT = {
 const DARK = {
   bg:"#0f1115", sidebar:"#13161b", card:"#1a1d23", cardHover:"#1f2229",
   border:"#2d333d", borderMid:"#363d4a",
-  accent:"#3b82f6", accentLight:"#1e3a5f", accentHover:"#2563eb",
-  text:"#f8fafc", textMuted:"#8b95a1", textDim:"#4a5568",
-  success:"#22c55e", successBg:"#14532d",
-  danger:"#ef4444",  dangerBg:"#450a0a",
-  warning:"#f59e0b", warningBg:"#451a03",
-  headerBg:"#13161b", tableAlt:"#13161b", tableHover:"#1e3a5f",
-  inputBg:"#0f1115", inputBorder:"#2d333d",
+  accent:"#60a5fa", accentLight:"#1e3a5f", accentHover:"#3b82f6",
+  text:"#f1f5f9", textMuted:"#cbd5e1", textDim:"#94a3b8",
+  success:"#4ade80", successBg:"#14532d",
+  danger:"#f87171",  dangerBg:"#450a0a",
+  warning:"#fbbf24", warningBg:"#451a03",
+  headerBg:"#13161b", tableAlt:"#0d1117", tableHover:"#1e3a5f",
+  inputBg:"#0f1115", inputBorder:"#374151",
   shadow:"0 1px 3px rgba(0,0,0,0.3)", cardShadow:"0 2px 12px rgba(0,0,0,0.4)",
-  scrollbar:"#2d333d", navActive:"#1e3a5f", navHover:"#1a1d23",
+  scrollbar:"#374151", navActive:"#1e3a5f", navHover:"#1a1d23",
 };
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -442,7 +442,8 @@ export default function App(){
     }).catch(()=>[]).finally(()=>setTLoad(false));
   },[token,tableFilters,tablePage]);
 
-  useEffect(()=>{if(token&&tab==="table")loadTable();},[token,tab,tablePage]);
+  useEffect(()=>{if(token&&tab==="table"){setTablePage(1);loadTable();};},[token,tab]);
+  useEffect(()=>{if(token&&tab==="table")loadTable();},[tablePage]);
 
   const sendAI=async msg=>{
     if(!msg.trim()||aiLoad)return;
@@ -494,7 +495,7 @@ export default function App(){
     {label:"CURRENT",key:"curr",right:true,bold:true,render:r=>ymMetric==="bookings"?fmtN(r.currentBookings):ymMetric==="pax"?fmtN(r.currentPax):fmtEur(r.currentRevenue)},
     {label:"PREVIOUS",key:"prev",right:true,color:(_,T)=>T.textMuted,render:r=>ymMetric==="bookings"?fmtN(r.previousBookings):ymMetric==="pax"?fmtN(r.previousPax):fmtEur(r.previousRevenue)},
     {label:"DIFFERENCE",key:"diff",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(ymMetric==="bookings"?r.diffBookings:ymMetric==="pax"?r.diffPax:r.diffRevenue,T),render:r=>{const d=ymMetric==="bookings"?r.diffBookings:ymMetric==="pax"?r.diffPax:r.diffRevenue;return(d>0?"+":"")+( ymMetric==="revenue"?fmtEur(d):fmtN(d));}},
-    {label:"DIFF %",key:"pct",right:true,noWrap:true,color:(r,T)=>diffClr(r.diffRevenue,T),render:r=>{const p=r.diffPct;return p!=null?(p>0?"+":"")+Number(p).toFixed(1)+"%":"—";}},
+    {label:"DIFF %",key:"pct",right:true,noWrap:true,color:(r,T)=>{const d=ymMetric==="bookings"?r.diffBookings:ymMetric==="pax"?r.diffPax:r.diffRevenue;return diffClr(d,T);},render:r=>{const p=ymMetric==="bookings"?r.diffPctBookings:ymMetric==="pax"?r.diffPctPax:r.diffPctRevenue;return p!=null?(p>0?"+":"")+Number(p).toFixed(1)+"%":"—";}},
   ];
 
   // ─── BUS COLUMNS ─────────────────────────────────────────────────────────────
@@ -523,12 +524,15 @@ export default function App(){
   ];
 
   const feederCols=[
-    {label:"DEPARTURE",key:"dateDeparture",noWrap:true,bold:true,color:(_,T)=>T.accent},
-    {label:"RETURN",key:"dateReturn",noWrap:true,color:(_,T)=>T.textMuted},
-    {label:"PICK-UP POINT",key:"departurePlace",noWrap:true},
-    {label:"BUS CLASS",key:"busClass",noWrap:true},
-    {label:"BUS TYPE",key:"busType",noWrap:true},
-    {label:"PAX",key:"totalParticipants",right:true,bold:true},
+    {label:"DEP DATE",key:"DepartureDate",noWrap:true,bold:true,color:(_,T)=>T.accent},
+    {label:"LABEL",key:"LabelName",noWrap:true},
+    {label:"FEEDER LINE",key:"FeederLine",noWrap:true},
+    {label:"DIRECTION",key:"Direction",noWrap:true,render:r=>{const d=r.Direction;return <span style={{color:d==="Outbound"?"#22c55e":"#f59e0b",fontWeight:600,fontSize:11}}>{d}</span>;}},
+    {label:"ROUTE",key:"RouteLabel",noWrap:true},
+    {label:"STOP",key:"StopName",noWrap:true},
+    {label:"STOP TYPE",key:"StopType",noWrap:true,color:(_,T)=>T.textMuted},
+    {label:"PAX",key:"TotalPax",right:true,bold:true},
+    {label:"BOOKINGS",key:"BookingCount",right:true},
   ];
 
   const deckCols=[
@@ -543,21 +547,24 @@ export default function App(){
 
   const tableCols=[
     {label:"BOOKING ID",key:"BookingID",noWrap:true,bold:true,color:(_,T)=>T.accent},
-    {label:"DATASET",key:"Dataset",noWrap:true},
+    {label:"DATASET",key:"Dataset",noWrap:true,render:r=><span style={{background:DS_COLORS[r.Dataset]+"22",color:DS_COLORS[r.Dataset]||T.textMuted,fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:10}}>{r.Dataset}</span>},
     {label:"STATUS",key:"Status",noWrap:true,render:r=><Badge color={r.Status==="ok"?"success":r.Status==="cancelled"?"danger":"muted"} T={T}>{r.Status}</Badge>},
-    {label:"LABEL",key:"LabelName",noWrap:true},
+    {label:"LABEL",key:"Label",noWrap:true,color:(_,T)=>T.textMuted},
     {label:"BOOKING DATE",key:"BookingDate",noWrap:true,color:(_,T)=>T.textMuted},
     {label:"DEP DATE",key:"DepartureDate",noWrap:true,bold:true},
     {label:"RET DATE",key:"ReturnDate",noWrap:true,color:(_,T)=>T.textMuted},
+    {label:"DAYS",key:"Duration",right:true,color:(_,T)=>T.textMuted},
     {label:"PAX",key:"PAXCount",right:true,bold:true},
     {label:"REVENUE",key:"TotalRevenue",right:true,bold:true,render:r=>fmtEur(r.TotalRevenue)},
+    {label:"REV/PAX",key:"RevenuePerPax",right:true,color:(_,T)=>T.textMuted,render:r=>fmtEur(r.RevenuePerPax)},
     {label:"TRANSPORT",key:"TransportType",noWrap:true},
-    {label:"BUS TYPE",key:"BusType",noWrap:true},
+    {label:"BUS CLASS",key:"BusType",noWrap:true},
     {label:"DEP PLACE",key:"DeparturePlace",noWrap:true},
-    {label:"CITY",key:"CustomerCity",noWrap:true},
-    {label:"COUNTRY",key:"CustomerCountry",noWrap:true},
-    {label:"DESTINATION",key:"DestinationResort",noWrap:true},
-    {label:"RESELLER",key:"Reseller",noWrap:true},
+    {label:"CITY",key:"City",noWrap:true},
+    {label:"COUNTRY",key:"Country",noWrap:true},
+    {label:"DESTINATION",key:"Destination",noWrap:true},
+    {label:"YEAR",key:"Year",right:true,color:(_,T)=>T.textMuted},
+    {label:"RESELLER",key:"Reseller",noWrap:true,color:(_,T)=>T.textMuted},
   ];
 
   // ─── RENDER ──────────────────────────────────────────────────────────────────
@@ -661,7 +668,7 @@ export default function App(){
         )}
 
         {/* PAGE CONTENT */}
-        <div style={{flex:1,padding:"18px 20px 50px",overflowY:"auto"}}>
+        <div id="dashboard-content" style={{flex:1,padding:"18px 20px 50px",overflowY:"auto"}}>
 
           {/* ══ OVERVIEW ═══════════════════════════════════════════════════════ */}
           {tab==="overview"&&(
@@ -825,7 +832,7 @@ export default function App(){
           {tab==="table"&&(
             <div>
               <Card T={T} style={{padding:"13px 16px",marginBottom:14}}>
-                <div style={{display:"grid",gridTemplateColumns:"1fr auto auto auto auto auto",gap:10,alignItems:"end",flexWrap:"wrap"}}>
+                <div style={{display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
                   <div>
                     <label style={labelStyle}>Search Booking ID</label>
                     <div style={{position:"relative"}}>
@@ -850,6 +857,14 @@ export default function App(){
                     </select>
                   </div>
                   <div>
+                    <label style={labelStyle}>Booking From</label>
+                    <input type="date" value={tableFilters.bkFrom||""} onChange={e=>setTableFilters(f=>({...f,bkFrom:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Booking To</label>
+                    <input type="date" value={tableFilters.bkTo||""} onChange={e=>setTableFilters(f=>({...f,bkTo:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/>
+                  </div>
+                  <div>
                     <label style={labelStyle}>Departure From</label>
                     <input type="date" value={tableFilters.depFrom||""} onChange={e=>setTableFilters(f=>({...f,depFrom:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/>
                   </div>
@@ -857,9 +872,21 @@ export default function App(){
                     <label style={labelStyle}>Departure To</label>
                     <input type="date" value={tableFilters.depTo||""} onChange={e=>setTableFilters(f=>({...f,depTo:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/>
                   </div>
-                  <div style={{display:"flex",gap:7,paddingTop:18}}>
+                  <div style={{display:"flex",gap:7,alignItems:"flex-end",paddingTop:18,flexShrink:0}}>
                     <Btn onClick={()=>{setTablePage(1);loadTable();}} T={T}>Apply</Btn>
                     <Btn onClick={exportCSV} T={T} style={{background:T.successBg,color:T.success,fontWeight:700}}>{Ic.download} CSV</Btn>
+                    <Btn onClick={()=>window.print()} T={T} variant="ghost">Print</Btn>
+                    <Btn onClick={async()=>{
+                      try{
+                        const h2c=(await import('html2canvas')).default;
+                        const el=document.getElementById('dashboard-content');
+                        if(!el){alert('Content not found');return;}
+                        const canvas=await h2c(el,{scale:2,useCORS:true,backgroundColor:T.bg});
+                        const link=document.createElement('a');
+                        link.download=`ttp-dashboard-${new Date().toISOString().split('T')[0]}.jpg`;
+                        link.href=canvas.toDataURL('image/jpeg',0.92);link.click();
+                      }catch(e){alert('PDF/Image export: '+e.message);}
+                    }} T={T} variant="ghost">Save JPG</Btn>
                   </div>
                 </div>
               </Card>
@@ -1114,6 +1141,13 @@ export default function App(){
       )}
 
       <style>{`
+        @media print{
+          aside,header,.no-print{display:none!important;}
+          main{margin-left:0!important;}
+          #dashboard-content{padding:0!important;}
+          body{background:white!important;}
+          .card{break-inside:avoid;}
+        }
         @media (max-width:768px){
           .kpi-grid{grid-template-columns:1fr !important;}
           .chart-grid{grid-template-columns:1fr !important;}
