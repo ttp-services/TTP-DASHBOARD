@@ -131,7 +131,7 @@ function LineChart({ data, T }) {
     let n=null,d=28; ptsRef.current.forEach(p=>{const dd=Math.sqrt((p.x-mx)**2+(p.y-my)**2);if(dd<d){d=dd;n=p;}});
     setTip(n?{...n,cx:e.clientX,cy:e.clientY}:null);
   },[]);
-  return(<div style={{position:"relative"}}><canvas ref={ref} style={{width:"100%",height:200,display:"block",cursor:"crosshair"}} onMouseMove={onMove} onMouseLeave={()=>setTip(null)}/>
+  return(<div style={{position:"relative"}}><canvas ref={ref} style={{width:"100%",height:220,display:"block",cursor:"crosshair"}} onMouseMove={onMove} onMouseLeave={()=>setTip(null)}/>
     {tip&&<div style={{position:"fixed",left:tip.cx+14,top:tip.cy-48,background:tip.color,borderRadius:8,padding:"7px 12px",fontSize:12,color:"#fff",pointerEvents:"none",zIndex:9999,boxShadow:"0 4px 12px rgba(0,0,0,0.3)",whiteSpace:"nowrap"}}>
       <b>{tip.month} {tip.year}</b><br/>{fmtEur(tip.value)}</div>}</div>);
 }
@@ -193,7 +193,7 @@ function BarChart({ data, metric, onMetric, T }) {
         ))}
       </div>
     </div>
-    <canvas ref={ref} style={{width:"100%",height:200,display:"block",cursor:"crosshair"}} onMouseMove={onMove} onMouseLeave={()=>setTip(null)}/>
+    <canvas ref={ref} style={{width:"100%",height:220,display:"block",cursor:"crosshair"}} onMouseMove={onMove} onMouseLeave={()=>setTip(null)}/>
     {tip&&<div style={{position:"fixed",left:tip.cx+14,top:tip.cy-48,background:tip.color,borderRadius:8,padding:"7px 12px",fontSize:12,color:"#fff",pointerEvents:"none",zIndex:9999,whiteSpace:"nowrap"}}>
       <b>{tip.month} {tip.year}</b><br/>{metric==="revenue"?fmtEur(tip.value):fmtN(tip.value)+" "+metric}</div>}
   </div>);
@@ -251,7 +251,7 @@ function BusBarChart({ data, metric, title, T }) {
   },[]);
   return(<div style={{position:"relative",flex:1}}>
     <div style={{fontSize:11,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8}}>{title}</div>
-    <canvas ref={ref} style={{width:"100%",height:180,display:"block",cursor:"crosshair"}} onMouseMove={onMove} onMouseLeave={()=>setTip(null)}/>
+    <canvas ref={ref} style={{width:"100%",height:200,display:"block",cursor:"crosshair"}} onMouseMove={onMove} onMouseLeave={()=>setTip(null)}/>
     {tip&&<div style={{position:"fixed",left:tip.cx+14,top:tip.cy-48,background:tip.color,borderRadius:8,padding:"7px 12px",fontSize:12,color:"#fff",pointerEvents:"none",zIndex:9999,whiteSpace:"nowrap"}}>
       <b>{tip.cls} · {tip.ds}</b><br/>{metric==="revenue"?fmtEur(tip.value):fmtN(tip.value)+" bookings"}</div>}
   </div>);
@@ -299,85 +299,128 @@ function DataTable({columns,rows,emptyMsg="No data",T,maxHeight=460}){
 // ─── FEEDER PIVOT TABLE ───────────────────────────────────────────────────────
 function FeederPivotTable({ data, T }) {
   if (!data?.length) return (
-    <div style={{padding:24,textAlign:"center",color:T.textMuted,fontSize:13}}>
-      No feeder data — select a label and date range in Filters, then click Apply
+    <div style={{padding:32,textAlign:"center",color:T.textMuted,fontSize:13}}>
+      No feeder data — open Filters panel, select a Label and date range, then click Apply
     </div>
   );
 
-  // Get unique sorted dates (columns)
-  const dates = [...new Set(data.map(d => d.DepartureDate))].sort();
-  // Get unique routes
-  const routes = [...new Set(data.map(d => d.RouteNo))].filter(r=>r!=null).sort((a,b)=>a-b);
-  // Build lookup: routeNo -> stopName -> date -> pax
-  const lookup = {};
-  const routeStops = {};
-  const routeTotals = {};
+  // Get unique sorted dates as columns (limit to 20 most recent to avoid overflow)
+  const allDates = [...new Set(data.map(d => d.DepartureDate))].sort();
+  const dates = allDates.slice(-20); // last 20 dates
+
+  // Build data structures
+  const lookup = {}; // routeNo -> stopName -> date -> pax
+  const routeStops = {}; // routeNo -> Set of stopNames (ordered)
+  const routeTotals = {}; // routeNo -> date -> pax
+  const routeInfo = {}; // routeNo -> routeLabel
+
   data.forEach(d => {
-    const rk = d.RouteNo ?? 'null';
-    const sk = d.StopName;
+    const rk = String(d.RouteNo ?? 'X');
+    const sk = d.StopName || '—';
     const dk = d.DepartureDate;
+    if (!dates.includes(dk)) return; // only show selected dates
+    routeInfo[rk] = d.RouteLabel || `Route ${rk}`;
     if (!lookup[rk]) lookup[rk] = {};
     if (!lookup[rk][sk]) lookup[rk][sk] = {};
     lookup[rk][sk][dk] = (lookup[rk][sk][dk]||0) + (d.TotalPax||0);
-    if (!routeStops[rk]) routeStops[rk] = new Set();
-    routeStops[rk].add(sk);
+    if (!routeStops[rk]) routeStops[rk] = [];
+    if (!routeStops[rk].includes(sk)) routeStops[rk].push(sk);
     if (!routeTotals[rk]) routeTotals[rk] = {};
     routeTotals[rk][dk] = (routeTotals[rk][dk]||0) + (d.TotalPax||0);
   });
 
-  // Grand total per date
-  const grandTotals = {};
-  dates.forEach(d => { grandTotals[d] = data.filter(r=>r.DepartureDate===d).reduce((s,r)=>s+(r.TotalPax||0),0); });
-  const grandTotal = data.reduce((s,r)=>s+(r.TotalPax||0),0);
+  const routes = Object.keys(lookup).sort((a,b) => {
+    if (a==='X') return 1; if (b==='X') return -1;
+    return parseInt(a)-parseInt(b);
+  });
 
-  const thStyle = {padding:"7px 10px",fontSize:10,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.05em",background:T.tableAlt,whiteSpace:"nowrap",textAlign:"right",borderBottom:`1px solid ${T.border}`,borderRight:`1px solid ${T.border}`};
-  const tdNum = (v,bold,color) => ({padding:"7px 10px",textAlign:"right",fontSize:12,fontWeight:bold?"700":"400",color:color||(v>0?T.text:T.textDim),borderRight:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap"});
-  const tdLabel = (indent,bold) => ({padding:"7px 10px 7px "+(indent?22:10)+"px",fontSize:12,fontWeight:bold?"700":"400",color:bold?T.text:T.textMuted,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap",minWidth:160});
+  // Grand totals
+  const grandTotals = {};
+  dates.forEach(d => { grandTotals[d] = Object.values(routeTotals).reduce((s,rt)=>s+(rt[d]||0),0); });
+  const grandTotal = Object.values(grandTotals).reduce((a,b)=>a+b,0);
+
+  const BG_ALT = T.tableAlt;
+  const BG_CARD = T.card;
+  const BG_HOVER = T.tableHover;
+  const COL_W = 72;
 
   return (
-    <div style={{overflowX:"auto",overflowY:"auto",maxHeight:520}}>
-      <table style={{borderCollapse:"collapse",fontSize:12,minWidth:(dates.length+2)*90}}>
-        <thead>
-          <tr style={{position:"sticky",top:0,zIndex:2}}>
-            <th style={{...thStyle,textAlign:"left",minWidth:180,position:"sticky",left:0,zIndex:3}}>PICK-UP POINT</th>
-            <th style={{...thStyle,minWidth:70}}>TOTAL</th>
-            {dates.map(d=><th key={d} style={{...thStyle,minWidth:80}}>{d}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {/* Grand total row */}
-          <tr style={{background:T.accent+"22"}}>
-            <td style={{...tdLabel(false,true),position:"sticky",left:0,background:T.accent+"22",color:T.accent}}>TOTAL</td>
-            <td style={tdNum(grandTotal,true,T.accent)}>{grandTotal.toLocaleString("nl-BE")}</td>
-            {dates.map(d=><td key={d} style={tdNum(grandTotals[d]||0,true,T.accent)}>{(grandTotals[d]||0).toLocaleString("nl-BE")}</td>)}
-          </tr>
-          {/* Per route */}
-          {[...routes, ...(lookup["null"]?["null"]:[])].map(rk=>{
-            const stops = [...(routeStops[rk]||[])].sort();
-            const routeTotal = stops.reduce((s,sk)=>s+Object.values(lookup[rk]?.[sk]||{}).reduce((a,b)=>a+b,0),0);
-            const routeLabel = data.find(d=>(d.RouteNo??'null')===(rk==="null"?null:parseInt(rk)))?.RouteLabel || `Route ${rk}`;
-            return [
-              // Route header row
-              <tr key={`route-${rk}`} style={{background:T.tableAlt}}>
-                <td style={{...tdLabel(false,true),position:"sticky",left:0,background:T.tableAlt,color:T.accent}}>{routeLabel}</td>
-                <td style={tdNum(routeTotal,true)}>{routeTotal.toLocaleString("nl-BE")}</td>
-                {dates.map(d=><td key={d} style={tdNum(routeTotals[rk]?.[d]||0,true)}>{(routeTotals[rk]?.[d]||0).toLocaleString("nl-BE")}</td>)}
-              </tr>,
-              // Stop rows
-              ...stops.map(sk=>{
-                const stopTotal = Object.values(lookup[rk]?.[sk]||{}).reduce((a,b)=>a+b,0);
-                return (
-                  <tr key={`${rk}-${sk}`} style={{borderBottom:`1px solid ${T.border}`}}>
-                    <td style={{...tdLabel(true,false),position:"sticky",left:0,background:T.card}}>{sk}</td>
-                    <td style={tdNum(stopTotal,false)}>{stopTotal.toLocaleString("nl-BE")}</td>
-                    {dates.map(d=>{const v=lookup[rk]?.[sk]?.[d]||0;return <td key={d} style={tdNum(v,false)}>{v>0?v.toLocaleString("nl-BE"):""}</td>;})}
+    <div style={{position:"relative"}}>
+      {allDates.length > 20 && (
+        <div style={{padding:"6px 14px",background:T.warningBg,borderBottom:`1px solid ${T.border}`,fontSize:11,color:T.warning}}>
+          Showing last 20 of {allDates.length} dates. Use date filters to narrow the range.
+        </div>
+      )}
+      <div style={{overflowX:"auto",overflowY:"auto",maxHeight:500}}>
+        <table style={{borderCollapse:"collapse",fontSize:12,tableLayout:"fixed",width:`${180+80+(dates.length*COL_W)}px`}}>
+          <thead style={{position:"sticky",top:0,zIndex:3}}>
+            <tr style={{background:BG_ALT}}>
+              <th style={{width:180,padding:"8px 12px",textAlign:"left",fontSize:10,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:`2px solid ${T.border}`,borderRight:`2px solid ${T.border}`,position:"sticky",left:0,background:BG_ALT,zIndex:4}}>
+                PICK-UP POINT
+              </th>
+              <th style={{width:80,padding:"8px 10px",textAlign:"right",fontSize:10,fontWeight:700,color:T.textMuted,textTransform:"uppercase",borderBottom:`2px solid ${T.border}`,borderRight:`2px solid ${T.border}`,background:BG_ALT}}>
+                TOTAL
+              </th>
+              {dates.map(d=>(
+                <th key={d} style={{width:COL_W,padding:"8px 6px",textAlign:"right",fontSize:10,fontWeight:600,color:T.textMuted,borderBottom:`2px solid ${T.border}`,borderRight:`1px solid ${T.border}`,background:BG_ALT,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                  {d}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {/* Grand total */}
+            <tr style={{background:`${T.accent}18`}}>
+              <td style={{padding:"8px 12px",fontWeight:700,color:T.accent,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,position:"sticky",left:0,background:`${T.accent}18`}}>
+                TOTAL ALL ROUTES
+              </td>
+              <td style={{padding:"8px 10px",textAlign:"right",fontWeight:700,color:T.accent,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
+                {grandTotal.toLocaleString("nl-BE")}
+              </td>
+              {dates.map(d=>(
+                <td key={d} style={{padding:"8px 6px",textAlign:"right",fontWeight:700,color:grandTotals[d]>0?T.accent:T.textDim,borderRight:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
+                  {grandTotals[d]>0?grandTotals[d].toLocaleString("nl-BE"):""}
+                </td>
+              ))}
+            </tr>
+            {/* Per route */}
+            {routes.map(rk=>{
+              const stops = routeStops[rk]||[];
+              const routeTotal = stops.reduce((s,sk)=>s+Object.values(lookup[rk]?.[sk]||{}).reduce((a,b)=>a+b,0),0);
+              return [
+                <tr key={`r-${rk}`} style={{background:BG_ALT,borderTop:`2px solid ${T.border}`}}>
+                  <td style={{padding:"8px 12px",fontWeight:700,color:T.text,fontSize:12,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,position:"sticky",left:0,background:BG_ALT}}>
+                    {routeInfo[rk]}
+                  </td>
+                  <td style={{padding:"8px 10px",textAlign:"right",fontWeight:700,color:T.text,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
+                    {routeTotal.toLocaleString("nl-BE")}
+                  </td>
+                  {dates.map(d=>{const v=routeTotals[rk]?.[d]||0;return(
+                    <td key={d} style={{padding:"8px 6px",textAlign:"right",fontWeight:600,color:v>0?T.text:T.textDim,borderRight:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
+                      {v>0?v.toLocaleString("nl-BE"):""}
+                    </td>
+                  );})}
+                </tr>,
+                ...stops.map((sk,si)=>(
+                  <tr key={`${rk}-${sk}`} style={{background:si%2===0?BG_CARD:BG_ALT}}>
+                    <td style={{padding:"7px 12px 7px 24px",color:T.textMuted,fontSize:11,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,position:"sticky",left:0,background:si%2===0?BG_CARD:BG_ALT,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                      {sk}
+                    </td>
+                    <td style={{padding:"7px 10px",textAlign:"right",color:T.textMuted,fontSize:11,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
+                      {Object.values(lookup[rk]?.[sk]||{}).reduce((a,b)=>a+b,0)||""}
+                    </td>
+                    {dates.map(d=>{const v=lookup[rk]?.[sk]?.[d]||0;return(
+                      <td key={d} style={{padding:"7px 6px",textAlign:"right",color:v>0?T.text:T.textDim,fontSize:11,borderRight:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
+                        {v>0?v:""}
+                      </td>
+                    );})}
                   </tr>
-                );
-              })
-            ];
-          })}
-        </tbody>
-      </table>
+                ))
+              ];
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -634,6 +677,10 @@ export default function App(){
   const isAdmin=user?.role==="admin";
   const isSnow=busLabel==="Snowtravel";
   const busClassFiltered=busClass.filter(d=>isSnow?d.dataset==="Snowtravel":d.dataset!=="Snowtravel");
+  const handleTabClick = (newTab) => {
+    setTab(newTab);
+    if (newTab === "bus") setBusFiltersOpen(true);
+  };
   const NAV=[
     {id:"overview",label:"Overview",icon:Ic.overview},
     {id:"bus",label:"Bus Occupancy",icon:Ic.bus},
@@ -741,7 +788,7 @@ export default function App(){
         </div>
         <nav style={{flex:1,padding:"8px 6px",overflowY:"auto"}}>
           {NAV.map(n=>(
-            <button key={n.id} onClick={()=>setTab(n.id)} title={!sidebarOpen?n.label:undefined} style={{display:"flex",alignItems:"center",gap:10,width:"100%",background:tab===n.id?T.navActive:"transparent",color:tab===n.id?T.accent:T.textMuted,border:"none",borderRadius:8,padding:"9px 11px",fontSize:13,fontWeight:tab===n.id?600:400,cursor:"pointer",textAlign:"left",marginBottom:2,transition:"all 0.15s"}}
+            <button key={n.id} onClick={()=>handleTabClick(n.id)} title={!sidebarOpen?n.label:undefined} style={{display:"flex",alignItems:"center",gap:10,width:"100%",background:tab===n.id?T.navActive:"transparent",color:tab===n.id?T.accent:T.textMuted,border:"none",borderRadius:8,padding:"9px 11px",fontSize:13,fontWeight:tab===n.id?600:400,cursor:"pointer",textAlign:"left",marginBottom:2,transition:"all 0.15s"}}
               onMouseEnter={e=>{if(tab!==n.id){e.currentTarget.style.background=T.navHover;e.currentTarget.style.color=T.text;}}}
               onMouseLeave={e=>{if(tab!==n.id){e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.textMuted;}}}>
               <span style={{flexShrink:0,opacity:tab===n.id?1:0.7}}>{n.icon}</span>
@@ -893,8 +940,8 @@ export default function App(){
                   ))}
                 </div>
                 <div style={{flex:1}}/>
-                <button onClick={()=>setBusFiltersOpen(o=>!o)} style={{background:busFiltersOpen?T.accent:"transparent",color:busFiltersOpen?"#fff":T.textMuted,border:`1px solid ${busFiltersOpen?T.accent:T.border}`,borderRadius:7,padding:"6px 12px",fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
-                  {Ic.filter} Filters
+                <button onClick={()=>setBusFiltersOpen(o=>!o)} style={{background:busFiltersOpen?T.accent:T.accentLight,color:busFiltersOpen?"#fff":T.accent,border:`1px solid ${T.accent}`,borderRadius:7,padding:"7px 14px",fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
+                  {Ic.filter} {busFiltersOpen?"Hide Filters":"Show Filters"}
                 </button>
               </div>
 
@@ -965,7 +1012,7 @@ export default function App(){
 
                 {/* Bus filter panel */}
                 {busFiltersOpen&&(
-                  <div style={{width:240,flexShrink:0,background:T.card,border:`1px solid ${T.border}`,borderRadius:12,padding:16,boxShadow:T.cardShadow,position:"sticky",top:70}}>
+                  <div style={{width:260,flexShrink:0,background:T.card,border:`1px solid ${T.border}`,borderRadius:12,padding:16,boxShadow:T.cardShadow,position:"sticky",top:70,maxHeight:"calc(100vh - 120px)",overflowY:"auto"}}>
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
                       <span style={{fontSize:13,fontWeight:700,color:T.text}}>Filters</span>
                       <button onClick={()=>setBusFiltersOpen(false)} style={{background:"transparent",border:"none",cursor:"pointer",color:T.textMuted,display:"flex"}}>{Ic.close}</button>
