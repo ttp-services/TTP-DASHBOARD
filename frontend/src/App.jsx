@@ -547,6 +547,7 @@ export default function App(){
   const[usersLoad,setUsersLoad]=useState(false);
   const[usersError,setUsersError]=useState("");
   const[showExportModal,setShowExportModal]=useState(false);
+  const[exportOpts,setExportOpts]=useState({datasets:[],status:"",depFrom:"",depTo:"",bkFrom:"",bkTo:""});
   const[showAddUser,setShowAddUser]=useState(false);
   const[editUser,setEditUser]=useState(null);
   const[newUser,setNewUser]=useState({name:"",username:"",email:"",password:"",role:"viewer"});
@@ -858,6 +859,12 @@ export default function App(){
             <div style={{display:"flex",gap:6,marginBottom:10,alignItems:"center",flexWrap:"wrap"}}>
               <span style={{fontSize:11,color:T.textMuted,fontWeight:600}}>Quick:</span>
               {QUICK.map(q=><button key={q.l} onClick={q.fn} style={{background:T.tableAlt,border:`1px solid ${T.border}`,borderRadius:16,color:T.textMuted,padding:"3px 11px",fontSize:11,cursor:"pointer"}}>{q.l}</button>)}
+              {Object.values(applied).some(v=>v&&(Array.isArray(v)?v.length:true))&&(
+                <span style={{marginLeft:4,fontSize:11,color:T.warning,fontWeight:600,display:"flex",alignItems:"center",gap:5}}>
+                  ⚠ Filters active —
+                  <button onClick={()=>{setFilters({depFrom:"",depTo:"",bkFrom:"",bkTo:"",dataset:[],status:[],transport:[]});setApplied({});}} style={{background:T.warningBg,border:`1px solid ${T.warning}`,borderRadius:10,color:T.warning,padding:"2px 9px",fontSize:11,cursor:"pointer",fontWeight:700}}>Reset All</button>
+                </span>
+              )}
             </div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:10,alignItems:"end"}}>
               {[["Departure From","depFrom"],["Departure To","depTo"],["Booking From","bkFrom"],["Booking To","bkTo"]].map(([l,k])=>(
@@ -912,7 +919,10 @@ export default function App(){
                       <span style={{fontSize:11,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.07em"}}>{label}</span>
                     </div>
                     <div style={{fontSize:28,fontWeight:800,color:T.text,lineHeight:1,marginBottom:5}}>{curr!=null?f(curr):"—"}</div>
-                    <div style={{fontSize:12,color:T.textMuted,marginBottom:8}}>prev year: <span style={{fontWeight:600}}>{prev!=null?f(prev):"—"}</span></div>
+                    <div style={{fontSize:12,color:T.textMuted,marginBottom:8}}>
+                      prev period: <span style={{fontWeight:600}}>{prev!=null?f(prev):"—"}</span>
+                      {kpis?.periodLabel&&<span style={{marginLeft:6,fontSize:10,color:T.textDim,background:T.tableAlt,padding:"1px 6px",borderRadius:8}}>{kpis.periodLabel}</span>}
+                    </div>
                     <div style={{display:"flex",alignItems:"center",gap:7}}>
                       {diff!=null&&<span style={{display:"flex",alignItems:"center",gap:2,color:diffClr(diff,T),fontSize:12,fontWeight:700}}>{diff>=0?Ic.arrowUp:Ic.arrowDown}{f(Math.abs(diff))}</span>}
                       {pct!=null&&<span style={{background:diffBg(diff,T),color:diffClr(diff,T),fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:10,border:`1px solid ${diffClr(diff,T)}33`}}>{diff>=0?"+":""}{Number(pct).toFixed(1)}%</span>}
@@ -927,7 +937,7 @@ export default function App(){
               </div>
               {/* YoY Table */}
               <Card T={T}>
-                <CardHdr title="Year-Month Comparison" T={T} right={
+                <CardHdr title={`Year-Month Comparison ${Object.values(applied).some(v=>v&&(Array.isArray(v)?v.length:true))?"(filtered — reset for all data)":""}`} T={T} right={
                   <div style={{display:"flex",gap:4,alignItems:"center"}}>
                     <span style={{fontSize:11,color:T.textDim,marginRight:6}}>{ymData.length} rows</span>
                     {["bookings","pax","revenue"].map(m=>(
@@ -1097,8 +1107,8 @@ export default function App(){
                   </div>
                   <div>
                     <label style={labelStyle}>Dataset</label>
-                    <select value={tableFilters.dataset||""} onChange={e=>setTableFilters(f=>({...f,dataset:e.target.value,page:1}))} style={inputStyle}>
-                      <option value="">All</option>
+                    <select value={tableFilters.dataset||""} onChange={e=>setTableFilters(f=>({...f,dataset:e.target.value}))} style={inputStyle}>
+                      <option value="">All datasets</option>
                       {["Snowtravel","Solmar","Interbus","Solmar DE"].map(d=><option key={d} value={d}>{d}</option>)}
                     </select>
                   </div>
