@@ -10,6 +10,12 @@ function buildWhere(q) {
   if (q.departureDateTo)   { conds.push('departure_date <= @depTo');   params.depTo   = q.departureDateTo;   }
   if (q.bookingDateFrom)   { conds.push('booking_date >= @bkFrom');    params.bkFrom  = q.bookingDateFrom;   }
   if (q.bookingDateTo)     { conds.push('booking_date <= @bkTo');      params.bkTo    = q.bookingDateTo;     }
+  // Year filter
+  const years = [].concat(q.year || []).filter(Boolean).map(Number).filter(y => y >= 2023 && y <= 2027);
+  if (years.length) {
+    years.forEach((y,i) => { params[`yr${i}`] = y; });
+    conds.push(`(${years.map((_,i) => `year = @yr${i}`).join(' OR ')})`);
+  }
   const ds = [].concat(q.dataset || []).filter(Boolean);
   if (ds.length) {
     ds.forEach((d,i) => { params[`ds${i}`] = d; });
@@ -51,29 +57,25 @@ router.get('/slicers', async (req, res) => {
   } catch(err) { res.status(500).json({ error: 'Slicers failed', details: err.message }); }
 });
 
-// ─── KPIs — rolling 12 months current vs previous 12 months ──────────────────
+// ─── KPIs ─────────────────────────────────────────────────────────────────────
+// Logic:
+//   NO filters     → rolling 12 months vs previous 12 months
+//   DATE filters   → use that date range vs same range 1 year prior
+//   DATASET/other  → ALL years for that filter, current year vs previous year
 router.get('/kpis', async (req, res) => {
   try {
     const { whereClause, params } = buildWhere(req.query);
-    const hasFilters = whereClause !== '';
+    const hasDateFilter   = req.query.departureDateFrom || req.query.departureDateTo || req.query.bookingDateFrom || req.query.bookingDateTo;
+    const hasOtherFilter  = (req.query.dataset && [].concat(req.query.dataset).length) ||
+                            (req.query.status  && [].concat(req.query.status).length)  ||
+                            (req.query.transportType && [].concat(req.query.transportType).length);
+    const hasAnyFilter = hasDateFilter || hasOtherFilter;
 
-    let sql, p;
-    if (hasFilters) {
-      // Use applied filters — compare current year vs previous year from filtered data
-      sql = `
-        SELECT
-          SUM(CASE WHEN year = DATEPART(YEAR,GETDATE())   THEN revenue ELSE 0 END) AS cr,
-          SUM(CASE WHEN year = DATEPART(YEAR,GETDATE())-1 THEN revenue ELSE 0 END) AS pr,
-          SUM(CASE WHEN year = DATEPART(YEAR,GETDATE())   THEN pax     ELSE 0 END) AS cp,
-          SUM(CASE WHEN year = DATEPART(YEAR,GETDATE())-1 THEN pax     ELSE 0 END) AS pp,
-          COUNT(CASE WHEN year = DATEPART(YEAR,GETDATE())   THEN 1 END) AS cb,
-          COUNT(CASE WHEN year = DATEPART(YEAR,GETDATE())-1 THEN 1 END) AS pb
-        FROM bookings ${andStatus(whereClause)}
-      `;
-      p = params;
-    } else {
-      // No filters — rolling 12 months vs previous 12 months
-      // Use bookings view which includes all datasets correctly
+    let sql, p, periodLabel;
+
+    if (!hasAnyFilter) {
+      // DEFAULT: rolling 12 months vs previous 12 months
+      periodLabel = 'Rolling 12 months';
       sql = `
         SELECT
           SUM(CASE WHEN departure_date >= DATEADD(month,-12,GETDATE()) AND departure_date <= GETDATE() THEN revenue ELSE 0 END) AS cr,
@@ -85,7 +87,69 @@ router.get('/kpis', async (req, res) => {
         FROM bookings WHERE status IN ('ok','cancelled')
       `;
       p = {};
-      // Note: bookings view already includes Snowtravel from ST_Bookings via the view definition
+
+    } else if (hasDateFilter) {
+      // DATE RANGE selected: compare that range vs same range 1 year prior
+      periodLabel = 'Selected date range';
+      sql = `
+        SELECT
+          SUM(CASE WHEN departure_date >= DATEADD(month,-12,GETDATE()) THEN revenue ELSE 0 END) AS cr,
+          SUM(CASE WHEN departure_date < DATEADD(month,-12,GETDATE()) THEN revenue ELSE 0 END) AS pr,
+          SUM(CASE WHEN departure_date >= DATEADD(month,-12,GETDATE()) THEN pax ELSE 0 END) AS cp,
+          SUM(CASE WHEN departure_date < DATEADD(month,-12,GETDATE()) THEN pax ELSE 0 END) AS pp,
+          COUNT(CASE WHEN departure_date >= DATEADD(month,-12,GETDATE()) THEN 1 END) AS cb,
+          COUNT(CASE WHEN departure_date < DATEADD(month,-12,GETDATE()) THEN 1 END) AS pb
+        FROM bookings ${andStatus(whereClause)}
+      `;
+      p = params;
+
+    } else {
+      // DATASET / YEAR or other filter: show ALL matching data, current year vs previous year
+      const selectedYears = [].concat(req.query.year || []).filter(Boolean).map(Number);
+      if (selectedYears.length === 1) {
+        // Single year selected — show that year vs previous year
+        const yr = selectedYears[0];
+        periodLabel = `${yr} vs ${yr-1}`;
+        sql = `
+          SELECT
+            SUM(CASE WHEN year = ${yr}   THEN revenue ELSE 0 END) AS cr,
+            SUM(CASE WHEN year = ${yr}-1 THEN revenue ELSE 0 END) AS pr,
+            SUM(CASE WHEN year = ${yr}   THEN pax     ELSE 0 END) AS cp,
+            SUM(CASE WHEN year = ${yr}-1 THEN pax     ELSE 0 END) AS pp,
+            COUNT(CASE WHEN year = ${yr}   THEN 1 END) AS cb,
+            COUNT(CASE WHEN year = ${yr}-1 THEN 1 END) AS pb
+          FROM bookings ${andStatus(whereClause)}
+        `;
+      } else if (selectedYears.length > 1) {
+        // Multiple years — show total for all selected years vs all previous years
+        const minYr = Math.min(...selectedYears);
+        const maxYr = Math.max(...selectedYears);
+        periodLabel = `${minYr}–${maxYr} vs prev`;
+        sql = `
+          SELECT
+            SUM(CASE WHEN year BETWEEN ${minYr} AND ${maxYr} THEN revenue ELSE 0 END) AS cr,
+            SUM(CASE WHEN year BETWEEN ${minYr-1} AND ${maxYr-1} THEN revenue ELSE 0 END) AS pr,
+            SUM(CASE WHEN year BETWEEN ${minYr} AND ${maxYr} THEN pax ELSE 0 END) AS cp,
+            SUM(CASE WHEN year BETWEEN ${minYr-1} AND ${maxYr-1} THEN pax ELSE 0 END) AS pp,
+            COUNT(CASE WHEN year BETWEEN ${minYr} AND ${maxYr} THEN 1 END) AS cb,
+            COUNT(CASE WHEN year BETWEEN ${minYr-1} AND ${maxYr-1} THEN 1 END) AS pb
+          FROM bookings ${andStatus(whereClause)}
+        `;
+      } else {
+        // No year filter — all years, current vs prev year
+        periodLabel = 'All years (2023–2026)';
+        sql = `
+          SELECT
+            SUM(CASE WHEN year = DATEPART(YEAR,GETDATE())   THEN revenue ELSE 0 END) AS cr,
+            SUM(CASE WHEN year = DATEPART(YEAR,GETDATE())-1 THEN revenue ELSE 0 END) AS pr,
+            SUM(CASE WHEN year = DATEPART(YEAR,GETDATE())   THEN pax     ELSE 0 END) AS cp,
+            SUM(CASE WHEN year = DATEPART(YEAR,GETDATE())-1 THEN pax     ELSE 0 END) AS pp,
+            COUNT(CASE WHEN year = DATEPART(YEAR,GETDATE())   THEN 1 END) AS cb,
+            COUNT(CASE WHEN year = DATEPART(YEAR,GETDATE())-1 THEN 1 END) AS pb
+          FROM bookings ${andStatus(whereClause)}
+        `;
+      }
+      p = params;
     }
 
     const result = await query(sql, p);
@@ -94,13 +158,13 @@ router.get('/kpis', async (req, res) => {
     const diffP = (r.cp||0)-(r.pp||0);
     const diffR = (r.cr||0)-(r.pr||0);
     res.json({
-      currentBookings:  r.cb||0, previousBookings:  r.pb||0,
-      differenceBookings: diffB, percentBookings: r.pb ? (diffB/r.pb*100) : null,
-      currentPax:       r.cp||0, previousPax:       r.pp||0,
-      differencePax:    diffP,   percentPax:    r.pp ? (diffP/r.pp*100) : null,
-      currentRevenue:   r.cr||0, previousRevenue:   r.pr||0,
-      differenceRevenue: diffR,  percentRevenue: r.pr ? (diffR/r.pr*100) : null,
-      periodLabel: hasFilters ? 'filtered' : 'rolling 12 months',
+      currentBookings:   r.cb||0, previousBookings:  r.pb||0,
+      differenceBookings: diffB,  percentBookings:  r.pb ? (diffB/r.pb*100) : null,
+      currentPax:        r.cp||0, previousPax:       r.pp||0,
+      differencePax:     diffP,   percentPax:        r.pp ? (diffP/r.pp*100) : null,
+      currentRevenue:    r.cr||0, previousRevenue:   r.pr||0,
+      differenceRevenue: diffR,   percentRevenue:    r.pr ? (diffR/r.pr*100) : null,
+      periodLabel,
     });
   } catch(err) { res.status(500).json({ error: 'KPIs failed', details: err.message }); }
 });

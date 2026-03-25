@@ -512,7 +512,7 @@ export default function App(){
 
   // Filters
   const[filtersOpen,setFiltersOpen]=useState(false);
-  const[filters,setFilters]=useState({depFrom:"",depTo:"",bkFrom:"",bkTo:"",dataset:[],status:[],transport:[]});
+  const[filters,setFilters]=useState({depFrom:"",depTo:"",bkFrom:"",bkTo:"",dataset:[],status:[],transport:[],years:[]});
   const[applied,setApplied]=useState({});
   const[slicers,setSlicers]=useState({transportTypes:[],datasets:[],labels:[]});
 
@@ -570,6 +570,7 @@ export default function App(){
     if((f.dataset||[]).length)p.dataset=f.dataset;
     if((f.status||[]).length)p.status=f.status;
     if((f.transport||[]).length)p.transportType=f.transport;
+    if((f.years||[]).length)p.year=f.years;
     return p;
   },[]);
 
@@ -847,7 +848,7 @@ export default function App(){
               {Object.values(applied).some(v=>v&&(Array.isArray(v)?v.length:true))&&(
                 <span style={{marginLeft:4,fontSize:11,color:T.warning,fontWeight:600,display:"flex",alignItems:"center",gap:5}}>
                   ⚠ Filters active —
-                  <button onClick={()=>{setFilters({depFrom:"",depTo:"",bkFrom:"",bkTo:"",dataset:[],status:[],transport:[]});setApplied({});}} style={{background:T.warningBg,border:`1px solid ${T.warning}`,borderRadius:10,color:T.warning,padding:"2px 9px",fontSize:11,cursor:"pointer",fontWeight:700}}>Reset All</button>
+                  <button onClick={()=>{setFilters({depFrom:"",depTo:"",bkFrom:"",bkTo:"",dataset:[],status:[],transport:[],years:[]});setApplied({});}} style={{background:T.warningBg,border:`1px solid ${T.warning}`,borderRadius:10,color:T.warning,padding:"2px 9px",fontSize:11,cursor:"pointer",fontWeight:700}}>Reset All</button>
                 </span>
               )}
             </div>
@@ -867,6 +868,19 @@ export default function App(){
                   {[...new Set((slicers.transportTypes||[]).map(t=>(t||"").toLowerCase().replace("owntransport","own transport").trim()))].filter(Boolean).map(t=><option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
+              <div>
+                <label style={labelStyle}>Year</label>
+                <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                  {[2023,2024,2025,2026].map(y=>{
+                    const sel=(filters.years||[]).includes(y);
+                    return <button key={y} onClick={()=>setFilters(f=>({...f,years:sel?(f.years||[]).filter(x=>x!==y):[...(f.years||[]),y]}))}
+                      style={{background:sel?T.accent:"transparent",color:sel?"#fff":T.textMuted,border:`1px solid ${sel?T.accent:T.border}`,borderRadius:6,padding:"4px 10px",fontSize:12,fontWeight:sel?700:400,cursor:"pointer",flex:1}}>
+                      {y}
+                    </button>;
+                  })}
+                </div>
+                {(filters.years||[]).length>0&&<div style={{fontSize:10,color:T.accent,marginTop:3}}>Selected: {filters.years.join(", ")}</div>}
+              </div>
               <div><label style={labelStyle}>Status</label>
                 <div style={{display:"flex",gap:5}}>
                   {[["","All"],["ok","OK"],["cancelled","Cancelled"]].map(([v,l])=>{
@@ -878,7 +892,7 @@ export default function App(){
               </div>
               <div style={{display:"flex",gap:8,paddingTop:18}}>
                 <Btn onClick={()=>{setApplied({...filters});setFiltersOpen(false);}} T={T} style={{flex:1,justifyContent:"center"}}>Apply</Btn>
-                <Btn variant="ghost" onClick={()=>{setFilters({depFrom:"",depTo:"",bkFrom:"",bkTo:"",dataset:[],status:[],transport:[]});setApplied({});}} T={T} style={{flex:1,justifyContent:"center"}}>Reset</Btn>
+                <Btn variant="ghost" onClick={()=>{setFilters({depFrom:"",depTo:"",bkFrom:"",bkTo:"",dataset:[],status:[],transport:[],years:[]});setApplied({});}} T={T} style={{flex:1,justifyContent:"center"}}>Reset</Btn>
               </div>
             </div>
           </div>
@@ -905,8 +919,8 @@ export default function App(){
                     </div>
                     <div style={{fontSize:28,fontWeight:800,color:T.text,lineHeight:1,marginBottom:5}}>{curr!=null?f(curr):"—"}</div>
                     <div style={{fontSize:12,color:T.textMuted,marginBottom:8}}>
-                      prev period: <span style={{fontWeight:600}}>{prev!=null?f(prev):"—"}</span>
-                      {kpis?.periodLabel&&<span style={{marginLeft:6,fontSize:10,color:T.textDim,background:T.tableAlt,padding:"1px 6px",borderRadius:8}}>{kpis.periodLabel}</span>}
+                      prev: <span style={{fontWeight:600}}>{prev!=null?f(prev):"—"}</span>
+                      {kpis?.periodLabel&&<span style={{marginLeft:6,fontSize:10,color:T.accent,background:T.accentLight,padding:"2px 7px",borderRadius:8,fontWeight:600}}>{kpis.periodLabel}</span>}
                     </div>
                     <div style={{display:"flex",alignItems:"center",gap:7}}>
                       {diff!=null&&<span style={{display:"flex",alignItems:"center",gap:2,color:diffClr(diff,T),fontSize:12,fontWeight:700}}>{diff>=0?Ic.arrowUp:Ic.arrowDown}{f(Math.abs(diff))}</span>}
