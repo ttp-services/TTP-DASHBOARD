@@ -526,7 +526,7 @@ export default function App(){
   const[feederData,setFeederData]=useState([]);
   const[deckData,setDeckData]=useState([]);
   const[busFiltersOpen,setBusFiltersOpen]=useState(false);
-  const[busF,setBusF]=useState({dateFrom:"",dateTo:"",pendel:"",label:"Solmar",labels:[],direction:"Outbound"});
+  const[busF,setBusF]=useState({dateFrom:`${new Date().getFullYear()}-01-01`,dateTo:`${new Date().getFullYear()}-12-31`,pendel:"",label:"Solmar",labels:[],direction:"Outbound"});
   const[bLoad,setBLoad]=useState(false);
 
   // Data table
@@ -636,7 +636,7 @@ export default function App(){
     }).finally(()=>setBLoad(false));
   },[token]);
 
-  useEffect(()=>{if(token)loadBus({label:"Solmar",direction:"Outbound"});},[token]);
+  useEffect(()=>{if(token){const y=new Date().getFullYear();loadBus({label:"Solmar",direction:"Outbound",dateFrom:`${y}-01-01`,dateTo:`${y}-12-31`});}},[token]);
 
   const loadTable=useCallback(()=>{
     if(!token)return;setTLoad(true);
@@ -717,19 +717,16 @@ export default function App(){
   ];
 
   const pendelCols=[
-    {label:"DEPARTURE",key:"dateDeparture",noWrap:true,bold:true,color:(_,T)=>T.accent},
-    {label:"RETURN",key:"dateReturn",noWrap:true,color:(_,T)=>T.textMuted},
-    {label:"PENDEL",key:"Pendel",noWrap:true},
-    {label:"DESTINATION",key:"Destination",noWrap:true},
-    {label:"DAY",key:"Weekday",noWrap:true},
+    {label:"START DATE",key:"StartDate",noWrap:true,bold:true,color:(_,T)=>T.accent},
+    {label:"END DATE",key:"EndDate",noWrap:true,color:(_,T)=>T.textMuted},
     {label:"OUT TOTAL",key:"Outbound_Total",right:true,bold:true,color:(_,T)=>T.success},
-    {label:"OUT RC",key:"Outbound_Royal",right:true},
-    {label:"OUT FC",key:"Outbound_First",right:true},
-    {label:"OUT PRE",key:"Outbound_Premium",right:true},
+    {label:"OUT RC",key:"Outbound_Royal",right:true,color:(_,T)=>T.success},
+    {label:"OUT FC",key:"Outbound_First",right:true,color:(_,T)=>T.success},
+    {label:"OUT PRE",key:"Outbound_Premium",right:true,color:(_,T)=>T.success},
     {label:"IN TOTAL",key:"Inbound_Total",right:true,bold:true,color:(_,T)=>T.warning},
-    {label:"IN RC",key:"Inbound_Royal",right:true},
-    {label:"IN FC",key:"Inbound_First",right:true},
-    {label:"IN PRE",key:"Inbound_Premium",right:true},
+    {label:"IN RC",key:"Inbound_Royal",right:true,color:(_,T)=>T.warning},
+    {label:"IN FC",key:"Inbound_First",right:true,color:(_,T)=>T.warning},
+    {label:"IN PRE",key:"Inbound_Premium",right:true,color:(_,T)=>T.warning},
     {label:"DIFF RC",key:"Diff_Royal",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.Diff_Royal,T),render:r=>{const v=r.Diff_Royal||0;return v!==0?(v>0?"+":"")+v:"";}},
     {label:"DIFF FC",key:"Diff_First",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.Diff_First,T),render:r=>{const v=r.Diff_First||0;return v!==0?(v>0?"+":"")+v:"";}},
     {label:"DIFF PRE",key:"Diff_Premium",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.Diff_Premium,T),render:r=>{const v=r.Diff_Premium||0;return v!==0?(v>0?"+":"")+v:"";}},
@@ -1014,6 +1011,13 @@ export default function App(){
                           <span style={{fontSize:11,color:T.warning,fontWeight:600}}>⬇ Inbound</span>
                           <span style={{fontSize:11,color:T.textDim}}>{pendelData.length} rows</span>
                         </div>}/>
+                      {pendelData.length>0&&(
+                        <div style={{padding:"8px 16px",background:T.accentLight,borderBottom:`1px solid ${T.border}`,display:"flex",gap:24,flexWrap:"wrap"}}>
+                          <span style={{fontSize:11,fontWeight:700,color:T.accent}}>SUMMARY: {pendelData.length} trips</span>
+                          <span style={{fontSize:11,color:T.success}}>Total OUT: {pendelData.reduce((s,r)=>s+(r.Outbound_Total||0),0).toLocaleString("nl-BE")}</span>
+                          <span style={{fontSize:11,color:T.warning}}>Total IN: {pendelData.reduce((s,r)=>s+(r.Inbound_Total||0),0).toLocaleString("nl-BE")}</span>
+                        </div>
+                      )}
                       <DataTable columns={pendelCols} rows={pendelData} emptyMsg="No pendel data — click Apply in Filters" T={T}/>
                       <div style={{padding:"7px 14px",borderTop:`1px solid ${T.border}`,fontSize:10,color:T.textDim}}>
                         RC = Royal Class &nbsp;|&nbsp; FC = First Class &nbsp;|&nbsp; PRE = Premium &nbsp;|&nbsp;
@@ -1105,9 +1109,14 @@ export default function App(){
                         {PENDELS.map(p=><option key={p} value={p}>{p}</option>)}
                       </select>
                     </div>
+                    <div style={{display:"flex",gap:4,marginBottom:8,flexWrap:"wrap"}}>
+                      {[["This Year",`${new Date().getFullYear()}-01-01`,`${new Date().getFullYear()}-12-31`],["Last Year",`${new Date().getFullYear()-1}-01-01`,`${new Date().getFullYear()-1}-12-31`],["All","",""]].map(([l,f,t])=>(
+                        <button key={l} onClick={()=>setBusF(p=>({...p,dateFrom:f,dateTo:t}))} style={{flex:1,background:busF.dateFrom===f&&busF.dateTo===t?T.accent:T.tableAlt,color:busF.dateFrom===f&&busF.dateTo===t?"#fff":T.textMuted,border:`1px solid ${T.border}`,borderRadius:6,padding:"4px 4px",fontSize:10,fontWeight:600,cursor:"pointer"}}>{l}</button>
+                      ))}
+                    </div>
                     <div style={{display:"flex",gap:8}}>
                       <Btn onClick={()=>{loadBus(busF);}} T={T} style={{flex:1,justifyContent:"center"}}>Apply</Btn>
-                      <Btn variant="ghost" onClick={()=>{const f={dateFrom:"",dateTo:"",pendel:"",label:"Solmar"};setBusF(f);loadBus(f);}} T={T} style={{flex:1,justifyContent:"center"}}>Reset</Btn>
+                      <Btn variant="ghost" onClick={()=>{const y=new Date().getFullYear();const f={dateFrom:`${y}-01-01`,dateTo:`${y}-12-31`,pendel:"",label:"Solmar",labels:[],direction:"Outbound"};setBusF(f);loadBus(f);}} T={T} style={{flex:1,justifyContent:"center"}}>Reset</Btn>
                     </div>
                   </div>
                 )}
@@ -1363,7 +1372,7 @@ export default function App(){
               <span key={k} style={{color:T.textDim}}><span style={{color:T.textMuted,fontWeight:600}}>{k}</span>: {fmtN(v)}</span>
             ))}
           </div>
-          <span style={{color:T.textDim}}>Auto-refresh 00:00 Dubai · TTP Analytics v2.1</span>
+          <span style={{color:T.textDim}}>Auto-refresh 00:00 Dubai · TTP Analytics v2.1 · <span style={{color:T.success}}>●</span> Live</span>
         </div>
       </main>
 
