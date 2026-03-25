@@ -552,7 +552,7 @@ export default function App(){
   const[editUser,setEditUser]=useState(null);
   const[newUser,setNewUser]=useState({name:"",username:"",email:"",password:"",role:"viewer"});
   const[apiKeys,setApiKeys]=useState({openai:"",anthropic:"",emailAlert:""});
-  const[sidebarOpen,setSidebarOpen]=useState(true);
+  const[sidebarOpen,setSidebarOpen]=useState(typeof window!=="undefined"?window.innerWidth>768:true);
   const[clock,setClock]=useState(dubaiTime());
   const[lastSync,setLastSync]=useState("");
 
@@ -781,7 +781,7 @@ export default function App(){
     <div style={{display:"flex",minHeight:"100vh",background:T.bg,fontFamily:"'Segoe UI',system-ui,sans-serif",color:T.text}}>
 
       {/* SIDEBAR */}
-      <aside style={{width:sidebarOpen?220:60,flexShrink:0,background:T.sidebar,borderRight:`1px solid ${T.border}`,display:"flex",flexDirection:"column",position:"fixed",top:0,left:0,height:"100vh",zIndex:100,transition:"width 0.2s",overflow:"hidden"}}>
+      <aside style={{width:sidebarOpen?220:60,flexShrink:0,background:T.sidebar,borderRight:`1px solid ${T.border}`,display:"flex",flexDirection:"column",position:"fixed",top:0,left:0,height:"100vh",zIndex:100,transition:"width 0.2s",overflow:"hidden",boxShadow:T.cardShadow}}>
         <div style={{padding:"16px 14px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",gap:10,minHeight:64}}>
           <div style={{width:32,height:32,background:T.accent,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
             <img src="/assets/logo.png" alt="TTP" style={{height:20,objectFit:"contain",filter:"brightness(0) invert(1)"}} onError={e=>{e.target.style.display="none";e.target.nextSibling.style.display="block";}}/>
@@ -791,7 +791,7 @@ export default function App(){
         </div>
         <nav style={{flex:1,padding:"8px 6px",overflowY:"auto"}}>
           {NAV.map(n=>(
-            <button key={n.id} onClick={()=>handleTabClick(n.id)} title={!sidebarOpen?n.label:undefined} style={{display:"flex",alignItems:"center",gap:10,width:"100%",background:tab===n.id?T.navActive:"transparent",color:tab===n.id?T.accent:T.textMuted,border:"none",borderRadius:8,padding:"9px 11px",fontSize:13,fontWeight:tab===n.id?600:400,cursor:"pointer",textAlign:"left",marginBottom:2,transition:"all 0.15s"}}
+            <button key={n.id} onClick={()=>{handleTabClick(n.id);if(window.innerWidth<=768)setSidebarOpen(false);}} title={!sidebarOpen?n.label:undefined} style={{display:"flex",alignItems:"center",gap:10,width:"100%",background:tab===n.id?T.navActive:"transparent",color:tab===n.id?T.accent:T.textMuted,border:"none",borderRadius:8,padding:"9px 11px",fontSize:13,fontWeight:tab===n.id?600:400,cursor:"pointer",textAlign:"left",marginBottom:2,transition:"all 0.15s"}}
               onMouseEnter={e=>{if(tab!==n.id){e.currentTarget.style.background=T.navHover;e.currentTarget.style.color=T.text;}}}
               onMouseLeave={e=>{if(tab!==n.id){e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.textMuted;}}}>
               <span style={{flexShrink:0,opacity:tab===n.id?1:0.7}}>{n.icon}</span>
@@ -807,7 +807,7 @@ export default function App(){
               <div style={{fontSize:10,color:T.textDim,textTransform:"capitalize"}}>{user?.role||"viewer"}</div>
             </div>
           </div>}
-          {sidebarOpen&&<div style={{fontSize:10,color:T.textDim,fontFamily:"monospace",marginBottom:8,textAlign:"center"}}>{clock} DXB</div>}
+          {sidebarOpen&&<div className="hide-mobile" style={{fontSize:10,color:T.textDim,fontFamily:"monospace",marginBottom:8,textAlign:"center"}}>{clock} DXB</div>}
           <button onClick={logout} title="Logout" style={{display:"flex",alignItems:"center",gap:6,width:"100%",background:"transparent",border:`1px solid ${T.border}`,borderRadius:7,padding:"6px 10px",fontSize:12,color:T.textMuted,cursor:"pointer",justifyContent:sidebarOpen?"flex-start":"center"}}>
             {Ic.logout}{sidebarOpen&&"Logout"}
           </button>
@@ -815,7 +815,7 @@ export default function App(){
       </aside>
 
       {/* MAIN */}
-      <main style={{marginLeft:sidebarOpen?220:60,flex:1,display:"flex",flexDirection:"column",minHeight:"100vh",transition:"margin-left 0.2s"}}>
+      <main style={{marginLeft:sidebarOpen?220:60,flex:1,display:"flex",flexDirection:"column",minHeight:"100vh",transition:"margin-left 0.2s"}} className="main-content">
 
         {/* HEADER */}
         <header style={{background:T.headerBg,borderBottom:`1px solid ${T.border}`,padding:"0 20px",height:52,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:90,boxShadow:T.shadow}}>
@@ -823,7 +823,7 @@ export default function App(){
             <button onClick={()=>setSidebarOpen(o=>!o)} style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:6,padding:"4px 7px",cursor:"pointer",color:T.textMuted,display:"flex",alignItems:"center",fontSize:16,lineHeight:1}}>☰</button>
             <span style={{fontSize:14,fontWeight:700,color:T.text}}>{NAV.find(n=>n.id===tab)?.label}</span>
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <div className="header-btns" style={{display:"flex",alignItems:"center",gap:8}}>
             {lastSync&&<span style={{fontSize:11,color:T.textDim,display:"none"}}>Last sync: {lastSync}</span>}
             <button onClick={()=>switchTheme(themeKey==="dark"?"light":"dark")} style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:7,padding:"5px 8px",cursor:"pointer",color:T.textMuted,display:"flex",alignItems:"center",gap:4,fontSize:11}}>
               {themeKey==="dark"?Ic.sun:Ic.moon} {themeKey==="dark"?"Light":"Dark"}
@@ -925,7 +925,7 @@ export default function App(){
                     <div style={{width:8,height:8,borderRadius:"50%",background:c,flexShrink:0}}/>
                     <span style={{fontSize:11,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.07em"}}>{label}</span>
                   </div>
-                  <div style={{fontSize:28,fontWeight:800,color:T.text,lineHeight:1,marginBottom:5}}>{curr!=null?f(curr):"—"}</div>
+                  <div className="kpi-value" style={{fontSize:28,fontWeight:800,color:T.text,lineHeight:1,marginBottom:5}}>{curr!=null?f(curr):"—"}</div>
                   <div style={{fontSize:12,color:T.textMuted,marginBottom:8}}>
                     {prev!=null&&prev>0
                       ? <>{kpis?.prevLabel||"prev"}: <span style={{fontWeight:600}}>{f(prev)}</span></>
@@ -1561,10 +1561,64 @@ export default function App(){
           .card{break-inside:avoid;}
         }
         @media (max-width:768px){
+          /* Sidebar — hidden on mobile, toggle-able */
+          aside{
+            width:100% !important;
+            height:auto !important;
+            position:fixed !important;
+            top:0 !important; left:0 !important;
+            z-index:200 !important;
+            flex-direction:row !important;
+            align-items:center !important;
+            padding:0 !important;
+            height:52px !important;
+            overflow:hidden !important;
+            border-right:none !important;
+            border-bottom:1px solid var(--border) !important;
+          }
+          aside nav{
+            display:flex !important;
+            flex-direction:row !important;
+            flex:1 !important;
+            padding:0 8px !important;
+            overflow-x:auto !important;
+            gap:2px !important;
+          }
+          aside nav button{
+            flex-shrink:0 !important;
+            padding:6px 10px !important;
+            font-size:11px !important;
+          }
+          /* Hide sidebar bottom section on mobile */
+          aside > div:last-child { display:none !important; }
+          aside > div:first-child { width:44px !important; flex-shrink:0 !important; }
+          /* Main — push down for top nav */
+          main{ margin-left:0 !important; margin-top:52px !important; }
+          /* KPI grid — 1 column */
           .kpi-grid{grid-template-columns:1fr !important;}
+          /* Chart grid — 1 column */
           .chart-grid{grid-template-columns:1fr !important;}
-          aside{width:52px !important;}
-          main{margin-left:52px !important;}
+          /* Header — compact */
+          header{height:44px !important; padding:0 10px !important;}
+          header span[style*="font-size:14px"]{font-size:12px !important;}
+          /* Filter panel full width */
+          .filter-panel{width:100% !important; position:fixed !important; top:96px !important; left:0 !important; right:0 !important; z-index:150 !important; border-radius:0 !important; max-height:70vh !important; overflow-y:auto !important;}
+          /* Cards padding */
+          .card-pad{padding:12px !important;}
+          /* Tables — ensure scroll */
+          .table-scroll{-webkit-overflow-scrolling:touch !important;}
+          /* Page content padding */
+          #dashboard-content{padding:10px !important;}
+          /* KPI font size */
+          .kpi-value{font-size:22px !important;}
+          /* Hide clock */
+          .hide-mobile{display:none !important;}
+          /* Bus filter sidebar — full width overlay */
+          .bus-filter-panel{width:100% !important; position:fixed !important; top:96px !important; left:0 !important; right:0 !important; z-index:150 !important; border-radius:0 !important; max-height:70vh !important; overflow-y:auto !important;}
+        }
+        @media (max-width:480px){
+          .kpi-grid{grid-template-columns:1fr !important;}
+          header .header-btns > *:not(:last-child):not(:nth-last-child(2)){display:none !important;}
         }
         @keyframes bounce{0%,80%,100%{transform:scale(0.4);opacity:0.4}40%{transform:scale(1);opacity:1}}
         ::-webkit-scrollbar{width:6px;height:10px}
