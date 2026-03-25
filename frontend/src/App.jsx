@@ -186,10 +186,10 @@ function BarChart({ data, metric, onMetric, T }) {
   },[]);
   return(<div style={{position:"relative"}}>
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-      <span style={{fontSize:11,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.07em"}}>BOOKINGS / PAX / REVENUE BY YEAR</span>
+      <span style={{fontSize:11,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.07em"}}>BOOKINGS / PAX BY YEAR</span>
       <div style={{display:"flex",gap:3}}>
-        {["bookings","pax","revenue"].map(m=>(
-          <button key={m} onClick={()=>onMetric(m)} style={{background:metric===m?T.accent:"transparent",color:metric===m?"#fff":T.textMuted,border:`1px solid ${metric===m?T.accent:T.border}`,borderRadius:5,padding:"2px 9px",fontSize:11,fontWeight:600,cursor:"pointer",textTransform:"capitalize"}}>{m==="revenue"?"Revenue":m==="bookings"?"Bookings":"PAX"}</button>
+        {["bookings","pax"].map(m=>(
+          <button key={m} onClick={()=>onMetric(m)} style={{background:metric===m?T.accent:"transparent",color:metric===m?"#fff":T.textMuted,border:`1px solid ${metric===m?T.accent:T.border}`,borderRadius:5,padding:"2px 9px",fontSize:11,fontWeight:600,cursor:"pointer",textTransform:"capitalize"}}>{m==="bookings"?"Bookings":"PAX"}</button>
         ))}
       </div>
     </div>
@@ -660,12 +660,31 @@ export default function App(){
   };
   useEffect(()=>{if(chatRef.current)chatRef.current.scrollTop=chatRef.current.scrollHeight;},[msgs]);
 
-  const exportCSV=()=>{
-    const p=new URLSearchParams();p.set("token",localStorage.getItem("ttp_token")||"");
-    if(applied.depFrom)p.set("departureDateFrom",applied.depFrom);if(applied.depTo)p.set("departureDateTo",applied.depTo);
-    (applied.dataset||[]).forEach(d=>p.append("dataset",d));(applied.status||[]).forEach(s=>p.append("status",s));
-    window.open(`${BASE}/api/dashboard/export?${p.toString()}`,"_blank");
+  const[showExport,setShowExport]=useState(false);
+  const[exportOpts,setExportOpts]=useState({depFrom:"",depTo:"",bkFrom:"",bkTo:"",dataset:"",status:"",format:"csv"});
+
+  const doExport=async(fmt)=>{
+    const p=new URLSearchParams();
+    p.set("token",localStorage.getItem("ttp_token")||"");
+    if(exportOpts.depFrom)p.set("departureDateFrom",exportOpts.depFrom);
+    if(exportOpts.depTo)p.set("departureDateTo",exportOpts.depTo);
+    if(exportOpts.bkFrom)p.set("bookingDateFrom",exportOpts.bkFrom);
+    if(exportOpts.bkTo)p.set("bookingDateTo",exportOpts.bkTo);
+    if(exportOpts.dataset)p.set("dataset",exportOpts.dataset);
+    if(exportOpts.status)p.set("status",exportOpts.status);
+    if(fmt==="csv"){
+      window.open(`${BASE}/api/dashboard/export?${p.toString()}`,"_blank");
+      setShowExport(false);
+    } else if(fmt==="print"){
+      setShowExport(false);
+      setTimeout(()=>window.print(),300);
+    } else if(fmt==="pdf"){
+      setShowExport(false);
+      setTimeout(()=>window.print(),300);
+    }
   };
+
+  const exportCSV=()=>setShowExport(true);
 
   const QUICK=[
     {l:"This Year",fn:()=>{const y=new Date().getFullYear();setFilters(f=>({...f,depFrom:`${y}-01-01`,depTo:`${y}-12-31`}));}},
@@ -708,7 +727,6 @@ export default function App(){
   const busCols=[
     {label:"START",key:"StartDate",noWrap:true,bold:true,color:(_,T)=>T.accent},
     {label:"END",key:"EndDate",noWrap:true,color:(_,T)=>T.textMuted},
-    {label:"PENDEL",key:"NormalizedPendel",noWrap:true},
     {label:"RC",key:"ORC",right:true},{label:"FC",key:"OFC",right:true},{label:"PRE",key:"OPRE",right:true},
     {label:"TOTAL OUT",key:"OTotal",right:true,bold:true},
     {label:"RC",key:"RRC",right:true},{label:"FC",key:"RFC",right:true},{label:"PRE",key:"RPRE",right:true},
@@ -949,14 +967,14 @@ export default function App(){
                 <div style={{flex:1,minWidth:0}}>
                   {bLoad&&<div style={{textAlign:"center",padding:20,color:T.textMuted}}>Loading bus data...</div>}
 
-                  {/* Charts — show for all views */}
-                  {!isSnow&&(
+                  {/* Charts — hide for feeder view */}
+                  {busView!=="feeder"&&!isSnow&&(
                     <div className="chart-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
                       <Card T={T}><CardHdr title={`Bookings by Bus Class — ${busLabel}`} T={T}/><div style={{padding:"14px 16px"}}><BusBarChart data={busClassFiltered} metric="bookings" title="" T={T}/></div></Card>
                       <Card T={T}><CardHdr title={`Revenue by Bus Class — ${busLabel}`} T={T}/><div style={{padding:"14px 16px"}}><BusBarChart data={busClassFiltered} metric="revenue" title="" T={T}/></div></Card>
                     </div>
                   )}
-                  {isSnow&&(
+                  {busView!=="feeder"&&isSnow&&(
                     <div className="chart-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
                       <Card T={T}><CardHdr title="Bookings by Bus Class — Snowtravel" T={T}/><div style={{padding:"14px 16px"}}><BusBarChart data={busClassFiltered} metric="bookings" title="" T={T}/></div></Card>
                       <Card T={T}><CardHdr title="PAX by Bus Class — Snowtravel" T={T}/><div style={{padding:"14px 16px"}}><BusBarChart data={busClassFiltered} metric="pax" title="" T={T}/></div></Card>
@@ -985,15 +1003,19 @@ export default function App(){
                     </Card>
                   )}
 
-                  {/* Feeder overview — pivot table */}
+                  {/* Feeder overview — pivot table only, no charts */}
                   {busView==="feeder"&&(
                     <Card T={T}>
                       <CardHdr title={`Feeder Overview — ${busLabel} — ${busF.direction==="Inbound"?"Inbound (Return)":"Outbound (Departure)"}`} T={T}
-                        right={<div style={{display:"flex",gap:6,alignItems:"center"}}>
-                          <button onClick={()=>setBusF(f=>({...f,direction:f.direction==="Inbound"?"Outbound":"Inbound"}))}
-                            style={{background:busF.direction==="Inbound"?"#f59e0b22":"#22c55e22",color:busF.direction==="Inbound"?"#f59e0b":"#22c55e",border:`1px solid ${busF.direction==="Inbound"?"#f59e0b":"#22c55e"}`,borderRadius:6,padding:"3px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>
-                            {busF.direction==="Inbound"?"⬅ Inbound":"⬆ Outbound"}
-                          </button>
+                        right={<div style={{display:"flex",gap:8,alignItems:"center"}}>
+                          <div style={{display:"flex",background:T.tableAlt,border:`1px solid ${T.border}`,borderRadius:7,padding:2,gap:2}}>
+                            {["Outbound","Inbound"].map(dir=>(
+                              <button key={dir} onClick={()=>{setBusF(f=>({...f,direction:dir}));loadBus({...busF,direction:dir});}}
+                                style={{background:busF.direction===dir?T.accent:"transparent",color:busF.direction===dir?"#fff":T.textMuted,border:"none",borderRadius:5,padding:"4px 12px",fontSize:12,fontWeight:600,cursor:"pointer"}}>
+                                {dir}
+                              </button>
+                            ))}
+                          </div>
                           <span style={{fontSize:11,color:T.textDim}}>{feederData.length} stops</span>
                         </div>}/>
                       <FeederPivotTable data={feederData} T={T}/>
@@ -1311,6 +1333,122 @@ export default function App(){
         </div>
       </main>
 
+      {/* EXPORT MODAL */}
+      {showExport&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowExport(false)}>
+          <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:28,width:460,boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+              <span style={{fontSize:16,fontWeight:700,color:T.text}}>Export Data</span>
+              <button onClick={()=>setShowExport(false)} style={{background:"transparent",border:"none",cursor:"pointer",color:T.textMuted}}>{Ic.close}</button>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+              {[["Booking From","bkFrom"],["Booking To","bkTo"],["Departure From","depFrom"],["Departure To","depTo"]].map(([l,k])=>(
+                <div key={k}><label style={labelStyle}>{l}</label>
+                  <input type="date" value={exportOpts[k]||""} onChange={e=>setExportOpts(o=>({...o,[k]:e.target.value}))}
+                    style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/>
+                </div>
+              ))}
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
+              <div><label style={labelStyle}>Dataset</label>
+                <select value={exportOpts.dataset||""} onChange={e=>setExportOpts(o=>({...o,dataset:e.target.value}))} style={inputStyle}>
+                  <option value="">All Datasets</option>
+                  {["Snowtravel","Solmar","Interbus","Solmar DE"].map(d=><option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+              <div><label style={labelStyle}>Status</label>
+                <select value={exportOpts.status||""} onChange={e=>setExportOpts(o=>({...o,status:e.target.value}))} style={inputStyle}>
+                  <option value="">All Status</option>
+                  <option value="ok">OK only</option>
+                  <option value="cancelled">Cancelled only</option>
+                </select>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>doExport("csv")} style={{flex:1,background:T.success,color:"#fff",border:"none",borderRadius:8,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>{Ic.download} Download CSV</button>
+              <button onClick={()=>doExport("print")} style={{flex:1,background:T.accent,color:"#fff",border:"none",borderRadius:8,padding:"10px",fontSize:13,fontWeight:600,cursor:"pointer"}}>Print</button>
+              <button onClick={()=>doExport("pdf")} style={{flex:1,background:"transparent",border:`1px solid ${T.border}`,borderRadius:8,padding:"10px",fontSize:13,fontWeight:600,cursor:"pointer",color:T.textMuted}}>📄 Save PDF</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
+      {/* EXPORT MODAL */}
+      {showExportModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowExportModal(false)}>
+          <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:28,width:460,boxShadow:"0 20px 60px rgba(0,0,0,0.3)",maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+              <span style={{fontSize:16,fontWeight:700,color:T.text}}>Export Data</span>
+              <button onClick={()=>setShowExportModal(false)} style={{background:"transparent",border:"none",cursor:"pointer",color:T.textMuted}}>{Ic.close}</button>
+            </div>
+            {/* Dataset */}
+            <div style={{marginBottom:14}}>
+              <label style={{fontSize:11,fontWeight:700,color:T.textMuted,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em",display:"block"}}>Dataset</label>
+              <div style={{display:"flex",flexDirection:"column",gap:4,background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:8,padding:"10px 12px"}}>
+                {["Snowtravel","Solmar","Interbus","Solmar DE"].map(d=>{
+                  const sel=(exportOpts.datasets||[]).includes(d);
+                  return <label key={d} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:T.text,cursor:"pointer"}}>
+                    <input type="checkbox" checked={sel} onChange={e=>setExportOpts(o=>({...o,datasets:e.target.checked?[...o.datasets,d]:o.datasets.filter(x=>x!==d)}))} style={{accentColor:T.accent}}/>
+                    <span style={{color:DS_COLORS[d]||T.text,fontWeight:sel?600:400}}>{d}</span>
+                  </label>;
+                })}
+                <div style={{marginTop:4,fontSize:11,color:T.textDim}}>{(exportOpts.datasets||[]).length===0?"All datasets selected":exportOpts.datasets.join(", ")}</div>
+              </div>
+            </div>
+            {/* Status */}
+            <div style={{marginBottom:14}}>
+              <label style={{fontSize:11,fontWeight:700,color:T.textMuted,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em",display:"block"}}>Status</label>
+              <div style={{display:"flex",gap:6}}>
+                {[["","All"],["ok","OK only"],["cancelled","Cancelled only"]].map(([v,l])=>{
+                  const active=exportOpts.status===v;
+                  const col=v==="ok"?T.success:v==="cancelled"?T.danger:T.textMuted;
+                  return <button key={v} onClick={()=>setExportOpts(o=>({...o,status:v}))} style={{flex:1,background:active?`${col}22`:"transparent",border:`1px solid ${active?col:T.border}`,borderRadius:7,color:active?col:T.textMuted,padding:"7px 6px",fontSize:12,fontWeight:active?700:400,cursor:"pointer"}}>{l}</button>;
+                })}
+              </div>
+            </div>
+            {/* Date ranges */}
+            {[["Departure Date","depFrom","depTo"],["Booking Date","bkFrom","bkTo"]].map(([label,fromK,toK])=>(
+              <div key={label} style={{marginBottom:14}}>
+                <label style={{fontSize:11,fontWeight:700,color:T.textMuted,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em",display:"block"}}>{label}</label>
+                <div style={{display:"flex",gap:8}}>
+                  <div style={{flex:1}}>
+                    <input type="date" value={exportOpts[fromK]||""} onChange={e=>setExportOpts(o=>({...o,[fromK]:e.target.value}))}
+                      placeholder="From" style={{width:"100%",boxSizing:"border-box",background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:7,padding:"8px 10px",fontSize:13,color:T.text,outline:"none",colorScheme:themeKey==="dark"?"dark":"light"}}/>
+                  </div>
+                  <div style={{flex:1}}>
+                    <input type="date" value={exportOpts[toK]||""} onChange={e=>setExportOpts(o=>({...o,[toK]:e.target.value}))}
+                      placeholder="To" style={{width:"100%",boxSizing:"border-box",background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:7,padding:"8px 10px",fontSize:13,color:T.text,outline:"none",colorScheme:themeKey==="dark"?"dark":"light"}}/>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {/* Export buttons */}
+            <div style={{display:"flex",gap:8,marginTop:8,paddingTop:16,borderTop:`1px solid ${T.border}`}}>
+              <button onClick={doExportCSV} style={{flex:1,background:T.success,color:"#fff",border:"none",borderRadius:8,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+                {Ic.download} Download CSV
+              </button>
+              <button onClick={()=>{setShowExportModal(false);setTimeout(()=>window.print(),100);}} style={{flex:1,background:T.accent,color:"#fff",border:"none",borderRadius:8,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                Print
+              </button>
+              <button onClick={async()=>{
+                setShowExportModal(false);
+                try{
+                  const h2c=(await import('html2canvas')).default;
+                  const el=document.getElementById('dashboard-content');
+                  if(!el)return;
+                  const canvas=await h2c(el,{scale:1.5,useCORS:true,backgroundColor:T.bg});
+                  const link=document.createElement('a');
+                  link.download=`ttp-${new Date().toISOString().split('T')[0]}.jpg`;
+                  link.href=canvas.toDataURL('image/jpeg',0.9);link.click();
+                }catch(e){alert('Export error: '+e.message);}
+              }} style={{flex:1,background:T.warning,color:"#fff",border:"none",borderRadius:8,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                Save JPG
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* ADD USER MODAL */}
       {showAddUser&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowAddUser(false)}>

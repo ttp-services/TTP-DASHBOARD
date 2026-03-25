@@ -114,7 +114,7 @@ router.get('/revenue-by-year', async (req, res) => {
         SUM(revenue) AS revenue
       FROM bookings
       ${andStatus(whereClause)}
-      AND year BETWEEN 2023 AND 2027
+      AND year BETWEEN 2021 AND 2027
       GROUP BY year, month
       ORDER BY year ASC, month ASC
     `, params);
@@ -134,7 +134,7 @@ router.get('/year-month-comparison', async (req, res) => {
           ROUND(SUM(revenue),2) AS revenue
         FROM bookings
         ${andStatus(whereClause)}
-        AND year BETWEEN 2022 AND 2027
+        AND year BETWEEN 2023 AND 2027
         GROUP BY year, month
       )
       SELECT
@@ -216,8 +216,8 @@ router.get('/bustrips', async (req, res) => {
         SUM(RC_Diff)  AS RC_Diff,  SUM(FC_Diff)  AS FC_Diff,
         SUM(PRE_Diff) AS PRE_Diff, SUM(Total_Difference) AS Total_Difference
       FROM BUStrips ${where}
-      GROUP BY StartDate, EndDate, NormalizedPendel
-      ORDER BY StartDate DESC, EndDate DESC
+      GROUP BY StartDate, EndDate
+      ORDER BY StartDate DESC, EndDate DESC, NormalizedPendel ASC
     `, params);
     res.json(result.recordset || []);
   } catch(err) { res.status(500).json({ error: 'BUStrips failed', details: err.message }); }
@@ -246,7 +246,7 @@ router.get('/pendel-overview', async (req, res) => {
         SUM(Premium_Total) AS Premium_Total, SUM(Premium_Lower) AS Premium_Lower, SUM(Premium_Upper)  AS Premium_Upper, SUM(Premium_NoDeck) AS Premium_NoDeck
       FROM VW_Solmar_Pendel_Overview ${where}
       GROUP BY dateDeparture, dateReturn, Label, Pendel, Destination, Weekday
-      ORDER BY dateDeparture DESC
+      ORDER BY dateDeparture DESC, Pendel ASC
     `, params);
     res.json(result.recordset || []);
   } catch(err) { res.status(500).json({ error: 'Pendel failed', details: err.message }); }
@@ -304,7 +304,7 @@ router.get('/deck-class', async (req, res) => {
         SUM(Premium_Total) AS Premium_Total, SUM(Premium_Lower) AS Premium_Lower, SUM(Premium_Upper) AS Premium_Upper, SUM(Premium_NoDeck) AS Premium_NoDeck
       FROM VW_Solmar_Deck_Class ${where}
       GROUP BY dateDeparture, dateReturn, Label, Pendel, Destination, Weekday
-      ORDER BY dateDeparture DESC
+      ORDER BY dateDeparture DESC, Pendel ASC
     `, params);
     res.json(result.recordset || []);
   } catch(err) { res.status(500).json({ error: 'Deck class failed', details: err.message }); }
