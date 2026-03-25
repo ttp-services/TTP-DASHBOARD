@@ -274,7 +274,7 @@ function Badge({children,color="accent",T}){
 // ─── TABLE COMPONENT ─────────────────────────────────────────────────────────
 function DataTable({columns,rows,emptyMsg="No data",T,maxHeight=460}){
   const[hover,setHover]=useState(-1);
-  return(<div style={{overflowX:"auto",overflowY:"auto",maxHeight}}>
+  return(<div className="table-scroll" style={{overflowX:"auto",overflowY:"auto",maxHeight}}>
     <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:columns.length*80}}>
       <thead><tr style={{background:T.tableAlt,position:"sticky",top:0,zIndex:1}}>
         {columns.map((c,i)=><th key={i} style={{padding:"9px 12px",textAlign:c.right?"right":"left",fontSize:10,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap"}}>{c.label}</th>)}
@@ -351,7 +351,7 @@ function FeederPivotTable({ data, T }) {
           Showing last 20 of {allDates.length} dates. Use date filters to narrow the range.
         </div>
       )}
-      <div style={{overflowX:"auto",overflowY:"auto",maxHeight:500}}>
+      <div className="table-scroll" style={{overflowX:"auto",overflowY:"auto",maxHeight:500}}>
         <table style={{borderCollapse:"collapse",fontSize:12,tableLayout:"fixed",width:`${180+80+(dates.length*COL_W)}px`}}>
           <thead style={{position:"sticky",top:0,zIndex:3}}>
             <tr style={{background:BG_ALT}}>
@@ -450,7 +450,7 @@ function DeckTable({ data, T }) {
   ];
 
   return (
-    <div style={{overflowX:"auto",overflowY:"auto",maxHeight:520}}>
+    <div className="table-scroll" style={{overflowX:"auto",overflowY:"auto",maxHeight:520}}>
       <table style={{borderCollapse:"collapse",fontSize:12,width:"100%"}}>
         <thead>
           {/* Section header row */}
@@ -649,6 +649,8 @@ export default function App(){
   useEffect(()=>{if(token&&tab==="table"){setTablePage(1);loadTable();};},[token,tab]);
   useEffect(()=>{if(token&&tab==="table")loadTable();},[tablePage]);
 
+
+  useEffect(()=>{if(chatRef.current)chatRef.current.scrollTop=chatRef.current.scrollHeight;},[msgs]);
   const sendAI=async msg=>{
     if(!msg.trim()||aiLoad)return;
     setMsgs(m=>[...m,{role:"user",text:msg}]);setAiInput("");setAiLoad(true);
@@ -660,32 +662,6 @@ export default function App(){
     }catch{setMsgs(m=>[...m,{role:"assistant",text:"Connection error. Please try again."}]);}
     finally{setAiLoad(false);}
   };
-  useEffect(()=>{if(chatRef.current)chatRef.current.scrollTop=chatRef.current.scrollHeight;},[msgs]);
-
-  const[showExport,setShowExport]=useState(false);
-  const[exportOpts,setExportOpts]=useState({depFrom:"",depTo:"",bkFrom:"",bkTo:"",dataset:"",status:"",format:"csv"});
-
-  const doExport=async(fmt)=>{
-    const p=new URLSearchParams();
-    p.set("token",localStorage.getItem("ttp_token")||"");
-    if(exportOpts.depFrom)p.set("departureDateFrom",exportOpts.depFrom);
-    if(exportOpts.depTo)p.set("departureDateTo",exportOpts.depTo);
-    if(exportOpts.bkFrom)p.set("bookingDateFrom",exportOpts.bkFrom);
-    if(exportOpts.bkTo)p.set("bookingDateTo",exportOpts.bkTo);
-    if(exportOpts.dataset)p.set("dataset",exportOpts.dataset);
-    if(exportOpts.status)p.set("status",exportOpts.status);
-    if(fmt==="csv"){
-      window.open(`${BASE}/api/dashboard/export?${p.toString()}`,"_blank");
-      setShowExport(false);
-    } else if(fmt==="print"){
-      setShowExport(false);
-      setTimeout(()=>window.print(),300);
-    } else if(fmt==="pdf"){
-      setShowExport(false);
-      setTimeout(()=>window.print(),300);
-    }
-  };
-
   const exportCSV=()=>setShowExport(true);
 
   const QUICK=[
@@ -1345,7 +1321,7 @@ export default function App(){
       </main>
 
       {/* EXPORT MODAL */}
-      {showExport&&(
+      {showExportModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowExport(false)}>
           <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:28,width:460,boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}} onClick={e=>e.stopPropagation()}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
@@ -1535,9 +1511,16 @@ export default function App(){
           main{margin-left:52px !important;}
         }
         @keyframes bounce{0%,80%,100%{transform:scale(0.4);opacity:0.4}40%{transform:scale(1);opacity:1}}
-        ::-webkit-scrollbar{width:5px;height:5px}
-        ::-webkit-scrollbar-track{background:transparent}
-        ::-webkit-scrollbar-thumb{background:${T.scrollbar};border-radius:10px}
+        ::-webkit-scrollbar{width:6px;height:10px}
+        ::-webkit-scrollbar-track{background:${T.border};border-radius:10px}
+        ::-webkit-scrollbar-thumb{background:${T.accent};border-radius:10px;border:2px solid ${T.border}}
+        ::-webkit-scrollbar-thumb:hover{background:${T.accentHover}}
+        ::-webkit-scrollbar-corner{background:transparent}
+        /* Table scroll containers */
+        .table-scroll::-webkit-scrollbar{height:12px}
+        .table-scroll::-webkit-scrollbar-track{background:${T.tableAlt};border-radius:0 0 8px 8px}
+        .table-scroll::-webkit-scrollbar-thumb{background:${T.accent};border-radius:6px;border:3px solid ${T.tableAlt}}
+        .table-scroll::-webkit-scrollbar-thumb:hover{background:${T.accentHover}}
         input[type="date"]::-webkit-calendar-picker-indicator{opacity:0.5;cursor:pointer;filter:${themeKey==="dark"?"invert(1)":"none"}}
         select option{background:${T.card};color:${T.text}}
       `}</style>
