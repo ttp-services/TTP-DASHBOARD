@@ -257,23 +257,27 @@ router.get('/feeder-overview', async (req, res) => {
   try {
     const conds = [];
     const params = {};
-    if (req.query.dateFrom) { conds.push('DepartureDate >= @dateFrom'); params.dateFrom = req.query.dateFrom; }
-    if (req.query.dateTo)   { conds.push('DepartureDate <= @dateTo');   params.dateTo   = req.query.dateTo;   }
-    if (req.query.label)    { conds.push('LabelName = @label');         params.label    = req.query.label;    }
-    if (req.query.direction){ conds.push('Direction = @direction');     params.direction= req.query.direction;}
-    if (req.query.route)    { conds.push('RouteLabel = @route');        params.route    = req.query.route;    }
+    if (req.query.dateFrom)  { conds.push('DepartureDate >= @dateFrom'); params.dateFrom  = req.query.dateFrom; }
+    if (req.query.dateTo)    { conds.push('DepartureDate <= @dateTo');   params.dateTo    = req.query.dateTo;   }
+    if (req.query.direction) { conds.push('Direction = @direction');     params.direction = req.query.direction;}
+    const labels = [].concat(req.query.label || []).filter(Boolean);
+    if (labels.length) {
+      labels.forEach((l, i) => { params[`lb${i}`] = l; });
+      conds.push(`(${labels.map((_,i) => `LabelName = @lb${i}`).join(' OR ')})`);
+    }
     const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
     const result = await query(`
       SELECT
         CONVERT(VARCHAR(10), DepartureDate, 103) AS DepartureDate,
         LabelName, FeederLine, Direction,
         RouteNo, RouteLabel, StopCodeNormalized, StopName, StopType,
-        SUM(TotalPax)              AS TotalPax,
-        SUM(BookingCount)          AS BookingCount,
+        SUM(TotalPax) AS TotalPax,
+        SUM(BookingCount) AS BookingCount,
         SUM(DistinctRelationCount) AS DistinctRelationCount
       FROM FeederOverview ${where}
-      GROUP BY DepartureDate, LabelName, FeederLine, Direction, RouteNo, RouteLabel, StopCodeNormalized, StopName, StopType
-      ORDER BY DepartureDate DESC, RouteNo ASC, StopName ASC
+      GROUP BY DepartureDate, LabelName, FeederLine, Direction,
+               RouteNo, RouteLabel, StopCodeNormalized, StopName, StopType
+      ORDER BY DepartureDate ASC, RouteNo ASC, StopName ASC
     `, params);
     res.json(result.recordset || []);
   } catch(err) { res.status(500).json({ error: 'Feeder failed', details: err.message }); }

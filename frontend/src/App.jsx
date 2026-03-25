@@ -295,6 +295,162 @@ function DataTable({columns,rows,emptyMsg="No data",T,maxHeight=460}){
   </div>);
 }
 
+
+// ─── FEEDER PIVOT TABLE ───────────────────────────────────────────────────────
+function FeederPivotTable({ data, T }) {
+  if (!data?.length) return (
+    <div style={{padding:24,textAlign:"center",color:T.textMuted,fontSize:13}}>
+      No feeder data — select a label and date range in Filters, then click Apply
+    </div>
+  );
+
+  // Get unique sorted dates (columns)
+  const dates = [...new Set(data.map(d => d.DepartureDate))].sort();
+  // Get unique routes
+  const routes = [...new Set(data.map(d => d.RouteNo))].filter(r=>r!=null).sort((a,b)=>a-b);
+  // Build lookup: routeNo -> stopName -> date -> pax
+  const lookup = {};
+  const routeStops = {};
+  const routeTotals = {};
+  data.forEach(d => {
+    const rk = d.RouteNo ?? 'null';
+    const sk = d.StopName;
+    const dk = d.DepartureDate;
+    if (!lookup[rk]) lookup[rk] = {};
+    if (!lookup[rk][sk]) lookup[rk][sk] = {};
+    lookup[rk][sk][dk] = (lookup[rk][sk][dk]||0) + (d.TotalPax||0);
+    if (!routeStops[rk]) routeStops[rk] = new Set();
+    routeStops[rk].add(sk);
+    if (!routeTotals[rk]) routeTotals[rk] = {};
+    routeTotals[rk][dk] = (routeTotals[rk][dk]||0) + (d.TotalPax||0);
+  });
+
+  // Grand total per date
+  const grandTotals = {};
+  dates.forEach(d => { grandTotals[d] = data.filter(r=>r.DepartureDate===d).reduce((s,r)=>s+(r.TotalPax||0),0); });
+  const grandTotal = data.reduce((s,r)=>s+(r.TotalPax||0),0);
+
+  const thStyle = {padding:"7px 10px",fontSize:10,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.05em",background:T.tableAlt,whiteSpace:"nowrap",textAlign:"right",borderBottom:`1px solid ${T.border}`,borderRight:`1px solid ${T.border}`};
+  const tdNum = (v,bold,color) => ({padding:"7px 10px",textAlign:"right",fontSize:12,fontWeight:bold?"700":"400",color:color||(v>0?T.text:T.textDim),borderRight:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap"});
+  const tdLabel = (indent,bold) => ({padding:"7px 10px 7px "+(indent?22:10)+"px",fontSize:12,fontWeight:bold?"700":"400",color:bold?T.text:T.textMuted,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap",minWidth:160});
+
+  return (
+    <div style={{overflowX:"auto",overflowY:"auto",maxHeight:520}}>
+      <table style={{borderCollapse:"collapse",fontSize:12,minWidth:(dates.length+2)*90}}>
+        <thead>
+          <tr style={{position:"sticky",top:0,zIndex:2}}>
+            <th style={{...thStyle,textAlign:"left",minWidth:180,position:"sticky",left:0,zIndex:3}}>PICK-UP POINT</th>
+            <th style={{...thStyle,minWidth:70}}>TOTAL</th>
+            {dates.map(d=><th key={d} style={{...thStyle,minWidth:80}}>{d}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {/* Grand total row */}
+          <tr style={{background:T.accent+"22"}}>
+            <td style={{...tdLabel(false,true),position:"sticky",left:0,background:T.accent+"22",color:T.accent}}>TOTAL</td>
+            <td style={tdNum(grandTotal,true,T.accent)}>{grandTotal.toLocaleString("nl-BE")}</td>
+            {dates.map(d=><td key={d} style={tdNum(grandTotals[d]||0,true,T.accent)}>{(grandTotals[d]||0).toLocaleString("nl-BE")}</td>)}
+          </tr>
+          {/* Per route */}
+          {[...routes, ...(lookup["null"]?["null"]:[])].map(rk=>{
+            const stops = [...(routeStops[rk]||[])].sort();
+            const routeTotal = stops.reduce((s,sk)=>s+Object.values(lookup[rk]?.[sk]||{}).reduce((a,b)=>a+b,0),0);
+            const routeLabel = data.find(d=>(d.RouteNo??'null')===(rk==="null"?null:parseInt(rk)))?.RouteLabel || `Route ${rk}`;
+            return [
+              // Route header row
+              <tr key={`route-${rk}`} style={{background:T.tableAlt}}>
+                <td style={{...tdLabel(false,true),position:"sticky",left:0,background:T.tableAlt,color:T.accent}}>{routeLabel}</td>
+                <td style={tdNum(routeTotal,true)}>{routeTotal.toLocaleString("nl-BE")}</td>
+                {dates.map(d=><td key={d} style={tdNum(routeTotals[rk]?.[d]||0,true)}>{(routeTotals[rk]?.[d]||0).toLocaleString("nl-BE")}</td>)}
+              </tr>,
+              // Stop rows
+              ...stops.map(sk=>{
+                const stopTotal = Object.values(lookup[rk]?.[sk]||{}).reduce((a,b)=>a+b,0);
+                return (
+                  <tr key={`${rk}-${sk}`} style={{borderBottom:`1px solid ${T.border}`}}>
+                    <td style={{...tdLabel(true,false),position:"sticky",left:0,background:T.card}}>{sk}</td>
+                    <td style={tdNum(stopTotal,false)}>{stopTotal.toLocaleString("nl-BE")}</td>
+                    {dates.map(d=>{const v=lookup[rk]?.[sk]?.[d]||0;return <td key={d} style={tdNum(v,false)}>{v>0?v.toLocaleString("nl-BE"):""}</td>;})}
+                  </tr>
+                );
+              })
+            ];
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── DECK TABLE ───────────────────────────────────────────────────────────────
+function DeckTable({ data, T }) {
+  const [hover, setHover] = useState(-1);
+  if (!data?.length) return (
+    <div style={{padding:24,textAlign:"center",color:T.textMuted,fontSize:13}}>
+      No deck data — adjust filters and click Apply
+    </div>
+  );
+
+  const sections = [
+    {key:"Total", label:"TOTAL", color:T.accent, cols:[
+      {k:"Total",l:"Total",bold:true},{k:"Total_Lower",l:"Lower"},{k:"Total_Upper",l:"Upper"},{k:"Total_NoDeck",l:"No Deck"},
+    ]},
+    {key:"RC", label:"ROYAL CLASS", color:"#3b82f6", cols:[
+      {k:"Royal_Total",l:"Total",bold:true},{k:"Royal_Lower",l:"Lower"},{k:"Royal_Upper",l:"Upper"},{k:"Royal_NoDeck",l:"No Deck"},
+    ]},
+    {key:"FC", label:"FIRST CLASS", color:"#22c55e", cols:[
+      {k:"First_Total",l:"Total",bold:true},{k:"First_Lower",l:"Lower"},{k:"First_Upper",l:"Upper"},{k:"First_NoDeck",l:"No Deck"},
+    ]},
+    {key:"PRE", label:"PREMIUM", color:"#f59e0b", cols:[
+      {k:"Premium_Total",l:"Total",bold:true},{k:"Premium_Lower",l:"Lower"},{k:"Premium_Upper",l:"Upper"},{k:"Premium_NoDeck",l:"No Deck"},
+    ]},
+  ];
+
+  return (
+    <div style={{overflowX:"auto",overflowY:"auto",maxHeight:520}}>
+      <table style={{borderCollapse:"collapse",fontSize:12,width:"100%"}}>
+        <thead>
+          {/* Section header row */}
+          <tr style={{background:T.tableAlt,position:"sticky",top:0,zIndex:2}}>
+            <th rowSpan={2} style={{padding:"8px 12px",textAlign:"left",fontSize:10,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:`1px solid ${T.border}`,borderRight:`2px solid ${T.border}`,minWidth:100,verticalAlign:"bottom"}}>DEPARTURE</th>
+            <th rowSpan={2} style={{padding:"8px 12px",textAlign:"left",fontSize:10,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:`1px solid ${T.border}`,borderRight:`2px solid ${T.border}`,minWidth:100,verticalAlign:"bottom"}}>RETURN</th>
+            {sections.map(s=>(
+              <th key={s.key} colSpan={4} style={{padding:"6px 12px",textAlign:"center",fontSize:10,fontWeight:700,color:s.color,textTransform:"uppercase",letterSpacing:"0.07em",borderBottom:`1px solid ${s.color}44`,borderLeft:`2px solid ${s.color}`,background:`${s.color}11`}}>
+                {s.label}
+              </th>
+            ))}
+          </tr>
+          {/* Sub-column row */}
+          <tr style={{background:T.tableAlt,position:"sticky",top:33,zIndex:2}}>
+            {sections.map(s=>s.cols.map((c,ci)=>(
+              <th key={`${s.key}-${c.k}`} style={{padding:"5px 10px",textAlign:"right",fontSize:10,fontWeight:700,color:T.textDim,textTransform:"uppercase",borderBottom:`1px solid ${T.border}`,...(ci===0?{borderLeft:`2px solid ${s.color}`}:{})}}>
+                {c.l}
+              </th>
+            )))}
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((row,i)=>(
+            <tr key={i} style={{background:hover===i?T.tableHover:i%2===0?T.card:T.tableAlt,borderBottom:`1px solid ${T.border}`,transition:"background 0.1s"}}
+              onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(-1)}>
+              <td style={{padding:"8px 12px",color:T.accent,fontWeight:700,whiteSpace:"nowrap",borderRight:`2px solid ${T.border}`}}>{row.dateDeparture}</td>
+              <td style={{padding:"8px 12px",color:T.textMuted,whiteSpace:"nowrap",borderRight:`2px solid ${T.border}`}}>{row.dateReturn}</td>
+              {sections.map(s=>s.cols.map((c,ci)=>{
+                const v=row[c.k]||0;
+                return (
+                  <td key={`${s.key}-${c.k}`} style={{padding:"8px 10px",textAlign:"right",fontWeight:c.bold?"700":"400",color:v>0?(c.bold?s.color:T.text):T.textDim,...(ci===0?{borderLeft:`2px solid ${s.color}`}:{})}}>
+                    {v>0?v.toLocaleString("nl-BE"):""}
+                  </td>
+                );
+              }))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App(){
   const[token,setToken]=useState(()=>localStorage.getItem("ttp_token")||"");
@@ -327,7 +483,7 @@ export default function App(){
   const[feederData,setFeederData]=useState([]);
   const[deckData,setDeckData]=useState([]);
   const[busFiltersOpen,setBusFiltersOpen]=useState(false);
-  const[busF,setBusF]=useState({dateFrom:"",dateTo:"",pendel:"",label:"Solmar"});
+  const[busF,setBusF]=useState({dateFrom:"",dateTo:"",pendel:"",label:"Solmar",labels:[],direction:"Outbound"});
   const[bLoad,setBLoad]=useState(false);
 
   // Data table
@@ -414,12 +570,15 @@ export default function App(){
     const p={};
     if(f.dateFrom)p.dateFrom=f.dateFrom;if(f.dateTo)p.dateTo=f.dateTo;
     if(f.pendel)p.pendel=f.pendel;if(f.label)p.label=f.label;
+    const feederP={...p};
+    if(f.direction) feederP.direction=f.direction;
+    if((f.labels||[]).length) feederP.label=f.labels;
     Promise.all([
       apiFetch("/api/dashboard/bustrips",p).catch(()=>[]),
       apiFetch("/api/dashboard/bus-class-summary",{}).catch(()=>[]),
       apiFetch("/api/dashboard/snowtravel-bus",p).catch(()=>[]),
       apiFetch("/api/dashboard/pendel-overview",p).catch(()=>[]),
-      apiFetch("/api/dashboard/feeder-overview",p).catch(()=>[]),
+      apiFetch("/api/dashboard/feeder-overview",feederP).catch(()=>[]),
       apiFetch("/api/dashboard/deck-class",p).catch(()=>[]),
     ]).then(([bt,bc,st,pd,fd,dc])=>{
       setBusTrips(Array.isArray(bt)?bt:(bt?.rows||[]));
@@ -779,11 +938,18 @@ export default function App(){
                     </Card>
                   )}
 
-                  {/* Feeder overview */}
+                  {/* Feeder overview — pivot table */}
                   {busView==="feeder"&&(
                     <Card T={T}>
-                      <CardHdr title={`Feeder Overview — ${busLabel}`} T={T} right={<span style={{fontSize:11,color:T.textDim}}>{feederData.length} rows</span>}/>
-                      <DataTable columns={feederCols} rows={feederData} emptyMsg="No feeder data — adjust filters" T={T}/>
+                      <CardHdr title={`Feeder Overview — ${busLabel} — ${busF.direction==="Inbound"?"Inbound (Return)":"Outbound (Departure)"}`} T={T}
+                        right={<div style={{display:"flex",gap:6,alignItems:"center"}}>
+                          <button onClick={()=>setBusF(f=>({...f,direction:f.direction==="Inbound"?"Outbound":"Inbound"}))}
+                            style={{background:busF.direction==="Inbound"?"#f59e0b22":"#22c55e22",color:busF.direction==="Inbound"?"#f59e0b":"#22c55e",border:`1px solid ${busF.direction==="Inbound"?"#f59e0b":"#22c55e"}`,borderRadius:6,padding:"3px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>
+                            {busF.direction==="Inbound"?"⬅ Inbound":"⬆ Outbound"}
+                          </button>
+                          <span style={{fontSize:11,color:T.textDim}}>{feederData.length} stops</span>
+                        </div>}/>
+                      <FeederPivotTable data={feederData} T={T}/>
                     </Card>
                   )}
 
@@ -791,8 +957,8 @@ export default function App(){
                   {busView==="deck"&&(
                     <Card T={T}>
                       <CardHdr title={`Deck Choice / Class — ${busLabel}`} T={T} right={<span style={{fontSize:11,color:T.textDim}}>{deckData.length} rows</span>}/>
-                      <DataTable columns={deckCols} rows={deckData} emptyMsg="No deck data — adjust filters" T={T}/>
-                      <div style={{padding:"7px 14px",borderTop:`1px solid ${T.border}`,fontSize:10,color:T.textDim}}>RC = Royal Class &nbsp;|&nbsp; FC = First Class &nbsp;|&nbsp; PRE = Premium &nbsp;|&nbsp; Lower / Upper / No Deck</div>
+                      <DeckTable data={deckData} T={T}/>
+                      <div style={{padding:"7px 14px",borderTop:`1px solid ${T.border}`,fontSize:10,color:T.textDim}}>RC = Royal Class &nbsp;|&nbsp; FC = First Class &nbsp;|&nbsp; PRE = Premium &nbsp;|&nbsp; Lwr = Lower Deck &nbsp;|&nbsp; Upr = Upper Deck &nbsp;|&nbsp; No = No Deck</div>
                     </Card>
                   )}
                 </div>
@@ -804,17 +970,35 @@ export default function App(){
                       <span style={{fontSize:13,fontWeight:700,color:T.text}}>Filters</span>
                       <button onClick={()=>setBusFiltersOpen(false)} style={{background:"transparent",border:"none",cursor:"pointer",color:T.textMuted,display:"flex"}}>{Ic.close}</button>
                     </div>
-                    <div style={{marginBottom:12}}><label style={labelStyle}>Label</label>
-                      <select value={busF.label||""} onChange={e=>setBusF(f=>({...f,label:e.target.value}))} style={inputStyle}>
-                        <option value="">All</option>
-                        {["Solmar","Solmar DE","Interbus","Snowtravel"].map(l=><option key={l} value={l}>{l}</option>)}
-                      </select>
+                    <div style={{marginBottom:12}}><label style={labelStyle}>Label (multi-select)</label>
+                      <div style={{display:"flex",flexDirection:"column",gap:4,background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:7,padding:"8px 10px"}}>
+                        {["Solmar","Solmar DE","Interbus","Snowtravel"].map(l=>{
+                          const sel=(busF.labels||[]).includes(l);
+                          return <label key={l} style={{display:"flex",alignItems:"center",gap:7,fontSize:12,color:T.text,cursor:"pointer"}}>
+                            <input type="checkbox" checked={sel} onChange={e=>{
+                              const cur=busF.labels||[];
+                              setBusF(f=>({...f,labels:e.target.checked?[...cur,l]:cur.filter(x=>x!==l)}));
+                            }} style={{accentColor:T.accent}}/>
+                            <span style={{color:DS_COLORS[l]||T.text,fontWeight:sel?600:400}}>{l}</span>
+                          </label>;
+                        })}
+                        {(busF.labels||[]).length>0&&<button onClick={()=>setBusF(f=>({...f,labels:[]}))} style={{marginTop:4,fontSize:10,color:T.danger,background:"transparent",border:"none",cursor:"pointer",textAlign:"left",padding:0}}>Clear all</button>}
+                      </div>
                     </div>
                     <div style={{marginBottom:12}}><label style={labelStyle}>Departure Date From</label><input type="date" value={busF.dateFrom||""} onChange={e=>setBusF(f=>({...f,dateFrom:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/></div>
                     <div style={{marginBottom:12}}><label style={labelStyle}>Departure Date To</label><input type="date" value={busF.dateTo||""} onChange={e=>setBusF(f=>({...f,dateTo:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/></div>
-                    <div style={{marginBottom:12}}><label style={labelStyle}>Pendel</label>
+                    <div style={{marginBottom:12}}><label style={labelStyle}>Direction</label>
+                      <div style={{display:"flex",gap:5}}>
+                        {["Outbound","Inbound"].map(d=>{
+                          const active=busF.direction===d;
+                          const col=d==="Outbound"?T.success:T.warning;
+                          return <button key={d} onClick={()=>setBusF(f=>({...f,direction:d}))} style={{flex:1,background:active?`${col}22`:"transparent",border:`1px solid ${active?col:T.border}`,borderRadius:6,color:active?col:T.textMuted,padding:"6px 4px",fontSize:11,fontWeight:active?700:400,cursor:"pointer",textAlign:"center"}}>{d}</button>;
+                        })}
+                      </div>
+                    </div>
+                    <div style={{marginBottom:12}}><label style={labelStyle}>Pendel / Route</label>
                       <select value={busF.pendel||""} onChange={e=>setBusF(f=>({...f,pendel:e.target.value}))} style={inputStyle}>
-                        <option value="">All</option>
+                        <option value="">Spain (All)</option>
                         {PENDELS.map(p=><option key={p} value={p}>{p}</option>)}
                       </select>
                     </div>
