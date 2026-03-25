@@ -635,7 +635,7 @@ export default function App(){
     }).finally(()=>setBLoad(false));
   },[token]);
 
-  useEffect(()=>{if(token)loadBus({label:"Solmar"});},[token]);
+  useEffect(()=>{if(token)loadBus({label:"Solmar",direction:"Outbound"});},[token]);
 
   const loadTable=useCallback(()=>{
     if(!token)return;setTLoad(true);
@@ -703,9 +703,9 @@ export default function App(){
 
   // ─── BUS COLUMNS ─────────────────────────────────────────────────────────────
   const busCols=[
-    {label:"START",key:"StartDate",noWrap:true,bold:true,color:(_,T)=>T.accent},
-    {label:"END",key:"EndDate",noWrap:true,color:(_,T)=>T.textMuted},
-    {label:"RC",key:"ORC",right:true},{label:"FC",key:"OFC",right:true},{label:"PRE",key:"OPRE",right:true},
+    {label:"START DATE",key:"StartDate",noWrap:true,bold:true,color:(_,T)=>T.accent},
+    {label:"END DATE",key:"EndDate",noWrap:true,color:(_,T)=>T.textMuted},
+    {label:"RC OUT",key:"ORC",right:true},{label:"FC",key:"OFC",right:true},{label:"PRE",key:"OPRE",right:true},
     {label:"TOTAL OUT",key:"OTotal",right:true,bold:true},
     {label:"RC",key:"RRC",right:true},{label:"FC",key:"RFC",right:true},{label:"PRE",key:"RPRE",right:true},
     {label:"TOTAL RET",key:"RTotal",right:true,bold:true},
@@ -718,11 +718,20 @@ export default function App(){
   const pendelCols=[
     {label:"DEPARTURE",key:"dateDeparture",noWrap:true,bold:true,color:(_,T)=>T.accent},
     {label:"RETURN",key:"dateReturn",noWrap:true,color:(_,T)=>T.textMuted},
-    {label:"PENDEL",key:"Pendel",noWrap:true},{label:"DEST",key:"Destination",noWrap:true},
+    {label:"PENDEL",key:"Pendel",noWrap:true},
+    {label:"DESTINATION",key:"Destination",noWrap:true},
     {label:"DAY",key:"Weekday",noWrap:true},
-    {label:"TOTAL",key:"Total",right:true,bold:true},
-    {label:"LOWER",key:"Total_Lower",right:true},{label:"UPPER",key:"Total_Upper",right:true},{label:"NO DECK",key:"Total_NoDeck",right:true},
-    {label:"RC TOT",key:"Royal_Total",right:true,bold:true},{label:"FC TOT",key:"First_Total",right:true,bold:true},{label:"PRE TOT",key:"Premium_Total",right:true,bold:true},
+    {label:"OUT TOTAL",key:"Outbound_Total",right:true,bold:true,color:(_,T)=>T.success},
+    {label:"OUT RC",key:"Outbound_Royal",right:true},
+    {label:"OUT FC",key:"Outbound_First",right:true},
+    {label:"OUT PRE",key:"Outbound_Premium",right:true},
+    {label:"IN TOTAL",key:"Inbound_Total",right:true,bold:true,color:(_,T)=>T.warning},
+    {label:"IN RC",key:"Inbound_Royal",right:true},
+    {label:"IN FC",key:"Inbound_First",right:true},
+    {label:"IN PRE",key:"Inbound_Premium",right:true},
+    {label:"DIFF RC",key:"Diff_Royal",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.Diff_Royal,T),render:r=>{const v=r.Diff_Royal||0;return v!==0?(v>0?"+":"")+v:"";}},
+    {label:"DIFF FC",key:"Diff_First",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.Diff_First,T),render:r=>{const v=r.Diff_First||0;return v!==0?(v>0?"+":"")+v:"";}},
+    {label:"DIFF PRE",key:"Diff_Premium",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.Diff_Premium,T),render:r=>{const v=r.Diff_Premium||0;return v!==0?(v>0?"+":"")+v:"";}},
   ];
 
   const feederCols=[
@@ -971,9 +980,20 @@ export default function App(){
                   {/* Pendel overview */}
                   {busView==="pendel"&&!isSnow&&(
                     <Card T={T}>
-                      <CardHdr title={`Pendel Overview — ${busLabel}`} T={T} right={<span style={{fontSize:11,color:T.textDim}}>{pendelData.length||busTrips.length} rows</span>}/>
-                      <DataTable columns={pendelData.length?pendelCols:busCols} rows={pendelData.length?pendelData:busTrips} emptyMsg="No pendel data" T={T}/>
-                      <div style={{padding:"7px 14px",borderTop:`1px solid ${T.border}`,fontSize:10,color:T.textDim}}>RC = Royal Class &nbsp;|&nbsp; FC = First Class &nbsp;|&nbsp; PRE = Premium</div>
+                      <CardHdr title={`Pendel Overview — ${busLabel}`} T={T}
+                        right={<div style={{display:"flex",gap:8,alignItems:"center"}}>
+                          <span style={{fontSize:11,color:T.success,fontWeight:600}}>⬆ Outbound</span>
+                          <span style={{fontSize:11,color:T.textDim}}>vs</span>
+                          <span style={{fontSize:11,color:T.warning,fontWeight:600}}>⬇ Inbound</span>
+                          <span style={{fontSize:11,color:T.textDim}}>{pendelData.length} rows</span>
+                        </div>}/>
+                      <DataTable columns={pendelCols} rows={pendelData} emptyMsg="No pendel data — click Apply in Filters" T={T}/>
+                      <div style={{padding:"7px 14px",borderTop:`1px solid ${T.border}`,fontSize:10,color:T.textDim}}>
+                        RC = Royal Class &nbsp;|&nbsp; FC = First Class &nbsp;|&nbsp; PRE = Premium &nbsp;|&nbsp;
+                        <span style={{color:T.success}}>OUT = Outbound</span> &nbsp;|&nbsp;
+                        <span style={{color:T.warning}}>IN = Inbound</span> &nbsp;|&nbsp;
+                        DIFF = Outbound minus Inbound
+                      </div>
                     </Card>
                   )}
                   {busView==="pendel"&&isSnow&&(
