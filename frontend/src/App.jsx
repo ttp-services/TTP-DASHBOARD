@@ -304,9 +304,10 @@ function FeederPivotTable({ data, T }) {
     </div>
   );
 
-  // Get unique sorted dates as columns (limit to 20 most recent to avoid overflow)
-  const allDates = [...new Set(data.map(d => d.DepartureDate))].sort();
-  const dates = allDates.slice(-20); // last 20 dates
+  // Sort dates chronologically (dd-mm-yyyy → parse correctly)
+  const parseDate = s => { if(!s) return 0; const [d,m,y]=s.split('-'); return new Date(`${y}-${m}-${d}`).getTime(); };
+  const allDates = [...new Set(data.map(d => d.DepartureDate))].sort((a,b)=>parseDate(a)-parseDate(b));
+  const dates = allDates.slice(0, 20); // first 20 chronological dates
 
   // Build data structures
   const lookup = {}; // routeNo -> stopName -> date -> pax
@@ -756,8 +757,8 @@ export default function App(){
     const p={};
     if(f.dateFrom)p.dateFrom=f.dateFrom;if(f.dateTo)p.dateTo=f.dateTo;
     if(f.pendel)p.pendel=f.pendel;if(f.label)p.label=f.label;
+    // Feeder: no direction filter — backend returns combined inbound+outbound per Robbert
     const feederP={...p};
-    if(f.direction) feederP.direction=f.direction;
     if((f.labels||[]).length) feederP.label=f.labels;
     Promise.all([
       apiFetch("/api/dashboard/bustrips",p).catch(()=>[]),
@@ -1202,18 +1203,8 @@ export default function App(){
                   {/* Feeder overview — pivot table only, no charts */}
                   {busView==="feeder"&&(
                     <Card T={T}>
-                      <CardHdr title={`Feeder Overview — ${busLabel} — ${busF.direction==="Inbound"?"Inbound (Return)":"Outbound (Departure)"}`} T={T}
-                        right={<div style={{display:"flex",gap:8,alignItems:"center"}}>
-                          <div style={{display:"flex",background:T.tableAlt,border:`1px solid ${T.border}`,borderRadius:7,padding:2,gap:2}}>
-                            {["Outbound","Inbound"].map(dir=>(
-                              <button key={dir} onClick={()=>{setBusF(f=>({...f,direction:dir}));loadBus({...busF,direction:dir});}}
-                                style={{background:busF.direction===dir?T.accent:"transparent",color:busF.direction===dir?"#fff":T.textMuted,border:"none",borderRadius:5,padding:"4px 12px",fontSize:12,fontWeight:600,cursor:"pointer"}}>
-                                {dir}
-                              </button>
-                            ))}
-                          </div>
-                          <span style={{fontSize:11,color:T.textDim}}>{feederData.length} stops</span>
-                        </div>}/>
+                      <CardHdr title={`Feeder Overview — ${busLabel} — All Routes (Outbound + Inbound combined)`} T={T}
+                        right={<span style={{fontSize:11,color:T.textDim}}>{feederData.length} stops</span>}/>
                       <FeederPivotTable data={feederData} T={T}/>
                     </Card>
                   )}
@@ -1221,7 +1212,11 @@ export default function App(){
                   {/* Deck choice/class */}
                   {busView==="deck"&&(
                     <Card T={T}>
-                      <CardHdr title={`Deck Choice / Class — ${busLabel}`} T={T} right={<span style={{fontSize:11,color:T.textDim}}>{deckData.length} rows</span>}/>
+                      <CardHdr title={`Deck Choice / Class — ${busLabel}`} T={T} right={
+                        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                          <span style={{fontSize:10,color:T.textDim,background:T.tableAlt,padding:"2px 8px",borderRadius:10,border:`1px solid ${T.border}`}}>Sorted by departure date ↑</span>
+                          <span style={{fontSize:11,color:T.textDim}}>{deckData.length} rows</span>
+                        </div>}/>
                       <DeckTable data={deckData} T={T}/>
                       <div style={{padding:"7px 14px",borderTop:`1px solid ${T.border}`,fontSize:10,color:T.textDim}}>RC = Royal Class &nbsp;|&nbsp; FC = First Class &nbsp;|&nbsp; PRE = Premium &nbsp;|&nbsp; Lwr = Lower Deck &nbsp;|&nbsp; Upr = Upper Deck &nbsp;|&nbsp; No = No Deck</div>
                     </Card>
@@ -1230,51 +1225,43 @@ export default function App(){
 
                 {/* Bus filter panel */}
                 {busFiltersOpen&&(
-                  <div style={{width:260,flexShrink:0,background:T.card,border:`1px solid ${T.border}`,borderRadius:12,padding:16,boxShadow:T.cardShadow,position:"sticky",top:70,maxHeight:"calc(100vh - 120px)",overflowY:"auto"}}>
+                  <div style={{width:240,flexShrink:0,background:T.card,border:`1px solid ${T.border}`,borderRadius:12,padding:16,boxShadow:T.cardShadow,position:"sticky",top:70,maxHeight:"calc(100vh - 120px)",overflowY:"auto"}}>
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
                       <span style={{fontSize:13,fontWeight:700,color:T.text}}>Filters</span>
                       <button onClick={()=>setBusFiltersOpen(false)} style={{background:"transparent",border:"none",cursor:"pointer",color:T.textMuted,display:"flex"}}>{Ic.close}</button>
                     </div>
-                    <div style={{marginBottom:12}}><label style={labelStyle}>Label (multi-select)</label>
-                      <div style={{display:"flex",flexDirection:"column",gap:4,background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:7,padding:"8px 10px"}}>
-                        {["Solmar","Solmar DE","Interbus","Snowtravel"].map(l=>{
-                          const sel=(busF.labels||[]).includes(l);
-                          return <label key={l} style={{display:"flex",alignItems:"center",gap:7,fontSize:12,color:T.text,cursor:"pointer"}}>
-                            <input type="checkbox" checked={sel} onChange={e=>{
-                              const cur=busF.labels||[];
-                              setBusF(f=>({...f,labels:e.target.checked?[...cur,l]:cur.filter(x=>x!==l)}));
-                            }} style={{accentColor:T.accent}}/>
-                            <span style={{color:DS_COLORS[l]||T.text,fontWeight:sel?600:400}}>{l}</span>
-                          </label>;
-                        })}
-                        {(busF.labels||[]).length>0&&<button onClick={()=>setBusF(f=>({...f,labels:[]}))} style={{marginTop:4,fontSize:10,color:T.danger,background:"transparent",border:"none",cursor:"pointer",textAlign:"left",padding:0}}>Clear all</button>}
+
+                    {/* Quick date shortcuts */}
+                    <div style={{marginBottom:12}}>
+                      <label style={labelStyle}>Quick Select</label>
+                      <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                        {[["This Year",`${new Date().getFullYear()}-01-01`,`${new Date().getFullYear()}-12-31`],
+                          ["Last Year",`${new Date().getFullYear()-1}-01-01`,`${new Date().getFullYear()-1}-12-31`],
+                          ["All","",""]].map(([l,f,t])=>(
+                          <button key={l} onClick={()=>setBusF(p=>({...p,dateFrom:f,dateTo:t}))}
+                            style={{flex:1,background:busF.dateFrom===f&&busF.dateTo===t?T.accent:T.tableAlt,color:busF.dateFrom===f&&busF.dateTo===t?"#fff":T.textMuted,border:`1px solid ${T.border}`,borderRadius:6,padding:"4px 4px",fontSize:10,fontWeight:600,cursor:"pointer"}}>{l}</button>
+                        ))}
                       </div>
                     </div>
+
                     <div style={{marginBottom:12}}><label style={labelStyle}>Departure Date From</label><input type="date" value={busF.dateFrom||""} onChange={e=>setBusF(f=>({...f,dateFrom:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/></div>
                     <div style={{marginBottom:12}}><label style={labelStyle}>Departure Date To</label><input type="date" value={busF.dateTo||""} onChange={e=>setBusF(f=>({...f,dateTo:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/></div>
-                    <div style={{marginBottom:12}}><label style={labelStyle}>Direction</label>
-                      <div style={{display:"flex",gap:5}}>
-                        {["Outbound","Inbound"].map(d=>{
-                          const active=busF.direction===d;
-                          const col=d==="Outbound"?T.success:T.warning;
-                          return <button key={d} onClick={()=>setBusF(f=>({...f,direction:d}))} style={{flex:1,background:active?`${col}22`:"transparent",border:`1px solid ${active?col:T.border}`,borderRadius:6,color:active?col:T.textMuted,padding:"6px 4px",fontSize:11,fontWeight:active?700:400,cursor:"pointer",textAlign:"center"}}>{d}</button>;
-                        })}
-                      </div>
-                    </div>
-                    <div style={{marginBottom:12}}><label style={labelStyle}>Pendel / Route</label>
+
+                    {/* Pendel / Route — only relevant for Pendel and Deck views */}
+                    {busView!=="feeder"&&<div style={{marginBottom:12}}><label style={labelStyle}>Pendel / Route</label>
                       <select value={busF.pendel||""} onChange={e=>setBusF(f=>({...f,pendel:e.target.value}))} style={inputStyle}>
                         <option value="">Spain (All)</option>
                         {PENDELS.map(p=><option key={p} value={p}>{p}</option>)}
                       </select>
-                    </div>
-                    <div style={{display:"flex",gap:4,marginBottom:8,flexWrap:"wrap"}}>
-                      {[["This Year",`${new Date().getFullYear()}-01-01`,`${new Date().getFullYear()}-12-31`],["Last Year",`${new Date().getFullYear()-1}-01-01`,`${new Date().getFullYear()-1}-12-31`],["All","",""]].map(([l,f,t])=>(
-                        <button key={l} onClick={()=>setBusF(p=>({...p,dateFrom:f,dateTo:t}))} style={{flex:1,background:busF.dateFrom===f&&busF.dateTo===t?T.accent:T.tableAlt,color:busF.dateFrom===f&&busF.dateTo===t?"#fff":T.textMuted,border:`1px solid ${T.border}`,borderRadius:6,padding:"4px 4px",fontSize:10,fontWeight:600,cursor:"pointer"}}>{l}</button>
-                      ))}
-                    </div>
-                    <div style={{display:"flex",gap:8}}>
-                      <Btn onClick={()=>{loadBus(busF);}} T={T} style={{flex:1,justifyContent:"center"}}>Apply</Btn>
-                      <Btn variant="ghost" onClick={()=>{const y=new Date().getFullYear();const f={dateFrom:`${y}-01-01`,dateTo:`${y}-12-31`,pendel:"",label:"Solmar",labels:[],direction:"Outbound"};setBusF(f);loadBus(f);}} T={T} style={{flex:1,justifyContent:"center"}}>Reset</Btn>
+                    </div>}
+
+                    <div style={{display:"flex",gap:8,marginTop:4}}>
+                      <Btn onClick={()=>{ loadBus(busF); }} T={T} style={{flex:1,justifyContent:"center"}}>Apply</Btn>
+                      <Btn variant="ghost" onClick={()=>{
+                        const y=new Date().getFullYear();
+                        const f={dateFrom:`${y}-01-01`,dateTo:`${y}-12-31`,pendel:"",label:busLabel,labels:[busLabel],direction:"Outbound"};
+                        setBusF(f); loadBus(f);
+                      }} T={T} style={{flex:1,justifyContent:"center"}}>Reset</Btn>
                     </div>
                   </div>
                 )}
@@ -1529,8 +1516,8 @@ export default function App(){
         <div style={{background:T.headerBg,borderTop:`1px solid ${T.border}`,padding:"4px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,flexShrink:0}}>
           <div style={{display:"flex",gap:14,alignItems:"center",flexWrap:"wrap"}}>
             <span style={{color:T.textDim}}>Last sync: <span style={{color:T.accent,fontWeight:600}}>{lastSync||"—"}</span> Dubai</span>
-            {[["Solmar",10345],["Snowtravel",6720],["Interbus",2824],["Solmar DE",64]].map(([k,v])=>(
-              <span key={k} style={{color:T.textDim}}><span style={{color:T.textMuted,fontWeight:600}}>{k}</span>: {fmtN(v)}</span>
+            {[["Solmar",kpis?.currentBookings!=null?"Live":"—"],["Snowtravel","Live"],["Interbus","Live"],["Solmar DE","Live"]].map(([k,v])=>(
+              <span key={k} style={{color:T.textDim}}><span style={{color:T.textMuted,fontWeight:600}}>{k}</span>: <span style={{color:T.success}}>{v}</span></span>
             ))}
           </div>
           <span style={{color:T.textDim}}>Auto-refresh 00:00 Dubai · TTP Analytics v2.1 · <span style={{color:T.success}}>●</span> Live</span>
