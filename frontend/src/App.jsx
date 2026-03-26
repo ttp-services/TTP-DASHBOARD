@@ -495,6 +495,145 @@ function DeckTable({ data, T }) {
 }
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
+
+// ─── HOTEL INSIGHTS TAB ───────────────────────────────────────────────────────
+function HotelTab({token,T,API}) {
+  const [stats,setStats]=useState(null);
+  const [ratings,setRatings]=useState([]);
+  const [reviews,setReviews]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [selHotel,setSelHotel]=useState(null);
+  const [search,setSearch]=useState('');
+
+  useEffect(()=>{
+    const h={"Authorization":`Bearer ${token}`};
+    Promise.all([
+      fetch(`${API}/api/dashboard/hotel-stats`,{headers:h}).then(r=>r.json()),
+      fetch(`${API}/api/dashboard/hotel-ratings`,{headers:h}).then(r=>r.json()),
+    ]).then(([s,r])=>{
+      setStats(s); setRatings(Array.isArray(r)?r:[]);
+      setLoading(false);
+    }).catch(()=>setLoading(false));
+  },[token,API]);
+
+  const loadReviews=(code)=>{
+    setSelHotel(code);
+    const h={"Authorization":`Bearer ${token}`};
+    fetch(`${API}/api/dashboard/hotel-reviews?code=${code}&limit=20`,{headers:h})
+      .then(r=>r.json()).then(d=>setReviews(d.rows||[]));
+  };
+
+  const stars=(r)=>{
+    if(!r) return '—';
+    const n=parseFloat(r);
+    const full=Math.floor(n/2);
+    return '★'.repeat(full)+'☆'.repeat(5-full)+` ${n.toFixed(1)}`;
+  };
+
+  const filtered=ratings.filter(r=>(r.accommodation_name||r.accommodation_code||'').toLowerCase().includes(search.toLowerCase()));
+
+  if(loading) return <div style={{padding:40,textAlign:'center',color:T.textMuted}}>Loading hotel data...</div>;
+
+  const noData=!stats?.total_hotels;
+
+  return (
+    <div style={{padding:"20px"}}>
+      {noData ? (
+        <div style={{textAlign:"center",padding:"60px 20px",background:T.cardBg,borderRadius:14,border:`1px solid ${T.border}`}}>
+          <div style={{fontSize:44,marginBottom:16}}>🏨</div>
+          <div style={{fontSize:20,fontWeight:800,color:T.text,marginBottom:8}}>Hotel Insights</div>
+          <div style={{fontSize:13,color:T.textMuted,marginBottom:20,maxWidth:420,margin:"0 auto 20px"}}>
+            TravelTrustIt reviews will appear here. Run the ETL script to load hotel review data.
+          </div>
+          <code style={{fontSize:11,background:T.tableAlt,padding:"8px 16px",borderRadius:8,color:T.accent,display:"block",maxWidth:500,margin:"0 auto"}}>
+            node src/scripts/loadHotelReviews.js
+          </code>
+        </div>
+      ) : (
+        <>
+          {/* Stats */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12,marginBottom:20}}>
+            {[
+              {label:"Total Hotels",value:stats?.total_hotels?.toLocaleString('nl-BE')},
+              {label:"Total Reviews",value:stats?.total_reviews?.toLocaleString('nl-BE')},
+              {label:"Avg Rating",value:stats?.avg_rating?`${stats.avg_rating}/10`:'—'},
+              {label:"High Rated",value:stats?.high_rated?.toLocaleString('nl-BE'),sub:"≥8.0"},
+              {label:"Latest Review",value:stats?.latest_review?stats.latest_review.split('T')[0]:'—'},
+            ].map(s=>(
+              <Card key={s.label} style={{padding:"14px 16px"}} T={T}>
+                <div style={{fontSize:10,fontWeight:700,color:T.textMuted,textTransform:"uppercase",marginBottom:6}}>{s.label}</div>
+                <div style={{fontSize:20,fontWeight:800,color:T.text}}>{s.value||'—'}</div>
+                {s.sub&&<div style={{fontSize:10,color:T.textDim}}>{s.sub}</div>}
+              </Card>
+            ))}
+          </div>
+
+          {/* Search + Table */}
+          <div style={{background:T.cardBg,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+            <div style={{padding:"12px 16px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+              <span style={{fontSize:13,fontWeight:700,color:T.text}}>Hotel Ratings — {filtered.length} properties</span>
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search hotel..."
+                style={{padding:"6px 12px",background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:8,color:T.text,fontSize:12,outline:"none",width:200}}/>
+            </div>
+            <div style={{overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                <thead>
+                  <tr style={{background:T.tableAlt}}>
+                    {["Hotel","Code","Overall","Sleep","Location","Cleanliness","Service","Reviews","Action"].map(h=>(
+                      <th key={h} style={{padding:"8px 12px",textAlign:"left",color:T.textMuted,fontWeight:700,fontSize:11,whiteSpace:"nowrap"}}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.slice(0,50).map((r,i)=>(
+                    <tr key={r.accommodation_code} style={{borderTop:`1px solid ${T.border}`,background:i%2?T.tableAlt:"transparent"}}>
+                      <td style={{padding:"8px 12px",color:T.text,fontWeight:600,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.accommodation_name||'—'}</td>
+                      <td style={{padding:"8px 12px",color:T.textMuted}}>{r.accommodation_code}</td>
+                      <td style={{padding:"8px 12px",color:r.avg_overall>=8?T.success:r.avg_overall>=6?T.warning:T.danger,fontWeight:700}}>{r.avg_overall||'—'}</td>
+                      <td style={{padding:"8px 12px",color:T.textMuted}}>{r.avg_sleep||'—'}</td>
+                      <td style={{padding:"8px 12px",color:T.textMuted}}>{r.avg_location||'—'}</td>
+                      <td style={{padding:"8px 12px",color:T.textMuted}}>{r.avg_cleanliness||'—'}</td>
+                      <td style={{padding:"8px 12px",color:T.textMuted}}>{r.avg_service||'—'}</td>
+                      <td style={{padding:"8px 12px",color:T.textMuted}}>{r.total_reviews||0}</td>
+                      <td style={{padding:"8px 12px"}}>
+                        <button onClick={()=>loadReviews(r.accommodation_code)}
+                          style={{background:T.accent,color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer"}}>Reviews</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Reviews panel */}
+          {selHotel&&reviews.length>0&&(
+            <div style={{marginTop:16,background:T.cardBg,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+              <div style={{padding:"12px 16px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <span style={{fontSize:13,fontWeight:700,color:T.text}}>Reviews — {selHotel}</span>
+                <button onClick={()=>{setSelHotel(null);setReviews([]);}} style={{background:"transparent",border:"none",cursor:"pointer",color:T.textMuted,fontSize:16}}>✕</button>
+              </div>
+              <div style={{maxHeight:400,overflowY:"auto"}}>
+                {reviews.map(r=>(
+                  <div key={r.id} style={{padding:"14px 16px",borderTop:`1px solid ${T.border}`}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+                      <span style={{fontSize:16,color:"#f59e0b",fontWeight:700}}>{r.overall_rating}/10</span>
+                      <span style={{fontSize:13,fontWeight:600,color:T.text}}>{r.review_title||'Review'}</span>
+                      <span style={{fontSize:11,color:T.textDim,marginLeft:"auto"}}>{r.review_date?.split('T')[0]||''}</span>
+                    </div>
+                    <div style={{fontSize:12,color:T.textMuted,marginBottom:6,lineHeight:1.5}}>{r.review_text||'—'}</div>
+                    <div style={{fontSize:11,color:T.textDim}}>{r.reviewer_name} · {r.reviewer_city}, {r.reviewer_country} {r.reviewer_age?`· Age ${r.reviewer_age}`:''}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function App(){
   const[token,setToken]=useState(()=>localStorage.getItem("ttp_token")||"");
   const[user,setUser]=useState(null);
@@ -1262,24 +1401,7 @@ export default function App(){
           )}
 
           {/* ══ HOTEL INSIGHTS ══════════════════════════════════════════════ */}
-          {tab==="hotel"&&(
-            <div style={{padding:"24px"}}>
-              <div style={{textAlign:"center",padding:"60px 20px",background:T.cardBg,borderRadius:14,border:`1px solid ${T.border}`}}>
-                <div style={{fontSize:48,marginBottom:16}}>🏨</div>
-                <div style={{fontSize:22,fontWeight:800,color:T.text,marginBottom:8}}>Hotel Insights</div>
-                <div style={{fontSize:14,color:T.textMuted,marginBottom:24,maxWidth:440,margin:"0 auto 24px"}}>Hotel booking data, occupancy rates, and property performance will appear here once connected to your hotel management system.</div>
-                <div style={{display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap",marginBottom:24}}>
-                  {["Occupancy Rate","RevPAR","ADR","Cancellation Rate","Lead Time","Top Properties"].map(m=>(
-                    <div key={m} style={{background:T.tableAlt,border:`1px solid ${T.border}`,borderRadius:10,padding:"16px 20px",fontSize:12,color:T.textMuted,minWidth:110,textAlign:"center"}}>
-                      <div style={{fontSize:22,fontWeight:800,color:T.text,marginBottom:4}}>—</div>
-                      <div>{m}</div>
-                    </div>
-                  ))}
-                </div>
-                <div style={{fontSize:12,color:T.accent,background:T.accentLight,border:`1px solid ${T.accent}33`,borderRadius:8,padding:"10px 20px",display:"inline-block",fontWeight:600}}>Coming soon · Connect your hotel PMS to activate</div>
-              </div>
-            </div>
-          )}
+          {tab==="hotel"&&<HotelTab token={token} T={T} API={API}/>}
 
           {/* ══ SETTINGS ══════════════════════════════════════════════════════ */}
           {tab==="settings"&&isAdmin&&(
