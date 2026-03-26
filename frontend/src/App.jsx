@@ -526,7 +526,7 @@ export default function App(){
   const[feederData,setFeederData]=useState([]);
   const[deckData,setDeckData]=useState([]);
   const[busFiltersOpen,setBusFiltersOpen]=useState(false);
-  const[busF,setBusF]=useState({dateFrom:`${new Date().getFullYear()}-01-01`,dateTo:`${new Date().getFullYear()}-12-31`,pendel:"",label:"Solmar",labels:[],direction:"Outbound"});
+  const[busF,setBusF]=useState({dateFrom:`${new Date().getFullYear()}-01-01`,dateTo:`${new Date().getFullYear()}-12-31`,pendel:"",label:"Solmar",labels:["Solmar"],direction:"Outbound"});
   const[bLoad,setBLoad]=useState(false);
 
   // Data table
@@ -637,7 +637,7 @@ export default function App(){
     }).finally(()=>setBLoad(false));
   },[token]);
 
-  useEffect(()=>{if(token){const y=new Date().getFullYear();loadBus({label:"Solmar",direction:"Outbound",dateFrom:`${y}-01-01`,dateTo:`${y}-12-31`});}},[token]);
+  useEffect(()=>{if(token){const y=new Date().getFullYear();loadBus({label:"Solmar",labels:["Solmar"],direction:"Outbound",dateFrom:`${y}-01-01`,dateTo:`${y}-12-31`});}},[token]);
 
   const loadTable=useCallback(()=>{
     if(!token)return;setTLoad(true);
@@ -802,8 +802,7 @@ export default function App(){
       <aside style={{width:sidebarOpen?220:60,flexShrink:0,background:T.sidebar,borderRight:`1px solid ${T.border}`,display:"flex",flexDirection:"column",position:"fixed",top:0,left:0,height:"100vh",zIndex:100,transition:"width 0.2s",overflow:"hidden",boxShadow:T.cardShadow}}>
         <div style={{padding:"16px 14px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",gap:10,minHeight:64}}>
           <div style={{width:32,height:32,background:T.accent,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-            <img src="/TTP-DASHBOARD/assets/logo.png" alt="TTP" style={{height:26,objectFit:"contain",filter:"brightness(0) invert(1)",maxWidth:100}} onError={e=>{e.target.style.display="none";e.target.nextSibling.style.display="block";}}/>
-            <span style={{display:"none",color:"#fff",fontWeight:800,fontSize:11}}>TTP</span>
+            <span style={{color:"#fff",fontWeight:800,fontSize:13,letterSpacing:"-0.5px"}}>TTP</span>
           </div>
           {sidebarOpen&&<div><div style={{fontSize:12,fontWeight:800,color:T.text,letterSpacing:"0.03em"}}>TTP ANALYTICS</div><div style={{fontSize:10,color:T.textDim}}>Data Engine v2.0</div></div>}
         </div>
