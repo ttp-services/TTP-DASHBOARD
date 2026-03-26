@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import Login from "./components/Login.jsx";
+import Login from "./Login.jsx";
 
 // ─── THEMES ───────────────────────────────────────────────────────────────────
 const LIGHT = {
@@ -549,6 +549,7 @@ export default function App(){
   const[showExportModal,setShowExportModal]=useState(false);
   const[exportOpts,setExportOpts]=useState({datasets:[],status:"",depFrom:"",depTo:"",bkFrom:"",bkTo:""});
   const[showAddUser,setShowAddUser]=useState(false);
+  const[showNewPw,setShowNewPw]=useState(false);
   const[editUser,setEditUser]=useState(null);
   const[newUser,setNewUser]=useState({name:"",username:"",email:"",password:"",role:"viewer"});
   const[apiKeys,setApiKeys]=useState({openai:"",anthropic:"",emailAlert:""});
@@ -663,13 +664,29 @@ export default function App(){
     }catch{setMsgs(m=>[...m,{role:"assistant",text:"Connection error. Please try again."}]);}
     finally{setAiLoad(false);}
   };
-  const exportCSV=()=>setShowExport(true);
+  const doExport=(type)=>{
+    const p={};
+    if(exportOpts.dataset)p.dataset=exportOpts.dataset;
+    if(exportOpts.status&&exportOpts.status!=="all")p.status=exportOpts.status;
+    if(exportOpts.depFrom)p.departureDateFrom=exportOpts.depFrom;
+    if(exportOpts.depTo)p.departureDateTo=exportOpts.depTo;
+    if(exportOpts.bkFrom)p.bookingDateFrom=exportOpts.bkFrom;
+    if(exportOpts.bkTo)p.bookingDateTo=exportOpts.bkTo;
+    const qs=new URLSearchParams({...p,token}).toString();
+    if(type==="excel"){window.open(`${API}/api/dashboard/export-excel?${qs}`,"_blank");setShowExportModal(false);return;}
+    if(type==="csv"){window.open(`${API}/api/dashboard/export?${qs}`,"_blank");setShowExportModal(false);return;}
+    if(type==="print"){setShowExportModal(false);setTimeout(()=>window.print(),100);return;}
+    setShowExportModal(false);
+  };
+  const exportCSV=()=>setShowExportModal(true);
 
   const QUICK=[
     {l:"This Year",fn:()=>{const y=new Date().getFullYear();setFilters(f=>({...f,depFrom:`${y}-01-01`,depTo:`${y}-12-31`}));}},
     {l:"Last Year",fn:()=>{const y=new Date().getFullYear()-1;setFilters(f=>({...f,depFrom:`${y}-01-01`,depTo:`${y}-12-31`}));}},
     {l:"Last 3M",fn:()=>{const to=new Date(),fr=new Date();fr.setMonth(fr.getMonth()-3);setFilters(f=>({...f,depFrom:fr.toISOString().split("T")[0],depTo:to.toISOString().split("T")[0]}));}},
     {l:"All",fn:()=>setFilters(f=>({...f,depFrom:"",depTo:"",bkFrom:"",bkTo:""}))},
+    {l:"Solmar FY",fn:()=>{const y=new Date().getFullYear();setFilters(f=>({...f,depFrom:`${y-1}-12-01`,depTo:`${y}-11-30`,dataset:["Solmar"]}));},fiscal:true},
+    {l:"ST FY",fn:()=>{const y=new Date().getFullYear();setFilters(f=>({...f,depFrom:`${y-1}-07-01`,depTo:`${y}-06-30`,dataset:["Snowtravel"]}));},fiscal:true},
   ];
 
   const isAdmin=user?.role==="admin";
@@ -683,6 +700,7 @@ export default function App(){
     {id:"overview",label:"Overview",icon:Ic.overview},
     {id:"bus",label:"Bus Occupancy",icon:Ic.bus},
     {id:"table",label:"Data Table",icon:Ic.table},
+    {id:"hotel",label:"Hotel",icon:"🏨"},
     {id:"ai",label:"TTP AI",icon:Ic.ai},
     ...(isAdmin?[{id:"settings",label:"Settings",icon:Ic.settings}]:[]),
   ];
@@ -784,7 +802,7 @@ export default function App(){
       <aside style={{width:sidebarOpen?220:60,flexShrink:0,background:T.sidebar,borderRight:`1px solid ${T.border}`,display:"flex",flexDirection:"column",position:"fixed",top:0,left:0,height:"100vh",zIndex:100,transition:"width 0.2s",overflow:"hidden",boxShadow:T.cardShadow}}>
         <div style={{padding:"16px 14px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",gap:10,minHeight:64}}>
           <div style={{width:32,height:32,background:T.accent,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-            <img src="/assets/logo.png" alt="TTP" style={{height:20,objectFit:"contain",filter:"brightness(0) invert(1)"}} onError={e=>{e.target.style.display="none";e.target.nextSibling.style.display="block";}}/>
+            <img src="/TTP-DASHBOARD/assets/logo.png" alt="TTP" style={{height:26,objectFit:"contain",filter:"brightness(0) invert(1)",maxWidth:100}} onError={e=>{e.target.style.display="none";e.target.nextSibling.style.display="block";}}/>
             <span style={{display:"none",color:"#fff",fontWeight:800,fontSize:11}}>TTP</span>
           </div>
           {sidebarOpen&&<div><div style={{fontSize:12,fontWeight:800,color:T.text,letterSpacing:"0.03em"}}>TTP ANALYTICS</div><div style={{fontSize:10,color:T.textDim}}>Data Engine v2.0</div></div>}
@@ -841,7 +859,9 @@ export default function App(){
           <div style={{background:T.headerBg,borderBottom:`1px solid ${T.border}`,padding:"13px 20px",boxShadow:T.shadow}}>
             <div style={{display:"flex",gap:6,marginBottom:10,alignItems:"center",flexWrap:"wrap"}}>
               <span style={{fontSize:11,color:T.textMuted,fontWeight:600}}>Quick:</span>
-              {QUICK.map(q=><button key={q.l} onClick={q.fn} style={{background:T.tableAlt,border:`1px solid ${T.border}`,borderRadius:16,color:T.textMuted,padding:"3px 11px",fontSize:11,cursor:"pointer"}}>{q.l}</button>)}
+              {QUICK.filter(q=>!q.fiscal).map(q=><button key={q.l} onClick={()=>{q.fn();}} style={{background:T.tableAlt,border:`1px solid ${T.border}`,borderRadius:16,color:T.textMuted,padding:"3px 11px",fontSize:11,cursor:"pointer"}}>{q.l}</button>)}
+              <span style={{color:T.textDim,fontSize:10}}>FY:</span>
+              {QUICK.filter(q=>q.fiscal).map(q=><button key={q.l} onClick={()=>{q.fn();}} style={{background:T.accentLight,border:`1px solid ${T.accent}44`,borderRadius:16,color:T.accent,padding:"3px 11px",fontSize:11,cursor:"pointer",fontWeight:600}}>{q.l}</button>)}
               {Object.values(applied).some(v=>v&&(Array.isArray(v)?v.length:true))&&(
                 <span style={{marginLeft:4,fontSize:11,color:T.warning,fontWeight:600,display:"flex",alignItems:"center",gap:5}}>
                   ⚠ Filters active —
@@ -1242,6 +1262,26 @@ export default function App(){
             </div>
           )}
 
+          {/* ══ HOTEL INSIGHTS ══════════════════════════════════════════════ */}
+          {tab==="hotel"&&(
+            <div style={{padding:"24px"}}>
+              <div style={{textAlign:"center",padding:"60px 20px",background:T.cardBg,borderRadius:14,border:`1px solid ${T.border}`}}>
+                <div style={{fontSize:48,marginBottom:16}}>🏨</div>
+                <div style={{fontSize:22,fontWeight:800,color:T.text,marginBottom:8}}>Hotel Insights</div>
+                <div style={{fontSize:14,color:T.textMuted,marginBottom:24,maxWidth:440,margin:"0 auto 24px"}}>Hotel booking data, occupancy rates, and property performance will appear here once connected to your hotel management system.</div>
+                <div style={{display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap",marginBottom:24}}>
+                  {["Occupancy Rate","RevPAR","ADR","Cancellation Rate","Lead Time","Top Properties"].map(m=>(
+                    <div key={m} style={{background:T.tableAlt,border:`1px solid ${T.border}`,borderRadius:10,padding:"16px 20px",fontSize:12,color:T.textMuted,minWidth:110,textAlign:"center"}}>
+                      <div style={{fontSize:22,fontWeight:800,color:T.text,marginBottom:4}}>—</div>
+                      <div>{m}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{fontSize:12,color:T.accent,background:T.accentLight,border:`1px solid ${T.accent}33`,borderRadius:8,padding:"10px 20px",display:"inline-block",fontWeight:600}}>Coming soon · Connect your hotel PMS to activate</div>
+              </div>
+            </div>
+          )}
+
           {/* ══ SETTINGS ══════════════════════════════════════════════════════ */}
           {tab==="settings"&&isAdmin&&(
             <div>
@@ -1378,11 +1418,11 @@ export default function App(){
 
       {/* EXPORT MODAL */}
       {showExportModal&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowExport(false)}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowExportModal(false)}>
           <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:28,width:460,boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}} onClick={e=>e.stopPropagation()}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
               <span style={{fontSize:16,fontWeight:700,color:T.text}}>Export Data</span>
-              <button onClick={()=>setShowExport(false)} style={{background:"transparent",border:"none",cursor:"pointer",color:T.textMuted}}>{Ic.close}</button>
+              <button onClick={()=>setShowExportModal(false)} style={{background:"transparent",border:"none",cursor:"pointer",color:T.textMuted}}>{Ic.close}</button>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
               {[["Booking From","bkFrom"],["Booking To","bkTo"],["Departure From","depFrom"],["Departure To","depTo"]].map(([l,k])=>(
@@ -1408,7 +1448,8 @@ export default function App(){
               </div>
             </div>
             <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>doExport("csv")} style={{flex:1,background:T.success,color:"#fff",border:"none",borderRadius:8,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>{Ic.download} Download CSV</button>
+              <button onClick={()=>doExport("csv")} style={{flex:1,background:T.success,color:"#fff",border:"none",borderRadius:8,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>{Ic.download} CSV</button>
+              <button onClick={()=>doExport("excel")} style={{flex:1,background:"#0e7490",color:"#fff",border:"none",borderRadius:8,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer"}}>📊 Excel</button>
               <button onClick={()=>doExport("print")} style={{flex:1,background:T.accent,color:"#fff",border:"none",borderRadius:8,padding:"10px",fontSize:13,fontWeight:600,cursor:"pointer"}}>Print</button>
               <button onClick={()=>doExport("pdf")} style={{flex:1,background:"transparent",border:`1px solid ${T.border}`,borderRadius:8,padding:"10px",fontSize:13,fontWeight:600,cursor:"pointer",color:T.textMuted}}>📄 Save PDF</button>
             </div>
