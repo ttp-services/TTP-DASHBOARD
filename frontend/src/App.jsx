@@ -666,7 +666,8 @@ export default function App(){
   const[feederData,setFeederData]=useState([]);
   const[deckData,setDeckData]=useState([]);
   const[busFiltersOpen,setBusFiltersOpen]=useState(false);
-  const[busF,setBusF]=useState({dateFrom:`${new Date().getFullYear()}-01-01`,dateTo:`${new Date().getFullYear()}-12-31`,pendel:"",label:"Solmar",labels:["Solmar"],direction:"Outbound"});
+  const[busF,setBusF]=useState({dateFrom:`${new Date().getFullYear()}-01-01`,dateTo:`${new Date().getFullYear()}-12-31`,pendel:"",region:"",destination:"",weekday:""});
+  const[busSlicers,setBusSlicers]=useState({pendels:[],regions:[],destinations:[]});
   const[bLoad,setBLoad]=useState(false);
 
   // Data table
@@ -755,29 +756,34 @@ export default function App(){
   const loadBus=useCallback(f=>{
     if(!token)return;setBLoad(true);
     const p={};
-    if(f.dateFrom)p.dateFrom=f.dateFrom;if(f.dateTo)p.dateTo=f.dateTo;
-    if(f.pendel)p.pendel=f.pendel;if(f.label)p.label=f.label;
-    // Feeder: no direction filter — backend returns combined inbound+outbound per Robbert
-    const feederP={...p};
-    if((f.labels||[]).length) feederP.label=f.labels;
+    if(f.dateFrom)   p.dateFrom=f.dateFrom;
+    if(f.dateTo)     p.dateTo=f.dateTo;
+    if(f.pendel)     p.pendel=f.pendel;
+    if(f.region)     p.region=f.region;
+    if(f.destination)p.destination=f.destination;
+    if(f.weekday)    p.weekday=f.weekday;
     Promise.all([
-      apiFetch("/api/dashboard/bustrips",p).catch(()=>[]),
-      apiFetch("/api/dashboard/bus-class-summary",{}).catch(()=>[]),
-      apiFetch("/api/dashboard/snowtravel-bus",p).catch(()=>[]),
+      apiFetch("/api/dashboard/bus-class-summary",p).catch(()=>[]),
       apiFetch("/api/dashboard/pendel-overview",p).catch(()=>[]),
-      apiFetch("/api/dashboard/feeder-overview",feederP).catch(()=>[]),
+      apiFetch("/api/dashboard/feeder-overview",p).catch(()=>[]),
       apiFetch("/api/dashboard/deck-class",p).catch(()=>[]),
-    ]).then(([bt,bc,st,pd,fd,dc])=>{
-      setBusTrips(Array.isArray(bt)?bt:(bt?.rows||[]));
+    ]).then(([bc,pd,fd,dc])=>{
       if(Array.isArray(bc))setBusClass(bc);
-      setStTrips(Array.isArray(st)?st:(st?.rows||[]));
       if(Array.isArray(pd))setPendelData(pd);
       if(Array.isArray(fd))setFeederData(fd);
       if(Array.isArray(dc))setDeckData(dc);
     }).finally(()=>setBLoad(false));
   },[token]);
 
-  useEffect(()=>{if(token){const y=new Date().getFullYear();loadBus({label:"Solmar",labels:["Solmar"],direction:"Outbound",dateFrom:`${y}-01-01`,dateTo:`${y}-12-31`});}},[token]);
+  useEffect(()=>{
+    if(token){
+      const y=new Date().getFullYear();
+      const initF={dateFrom:`${y}-01-01`,dateTo:`${y}-12-31`,pendel:"",region:"",destination:"",weekday:""};
+      setBusF(initF);
+      loadBus(initF);
+      apiFetch("/api/dashboard/bus-slicers",{}).then(d=>{if(d&&!d.error)setBusSlicers(d);}).catch(()=>{});
+    }
+  },[token]);
 
   const loadTable=useCallback(()=>{
     if(!token)return;setTLoad(true);
@@ -830,8 +836,8 @@ export default function App(){
   ];
 
   const isAdmin=user?.role==="admin";
-  const isSnow=busLabel==="Snowtravel";
-  const busClassFiltered=busClass.filter(d=>isSnow?d.dataset==="Snowtravel":d.dataset!=="Snowtravel");
+  const isSnow=false; // Solmar only — bus data from solmar_bus_bookings_modified
+  const busClassFiltered=busClass; // already filtered DEF only in backend
   const handleTabClick = (newTab) => {
     setTab(newTab);
     if (newTab === "bus") setBusFiltersOpen(true);
@@ -1228,44 +1234,63 @@ export default function App(){
                   <div style={{width:240,flexShrink:0,background:T.card,border:`1px solid ${T.border}`,borderRadius:12,padding:16,boxShadow:T.cardShadow,position:"sticky",top:70,maxHeight:"calc(100vh - 120px)",overflowY:"auto"}}>
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
                       <span style={{fontSize:13,fontWeight:700,color:T.text}}>Filters</span>
-                      <button onClick={()=>setBusFiltersOpen(false)} style={{background:"transparent",border:"none",cursor:"pointer",color:T.textMuted,display:"flex"}}>{Ic.close}</button>
+                      <button onClick={()=>setBusFiltersOpen(false)} style={{background:"transparent",border:"none",cursor:"pointer",color:T.textMuted}}>{Ic.close}</button>
                     </div>
 
-                    {/* Quick date shortcuts */}
-                    <div style={{marginBottom:12}}>
+                    {/* Quick date */}
+                    <div style={{marginBottom:10}}>
                       <label style={labelStyle}>Quick Select</label>
-                      <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                      <div style={{display:"flex",gap:4}}>
                         {[["This Year",`${new Date().getFullYear()}-01-01`,`${new Date().getFullYear()}-12-31`],
                           ["Last Year",`${new Date().getFullYear()-1}-01-01`,`${new Date().getFullYear()-1}-12-31`],
                           ["All","",""]].map(([l,f,t])=>(
                           <button key={l} onClick={()=>setBusF(p=>({...p,dateFrom:f,dateTo:t}))}
-                            style={{flex:1,background:busF.dateFrom===f&&busF.dateTo===t?T.accent:T.tableAlt,color:busF.dateFrom===f&&busF.dateTo===t?"#fff":T.textMuted,border:`1px solid ${T.border}`,borderRadius:6,padding:"4px 4px",fontSize:10,fontWeight:600,cursor:"pointer"}}>{l}</button>
+                            style={{flex:1,background:busF.dateFrom===f&&busF.dateTo===t?T.accent:T.tableAlt,color:busF.dateFrom===f&&busF.dateTo===t?"#fff":T.textMuted,border:`1px solid ${T.border}`,borderRadius:6,padding:"4px 2px",fontSize:10,fontWeight:600,cursor:"pointer"}}>{l}</button>
                         ))}
                       </div>
                     </div>
 
-                    <div style={{marginBottom:12}}><label style={labelStyle}>Departure Date From</label><input type="date" value={busF.dateFrom||""} onChange={e=>setBusF(f=>({...f,dateFrom:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/></div>
-                    <div style={{marginBottom:12}}><label style={labelStyle}>Departure Date To</label><input type="date" value={busF.dateTo||""} onChange={e=>setBusF(f=>({...f,dateTo:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/></div>
+                    <div style={{marginBottom:10}}><label style={labelStyle}>Departure From</label><input type="date" value={busF.dateFrom||""} onChange={e=>setBusF(f=>({...f,dateFrom:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/></div>
+                    <div style={{marginBottom:10}}><label style={labelStyle}>Departure To</label><input type="date" value={busF.dateTo||""} onChange={e=>setBusF(f=>({...f,dateTo:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/></div>
 
-                    {/* Pendel / Route — only relevant for Pendel and Deck views */}
-                    {busView!=="feeder"&&<div style={{marginBottom:12}}><label style={labelStyle}>Pendel / Route</label>
+                    <div style={{marginBottom:10}}><label style={labelStyle}>Pendel Route</label>
                       <select value={busF.pendel||""} onChange={e=>setBusF(f=>({...f,pendel:e.target.value}))} style={inputStyle}>
-                        <option value="">Spain (All)</option>
-                        {PENDELS.map(p=><option key={p} value={p}>{p}</option>)}
+                        <option value="">All Routes</option>
+                        {(busSlicers.pendels||[]).map(p=><option key={p} value={p}>{p.replace(' heen','').replace(' uitgaand','').replace(' Hinfahrt','')}</option>)}
                       </select>
-                    </div>}
+                    </div>
 
-                    <div style={{display:"flex",gap:8,marginTop:4}}>
-                      <Btn onClick={()=>{ loadBus(busF); }} T={T} style={{flex:1,justifyContent:"center"}}>Apply</Btn>
+                    <div style={{marginBottom:10}}><label style={labelStyle}>Region</label>
+                      <select value={busF.region||""} onChange={e=>setBusF(f=>({...f,region:e.target.value}))} style={inputStyle}>
+                        <option value="">All Regions</option>
+                        {(busSlicers.regions||[]).map(r=><option key={r} value={r}>{r}</option>)}
+                      </select>
+                    </div>
+
+                    <div style={{marginBottom:10}}><label style={labelStyle}>Destination</label>
+                      <select value={busF.destination||""} onChange={e=>setBusF(f=>({...f,destination:e.target.value}))} style={inputStyle}>
+                        <option value="">All Destinations</option>
+                        {(busSlicers.destinations||[]).map(d=><option key={d} value={d}>{d}</option>)}
+                      </select>
+                    </div>
+
+                    <div style={{marginBottom:14}}><label style={labelStyle}>Weekday (Outbound)</label>
+                      <select value={busF.weekday||""} onChange={e=>setBusF(f=>({...f,weekday:e.target.value}))} style={inputStyle}>
+                        <option value="">All Days</option>
+                        {["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map(d=><option key={d} value={d}>{d}</option>)}
+                      </select>
+                    </div>
+
+                    <div style={{display:"flex",gap:8}}>
+                      <Btn onClick={()=>loadBus(busF)} T={T} style={{flex:1,justifyContent:"center"}}>Apply</Btn>
                       <Btn variant="ghost" onClick={()=>{
                         const y=new Date().getFullYear();
-                        const f={dateFrom:`${y}-01-01`,dateTo:`${y}-12-31`,pendel:"",label:busLabel,labels:[busLabel],direction:"Outbound"};
+                        const f={dateFrom:`${y}-01-01`,dateTo:`${y}-12-31`,pendel:"",region:"",destination:"",weekday:""};
                         setBusF(f); loadBus(f);
                       }} T={T} style={{flex:1,justifyContent:"center"}}>Reset</Btn>
                     </div>
                   </div>
-                )}
-              </div>
+                )}              </div>
             </div>
           )}
 
