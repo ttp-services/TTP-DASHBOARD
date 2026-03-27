@@ -297,7 +297,8 @@ function DataTable({columns,rows,emptyMsg="No data",T,maxHeight=460}){
 
 
 // ─── FEEDER PIVOT TABLE ───────────────────────────────────────────────────────
-// Dates as columns with 45° rotated headers (professional, like Excel/Google Sheets)
+// Dates as columns with normal horizontal headers (no rotation)
+// Matches Google Sheets exactly: Pick-up point | Pax (total) | date columns...
 function FeederPivotTable({ data, T }) {
   if (!data?.length) return (
     <div style={{padding:32,textAlign:"center",color:T.textMuted,fontSize:13}}>
@@ -307,19 +308,18 @@ function FeederPivotTable({ data, T }) {
 
   const parseDate = s => {
     if(!s)return 0;
-    const sep = s.includes('-') ? '-' : '/';
-    const[d,m,y]=s.split(sep);
+    const sep=s.includes('/')?' /':'-';
+    const[d,m,y]=s.split(s.includes('/')?'/':'-');
     if(!y)return 0;
-    return new Date(`${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`).getTime();
+    return new Date(`${y}-${(m||'01').padStart(2,'0')}-${(d||'01').padStart(2,'0')}`).getTime();
   };
-  const dateKey = data[0]?.DepartureDate!==undefined?'DepartureDate':'departureName';
-  const allDates = [...new Set(data.map(d=>d.DepartureDate||d.departureName||''))].filter(Boolean).sort((a,b)=>parseDate(a)-parseDate(b));
-  const dates = allDates.slice(0,20);
 
-  // Build lookup: routeNo -> stopName -> date -> pax
-  const lookup={}, routeStops={}, routeTotals={}, routeInfo={};
+  const allDates=[...new Set(data.map(d=>d.DepartureDate||'').filter(Boolean))].sort((a,b)=>parseDate(a)-parseDate(b));
+  const dates=allDates.slice(0,15);
+
+  const lookup={},routeStops={},routeTotals={},routeInfo={};
   data.forEach(d=>{
-    const rk=String(d.RouteNo??'X'), sk=d.StopName||'—', dk=d.DepartureDate||d.departureName||'';
+    const rk=String(d.RouteNo??'X'),sk=d.StopName||'—',dk=d.DepartureDate||'';
     if(!dates.includes(dk))return;
     routeInfo[rk]=d.RouteLabel||`Route ${rk}`;
     if(!lookup[rk])lookup[rk]={};
@@ -336,60 +336,50 @@ function FeederPivotTable({ data, T }) {
   dates.forEach(d=>{grandTotals[d]=Object.values(routeTotals).reduce((s,rt)=>s+(rt[d]||0),0);});
   const grandTotal=Object.values(grandTotals).reduce((a,b)=>a+b,0);
 
-  // Format date short: dd/mm
-  const fmtShort = s => {
-    if(!s)return s;
-    // Convert dd/mm/yyyy or dd-mm-yyyy to dd-mm-yyyy
-    const sep = s.includes('/') ? '/' : '-';
-    const parts = s.split(sep);
-    if(parts.length>=3) return `${parts[0]}-${parts[1]}-${parts[2]}`;
-    if(parts.length>=2) return `${parts[0]}-${parts[1]}`;
+  // Format date for display: dd/mm/yyyy → dd-mm-yyyy
+  const fmtDate=s=>{
+    if(!s)return '';
+    const sep=s.includes('/')?'/':'-';
+    const parts=s.split(sep);
+    if(parts.length>=3)return `${parts[0]}-${parts[1]}-${parts[2]}`;
     return s;
   };
 
-  const COL_W = 38;
-  const HEADER_H = 100; // height for full date rotated headers
+  const COL_W=90;
 
   return (
     <div>
-      {allDates.length>20&&<div style={{padding:"6px 14px",background:T.warningBg,borderBottom:`1px solid ${T.border}`,fontSize:11,color:T.warning}}>
-        Showing first 20 of {allDates.length} dates. Use date filters to narrow the range.
+      {allDates.length>15&&<div style={{padding:"6px 14px",background:T.warningBg,borderBottom:`1px solid ${T.border}`,fontSize:11,color:T.warning}}>
+        Showing first 15 of {allDates.length} dates. Use date filters to narrow the range.
       </div>}
-      <div className="table-scroll" style={{overflowX:"auto",overflowY:"auto",maxHeight:520}}>
-        <table style={{borderCollapse:"collapse",fontSize:12,tableLayout:"fixed",width:`${180+70+(dates.length*COL_W)}px`}}>
+      <div className="table-scroll" style={{overflowX:"auto",overflowY:"auto",maxHeight:560}}>
+        <table style={{borderCollapse:"collapse",fontSize:12,tableLayout:"fixed",width:`${180+80+(dates.length*COL_W)}px`}}>
           <thead style={{position:"sticky",top:0,zIndex:3}}>
             <tr style={{background:T.tableAlt}}>
-              {/* Pick-up point header */}
-              <th style={{width:180,padding:"8px 12px",textAlign:"left",fontSize:10,fontWeight:700,color:T.textMuted,textTransform:"uppercase",borderBottom:`2px solid ${T.border}`,borderRight:`2px solid ${T.border}`,position:"sticky",left:0,background:T.tableAlt,zIndex:4,verticalAlign:"bottom"}}>
+              <th style={{width:180,padding:"10px 12px",textAlign:"left",fontSize:11,fontWeight:700,color:T.textMuted,textTransform:"uppercase",borderBottom:`2px solid ${T.border}`,borderRight:`2px solid ${T.border}`,position:"sticky",left:0,background:T.tableAlt,zIndex:4}}>
                 Pick-up point
               </th>
-              {/* Total header */}
-              <th style={{width:70,padding:"8px 10px",textAlign:"right",fontSize:10,fontWeight:700,color:T.textMuted,textTransform:"uppercase",borderBottom:`2px solid ${T.border}`,borderRight:`2px solid ${T.border}`,background:T.tableAlt,verticalAlign:"bottom"}}>
-                Total
+              <th style={{width:80,padding:"10px 10px",textAlign:"right",fontSize:11,fontWeight:700,color:T.textMuted,textTransform:"uppercase",borderBottom:`2px solid ${T.border}`,borderRight:`2px solid ${T.border}`,background:T.tableAlt}}>
+                Pax (total)
               </th>
-              {/* Date headers — rotated 45° */}
               {dates.map(d=>(
-                <th key={d} style={{width:COL_W,height:HEADER_H,padding:0,borderBottom:`2px solid ${T.border}`,borderRight:`1px solid ${T.border}`,background:T.tableAlt,verticalAlign:"bottom",overflow:"visible"}}>
-                  <div style={{display:"flex",alignItems:"flex-end",justifyContent:"center",height:HEADER_H,paddingBottom:6}}>
-                    <span style={{display:"inline-block",transform:"rotate(-45deg)",transformOrigin:"bottom center",fontSize:10,fontWeight:600,color:T.textMuted,whiteSpace:"nowrap",lineHeight:1}}>
-                      {fmtShort(d)}
-                    </span>
-                  </div>
+                <th key={d} style={{width:COL_W,padding:"10px 6px",textAlign:"right",fontSize:11,fontWeight:600,color:T.accent,borderBottom:`2px solid ${T.border}`,borderRight:`1px solid ${T.border}`,background:T.tableAlt,whiteSpace:"nowrap"}}>
+                  {fmtDate(d)}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {/* Grand total row */}
-            <tr style={{background:`${T.accent}15`}}>
-              <td style={{padding:"8px 12px",fontWeight:700,color:T.accent,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,position:"sticky",left:0,background:`${T.accent}15`,fontSize:12}}>
-                Total all routes
+            <tr style={{background:`${T.accent}18`}}>
+              <td style={{padding:"9px 12px",fontWeight:700,color:T.accent,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,position:"sticky",left:0,background:`${T.accent}18`,fontSize:12}}>
+                Totaal vertrek
               </td>
-              <td style={{padding:"8px 10px",textAlign:"right",fontWeight:700,color:T.accent,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
+              <td style={{padding:"9px 10px",textAlign:"right",fontWeight:700,color:T.accent,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
                 {grandTotal.toLocaleString("nl-BE")}
               </td>
               {dates.map(d=>(
-                <td key={d} style={{padding:"8px 4px",textAlign:"right",fontWeight:700,color:grandTotals[d]>0?T.accent:T.textDim,borderRight:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,fontSize:11}}>
+                <td key={d} style={{padding:"9px 6px",textAlign:"right",fontWeight:700,color:grandTotals[d]>0?T.accent:T.textDim,borderRight:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
                   {grandTotals[d]>0?grandTotals[d]:""}
                 </td>
               ))}
@@ -400,28 +390,28 @@ function FeederPivotTable({ data, T }) {
               const routeTotal=stops.reduce((s,sk)=>s+Object.values(lookup[rk]?.[sk]||{}).reduce((a,b)=>a+b,0),0);
               return [
                 <tr key={`r-${rk}`} style={{background:T.tableAlt,borderTop:`2px solid ${T.border}`}}>
-                  <td style={{padding:"7px 12px",fontWeight:700,color:T.text,fontSize:12,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,position:"sticky",left:0,background:T.tableAlt}}>
+                  <td style={{padding:"8px 12px",fontWeight:700,color:T.text,fontSize:12,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,position:"sticky",left:0,background:T.tableAlt}}>
                     {routeInfo[rk]}
                   </td>
-                  <td style={{padding:"7px 10px",textAlign:"right",fontWeight:700,color:T.text,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
-                    {routeTotal.toLocaleString("nl-BE")}
+                  <td style={{padding:"8px 10px",textAlign:"right",fontWeight:700,color:T.text,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
+                    {routeTotal>0?routeTotal.toLocaleString("nl-BE"):""}
                   </td>
                   {dates.map(d=>{const v=routeTotals[rk]?.[d]||0;return(
-                    <td key={d} style={{padding:"7px 4px",textAlign:"right",fontWeight:600,color:v>0?T.text:T.textDim,borderRight:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,fontSize:11}}>
+                    <td key={d} style={{padding:"8px 6px",textAlign:"right",fontWeight:600,color:v>0?T.accent:T.textDim,borderRight:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
                       {v>0?v:""}
                     </td>
                   );})}
                 </tr>,
                 ...stops.map((sk,si)=>(
                   <tr key={`${rk}-${sk}`} style={{background:si%2===0?T.card:T.tableAlt}}>
-                    <td style={{padding:"6px 12px 6px 22px",color:T.textMuted,fontSize:11,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,position:"sticky",left:0,background:si%2===0?T.card:T.tableAlt,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                    <td style={{padding:"7px 12px 7px 22px",color:T.textMuted,fontSize:11,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,position:"sticky",left:0,background:si%2===0?T.card:T.tableAlt,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
                       {sk}
                     </td>
-                    <td style={{padding:"6px 10px",textAlign:"right",color:T.textMuted,fontSize:11,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
+                    <td style={{padding:"7px 10px",textAlign:"right",color:T.textMuted,fontSize:11,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
                       {Object.values(lookup[rk]?.[sk]||{}).reduce((a,b)=>a+b,0)||""}
                     </td>
                     {dates.map(d=>{const v=lookup[rk]?.[sk]?.[d]||0;return(
-                      <td key={d} style={{padding:"6px 4px",textAlign:"right",color:v>0?T.text:T.textDim,fontSize:11,borderRight:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
+                      <td key={d} style={{padding:"7px 6px",textAlign:"right",color:v>0?T.text:T.textDim,fontSize:11,borderRight:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
                         {v>0?v:""}
                       </td>
                     );})}
@@ -437,7 +427,7 @@ function FeederPivotTable({ data, T }) {
 }
 
 // ─── DECK TABLE ───────────────────────────────────────────────────────────────
-
+// Matches Google Sheets: Datum | Total(Total/Lower/Upper/NoDeck) | Royal Class(...) | First Class(...) | Premium(...)
 function DeckTable({ data, T }) {
   const [hover, setHover] = useState(-1);
   if (!data?.length) return (
@@ -447,38 +437,44 @@ function DeckTable({ data, T }) {
   );
 
   const sections = [
-    {key:"Total", label:"TOTAL", color:T.accent, cols:[
-      {k:"Total",l:"Total",bold:true},{k:"Total_Lower",l:"Lower"},{k:"Total_Upper",l:"Upper"},{k:"Total_NoDeck",l:"No Deck"},
+    {key:"Total", label:"Total", color:T.accent, cols:[
+      {k:"Total",l:"Total",bold:true},{k:"Total_Lower",l:"Lower Deck"},{k:"Total_Upper",l:"Upper deck"},{k:"Total_NoDeck",l:"No deck"},
     ]},
-    {key:"RC", label:"ROYAL CLASS", color:"#3b82f6", cols:[
-      {k:"Royal_Total",l:"Total",bold:true},{k:"Royal_Lower",l:"Lower"},{k:"Royal_Upper",l:"Upper"},{k:"Royal_NoDeck",l:"No Deck"},
+    {key:"RC", label:"Royal Class", color:"#8b5cf6", cols:[
+      {k:"Royal_Total",l:"Total",bold:true},{k:"Royal_Lower",l:"Lower Deck"},{k:"Royal_Upper",l:"Upper deck"},{k:"Royal_NoDeck",l:"No deck"},
     ]},
-    {key:"FC", label:"FIRST CLASS", color:"#22c55e", cols:[
-      {k:"First_Total",l:"Total",bold:true},{k:"First_Lower",l:"Lower"},{k:"First_Upper",l:"Upper"},{k:"First_NoDeck",l:"No Deck"},
+    {key:"FC", label:"First Class", color:"#22c55e", cols:[
+      {k:"First_Total",l:"Total",bold:true},{k:"First_Lower",l:"Lower Deck"},{k:"First_Upper",l:"Upper deck"},{k:"First_NoDeck",l:"No deck"},
     ]},
-    {key:"PRE", label:"PREMIUM", color:"#f59e0b", cols:[
-      {k:"Premium_Total",l:"Total",bold:true},{k:"Premium_Lower",l:"Lower"},{k:"Premium_Upper",l:"Upper"},{k:"Premium_NoDeck",l:"No Deck"},
+    {key:"PRE", label:"Premium", color:"#f59e0b", cols:[
+      {k:"Premium_Total",l:"Total",bold:true},{k:"Premium_Lower",l:"Lower Deck"},{k:"Premium_Upper",l:"Upper deck"},{k:"Premium_NoDeck",l:"No deck"},
     ]},
   ];
 
+  // Format date: dd/mm/yyyy → d-m-yyyy (like Google Sheets)
+  const fmtDate=s=>{
+    if(!s)return s;
+    const sep=s.includes('/')?'/':'-';
+    const[d,m,y]=s.split(sep);
+    if(!y)return s;
+    return `${parseInt(d)}-${parseInt(m)}-${y}`;
+  };
+
   return (
-    <div className="table-scroll" style={{overflowX:"auto",overflowY:"auto",maxHeight:520}}>
+    <div className="table-scroll" style={{overflowX:"auto",overflowY:"auto",maxHeight:560}}>
       <table style={{borderCollapse:"collapse",fontSize:12,width:"100%"}}>
         <thead>
-          {/* Section header row */}
           <tr style={{background:T.tableAlt,position:"sticky",top:0,zIndex:2}}>
-            <th rowSpan={2} style={{padding:"8px 12px",textAlign:"left",fontSize:10,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:`1px solid ${T.border}`,borderRight:`2px solid ${T.border}`,minWidth:100,verticalAlign:"bottom"}}>DEPARTURE</th>
-            
+            <th rowSpan={2} style={{padding:"10px 12px",textAlign:"left",fontSize:11,fontWeight:700,color:T.textMuted,textTransform:"uppercase",borderBottom:`1px solid ${T.border}`,borderRight:`2px solid ${T.border}`,minWidth:110,verticalAlign:"bottom"}}>Datum</th>
             {sections.map(s=>(
-              <th key={s.key} colSpan={4} style={{padding:"6px 12px",textAlign:"center",fontSize:10,fontWeight:700,color:s.color,textTransform:"uppercase",letterSpacing:"0.07em",borderBottom:`1px solid ${s.color}44`,borderLeft:`2px solid ${s.color}`,background:`${s.color}11`}}>
+              <th key={s.key} colSpan={4} style={{padding:"8px 12px",textAlign:"center",fontSize:11,fontWeight:700,color:s.color,textTransform:"uppercase",borderBottom:`1px solid ${s.color}44`,borderLeft:`2px solid ${s.color}`,background:`${s.color}11`}}>
                 {s.label}
               </th>
             ))}
           </tr>
-          {/* Sub-column row */}
           <tr style={{background:T.tableAlt,position:"sticky",top:33,zIndex:2}}>
             {sections.map(s=>s.cols.map((c,ci)=>(
-              <th key={`${s.key}-${c.k}`} style={{padding:"5px 10px",textAlign:"right",fontSize:10,fontWeight:700,color:T.textDim,textTransform:"uppercase",borderBottom:`1px solid ${T.border}`,...(ci===0?{borderLeft:`2px solid ${s.color}`}:{})}}>
+              <th key={`${s.key}-${c.k}`} style={{padding:"6px 10px",textAlign:"right",fontSize:10,fontWeight:700,color:T.textDim,textTransform:"uppercase",borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap",...(ci===0?{borderLeft:`2px solid ${s.color}`}:{})}}>
                 {c.l}
               </th>
             )))}
@@ -488,8 +484,7 @@ function DeckTable({ data, T }) {
           {data.map((row,i)=>(
             <tr key={i} style={{background:hover===i?T.tableHover:i%2===0?T.card:T.tableAlt,borderBottom:`1px solid ${T.border}`,transition:"background 0.1s"}}
               onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(-1)}>
-              <td style={{padding:"8px 12px",color:T.accent,fontWeight:700,whiteSpace:"nowrap",borderRight:`2px solid ${T.border}`}}>{row.dateDeparture}</td>
-
+              <td style={{padding:"8px 12px",color:T.accent,fontWeight:700,whiteSpace:"nowrap",borderRight:`2px solid ${T.border}`}}>{fmtDate(row.dateDeparture)}</td>
               {sections.map(s=>s.cols.map((c,ci)=>{
                 const v=row[c.k]||0;
                 return (
