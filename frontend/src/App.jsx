@@ -43,7 +43,7 @@ const diffClr = (v,T) => v>0?T.success:v<0?T.danger:T.textMuted;
 const diffBg  = (v,T) => v>0?T.successBg:v<0?T.dangerBg:"transparent";
 
 async function apiFetch(path, params={}) {
-  const t = localStorage.getItem("ttp_token");
+  const t = localStorage.getItem("ttp_token") || sessionStorage.getItem("ttp_token") || "";
   const qs = Object.entries(params).filter(([,v])=>v!=null&&v!=="")
     .flatMap(([k,v])=>Array.isArray(v)?v.map(x=>`${k}=${encodeURIComponent(x)}`):[[`${k}=${encodeURIComponent(v)}`]])
     .join("&");
@@ -467,7 +467,7 @@ function DeckTable({ data, T }) {
           {/* Section header row */}
           <tr style={{background:T.tableAlt,position:"sticky",top:0,zIndex:2}}>
             <th rowSpan={2} style={{padding:"8px 12px",textAlign:"left",fontSize:10,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:`1px solid ${T.border}`,borderRight:`2px solid ${T.border}`,minWidth:100,verticalAlign:"bottom"}}>DEPARTURE</th>
-            <th rowSpan={2} style={{padding:"8px 12px",textAlign:"left",fontSize:10,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:`1px solid ${T.border}`,borderRight:`2px solid ${T.border}`,minWidth:100,verticalAlign:"bottom"}}>RETURN</th>
+            
             {sections.map(s=>(
               <th key={s.key} colSpan={4} style={{padding:"6px 12px",textAlign:"center",fontSize:10,fontWeight:700,color:s.color,textTransform:"uppercase",letterSpacing:"0.07em",borderBottom:`1px solid ${s.color}44`,borderLeft:`2px solid ${s.color}`,background:`${s.color}11`}}>
                 {s.label}
@@ -488,7 +488,7 @@ function DeckTable({ data, T }) {
             <tr key={i} style={{background:hover===i?T.tableHover:i%2===0?T.card:T.tableAlt,borderBottom:`1px solid ${T.border}`,transition:"background 0.1s"}}
               onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(-1)}>
               <td style={{padding:"8px 12px",color:T.accent,fontWeight:700,whiteSpace:"nowrap",borderRight:`2px solid ${T.border}`}}>{row.dateDeparture}</td>
-              <td style={{padding:"8px 12px",color:T.textMuted,whiteSpace:"nowrap",borderRight:`2px solid ${T.border}`}}>{row.dateReturn}</td>
+
               {sections.map(s=>s.cols.map((c,ci)=>{
                 const v=row[c.k]||0;
                 return (
@@ -774,6 +774,7 @@ export default function App(){
     if(f.destination) p.destination=f.destination;
     if(f.weekday)     p.weekday=f.weekday;
     if(f.feederLabel) p.label=f.feederLabel;
+    if((f.datasets||[]).length) p.dataset=f.datasets;
     Promise.all([
       apiFetch("/api/dashboard/bus-kpis",p).catch(()=>({})),
       apiFetch("/api/dashboard/pendel-overview",p).catch(()=>[]),
@@ -816,7 +817,7 @@ export default function App(){
     setMsgs(m=>[...m,{role:"user",text:msg}]);setAiInput("");setAiLoad(true);
     try{
       const r=await fetch(`${BASE}/api/ai/chat`,{method:"POST",headers:{"Authorization":`Bearer ${localStorage.getItem("ttp_token")}`,"Content-Type":"application/json"},body:JSON.stringify({message:msg})});
-      if(r.status===401){logout();return;}
+      if(r.status===401){setMsgs(m=>[...m,{role:"assistant",text:"Session expired. Please refresh the page."}]);setAiLoad(false);return;}
       const d=await r.json();
       setMsgs(m=>[...m,{role:"assistant",text:d.reply||"No response."}]);
     }catch{setMsgs(m=>[...m,{role:"assistant",text:"Connection error. Please try again."}]);}
@@ -1268,9 +1269,7 @@ export default function App(){
                     <Card T={T}>
                       <CardHdr title="Deck Choice / Class — Solmar" T={T} right={
                         <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                          {deckData.length>0&&deckData[0].Total_Lower===0&&deckData[0].Total_Upper===0&&(
-                            <span style={{fontSize:10,color:T.warning,background:T.warningBg,padding:"2px 8px",borderRadius:10,border:`1px solid ${T.warning}`}}>⚠ Deck assignment pending — showing class totals only</span>
-                          )}
+                          <span style={{fontSize:10,color:T.warning,background:T.warningBg,padding:"2px 8px",borderRadius:10,border:`1px solid ${T.warning}`}}>⚠ Lower/Upper deck data pending from pipeline</span>
                           <span style={{fontSize:11,color:T.textDim}}>{deckData.length} rows</span>
                         </div>}/>
                       <DeckTable data={deckData} T={T}/>
@@ -1285,6 +1284,20 @@ export default function App(){
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",paddingBottom:10,borderBottom:`1px solid ${T.border}`}}>
                       <span style={{fontSize:13,fontWeight:700,color:T.text}}>Filters</span>
                       <button onClick={()=>setBusFiltersOpen(false)} style={{background:"transparent",border:"none",cursor:"pointer",color:T.textMuted,fontSize:16,lineHeight:1}}>✕</button>
+                    </div>
+
+                    {/* Dataset filter */}
+                    <div>
+                      <label style={labelStyle}>Dataset</label>
+                      <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                        {[["Solmar","#22c55e"],["Interbus","#f59e0b"],["Solmar DE","#ef4444"],["Snowtravel","#3b82f6"]].map(([ds,c])=>{
+                          const sel=(busF.datasets||[]).includes(ds);
+                          return <button key={ds} onClick={()=>setBusF(f=>({...f,datasets:sel?(f.datasets||[]).filter(x=>x!==ds):[...(f.datasets||[]),ds]}))}
+                            style={{background:sel?`${c}22`:"transparent",border:`1px solid ${sel?c:T.border}`,borderRadius:20,color:sel?c:T.textMuted,padding:"3px 9px",fontSize:11,fontWeight:sel?700:400,cursor:"pointer"}}>
+                            {ds}
+                          </button>;
+                        })}
+                      </div>
                     </div>
 
                     {/* Quick year */}
