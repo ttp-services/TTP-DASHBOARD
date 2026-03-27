@@ -3,17 +3,17 @@ import Login from "./Login.jsx";
 
 // ─── THEMES ───────────────────────────────────────────────────────────────────
 const LIGHT = {
-  bg:"#f4f5f7", sidebar:"#ffffff", card:"#ffffff", cardHover:"#f8f9fb",
-  border:"#e5e7eb", borderMid:"#d1d5db",
+  bg:"#f0f2f5", sidebar:"#ffffff", card:"#ffffff", cardHover:"#f8f9fb",
+  border:"#e2e8f0", borderMid:"#cbd5e1",
   accent:"#1d4ed8", accentLight:"#eff6ff", accentHover:"#1e40af",
-  text:"#111827", textMuted:"#6b7280", textDim:"#9ca3af",
+  text:"#0f172a", textMuted:"#64748b", textDim:"#94a3b8",
   success:"#16a34a", successBg:"#f0fdf4",
   danger:"#dc2626",  dangerBg:"#fef2f2",
   warning:"#d97706", warningBg:"#fffbeb",
-  headerBg:"#ffffff", tableAlt:"#f9fafb", tableHover:"#eff6ff",
-  inputBg:"#f9fafb", inputBorder:"#e5e7eb",
-  shadow:"0 1px 3px rgba(0,0,0,0.06)", cardShadow:"0 2px 8px rgba(0,0,0,0.05)",
-  scrollbar:"#d1d5db", navActive:"#eff6ff", navHover:"#f3f4f6",
+  headerBg:"#ffffff", tableAlt:"#f8fafc", tableHover:"#eff6ff",
+  inputBg:"#f8fafc", inputBorder:"#e2e8f0",
+  shadow:"0 1px 3px rgba(0,0,0,0.08)", cardShadow:"0 2px 12px rgba(0,0,0,0.06)",
+  scrollbar:"#cbd5e1", navActive:"#eff6ff", navHover:"#f1f5f9",
 };
 const DARK = {
   bg:"#0f1115", sidebar:"#13161b", card:"#1a1d23", cardHover:"#1f2229",
@@ -306,13 +306,14 @@ function FeederPivotTable({ data, T }) {
   );
 
   const parseDate = s => { if(!s)return 0; const[d,m,y]=s.split('-'); return new Date(`${y}-${m}-${d}`).getTime(); };
-  const allDates = [...new Set(data.map(d=>d.DepartureDate))].sort((a,b)=>parseDate(a)-parseDate(b));
+  const dateKey = data[0]?.DepartureDate!==undefined?'DepartureDate':'departureName';
+  const allDates = [...new Set(data.map(d=>d.DepartureDate||d.departureName||''))].filter(Boolean).sort((a,b)=>parseDate(a)-parseDate(b));
   const dates = allDates.slice(0,20);
 
   // Build lookup: routeNo -> stopName -> date -> pax
   const lookup={}, routeStops={}, routeTotals={}, routeInfo={};
   data.forEach(d=>{
-    const rk=String(d.RouteNo??'X'), sk=d.StopName||'—', dk=d.DepartureDate;
+    const rk=String(d.RouteNo??'X'), sk=d.StopName||'—', dk=d.DepartureDate||d.departureName||'';
     if(!dates.includes(dk))return;
     routeInfo[rk]=d.RouteLabel||`Route ${rk}`;
     if(!lookup[rk])lookup[rk]={};
@@ -632,7 +633,15 @@ function HotelTab({token,T,API}) {
 }
 
 export default function App(){
-  const[token,setToken]=useState(()=>localStorage.getItem("ttp_token")||sessionStorage.getItem("ttp_token")||"");
+  const[token,setToken]=useState(()=>{
+    const t=localStorage.getItem("ttp_token")||"";
+    if(!t)return "";
+    try{
+      const p=JSON.parse(atob(t.split(".")[1]));
+      if(p.exp&&p.exp*1000<Date.now()){localStorage.removeItem("ttp_token");return "";}
+      return t;
+    }catch{localStorage.removeItem("ttp_token");return "";}
+  });
   const[user,setUser]=useState(null);
   const[tab,setTab]=useState("overview");
   const[themeKey,setThemeKey]=useState(()=>localStorage.getItem("ttp_theme")||"light");
@@ -699,7 +708,7 @@ export default function App(){
   useEffect(()=>{if(!token)return;try{const p=JSON.parse(atob(token.split(".")[1]));setUser(p.user||p);}catch{}},[token]);
 
   const switchTheme=k=>{setThemeKey(k);localStorage.setItem("ttp_theme",k);};
-  const logout=()=>{localStorage.removeItem("ttp_token");setToken("");setUser(null);};
+  const logout=()=>{localStorage.removeItem("ttp_token");sessionStorage.removeItem("ttp_token");setToken("");setUser(null);};
   const onLogin=(tok,u)=>{localStorage.setItem("ttp_token",tok);sessionStorage.setItem("ttp_token",tok);setToken(tok);setUser(u);};
 
   const buildP=useCallback(f=>{
@@ -943,7 +952,7 @@ export default function App(){
     <div style={{display:"flex",minHeight:"100vh",background:T.bg,fontFamily:"'Segoe UI',system-ui,sans-serif",color:T.text}}>
 
       {/* SIDEBAR */}
-      <aside style={{width:sidebarOpen?220:60,flexShrink:0,background:T.sidebar,borderRight:`1px solid ${T.border}`,display:"flex",flexDirection:"column",position:"fixed",top:0,left:0,height:"100vh",zIndex:100,transition:"width 0.2s",overflow:"hidden",boxShadow:T.cardShadow}}>
+      <aside style={{width:sidebarOpen?240:64,flexShrink:0,background:T.sidebar,borderRight:`1px solid ${T.border}`,display:"flex",flexDirection:"column",position:"fixed",top:0,left:0,height:"100vh",zIndex:100,transition:"width 0.2s",overflow:"hidden",boxShadow:T.cardShadow}}>
         <div style={{padding:"16px 14px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",gap:10,minHeight:64}}>
           <div style={{width:32,height:32,background:T.accent,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
             <span style={{color:"#fff",fontWeight:800,fontSize:13,letterSpacing:"-0.5px"}}>TTP</span>
@@ -976,7 +985,7 @@ export default function App(){
       </aside>
 
       {/* MAIN */}
-      <main style={{marginLeft:sidebarOpen?220:60,flex:1,display:"flex",flexDirection:"column",minHeight:"100vh",transition:"margin-left 0.2s"}} className="main-content">
+      <main style={{marginLeft:sidebarOpen?240:64,flex:1,display:"flex",flexDirection:"column",minHeight:"100vh",transition:"margin-left 0.2s"}} className="main-content">
 
         {/* HEADER */}
         <header style={{background:T.headerBg,borderBottom:`1px solid ${T.border}`,padding:"0 20px",height:52,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:90,boxShadow:T.shadow}}>
@@ -1203,6 +1212,7 @@ export default function App(){
                       )}
                       <DataTable columns={[
                         {label:"START DATE",key:"StartDate",noWrap:true,bold:true,color:(_,T)=>T.accent},
+                        {label:"RETURN DATE",key:"EndDate",noWrap:true,color:(_,T)=>T.textMuted},
                         {label:"PENDEL",key:"Pendel",noWrap:true,color:(_,T)=>T.textMuted},
                         {label:"OUT TOTAL",key:"Outbound_Total",right:true,bold:true,color:(_,T)=>T.success},
                         {label:"OUT RC",key:"ORC",right:true,color:(_,T)=>T.success},
@@ -1839,8 +1849,11 @@ export default function App(){
         ::-webkit-scrollbar-thumb{background:${T.accent};border-radius:10px;border:2px solid ${T.border}}
         ::-webkit-scrollbar-thumb:hover{background:${T.accentHover}}
         ::-webkit-scrollbar-corner{background:transparent}
+        /* Horizontal scrollbar fix */
+        body{overflow-x:hidden}
         /* Table scroll containers */
-        .table-scroll::-webkit-scrollbar{height:12px}
+        .table-scroll{overflow-x:auto!important;-webkit-overflow-scrolling:touch}
+        .table-scroll::-webkit-scrollbar{height:8px;width:6px}
         .table-scroll::-webkit-scrollbar-track{background:${T.tableAlt};border-radius:0 0 8px 8px}
         .table-scroll::-webkit-scrollbar-thumb{background:${T.accent};border-radius:6px;border:3px solid ${T.tableAlt}}
         .table-scroll::-webkit-scrollbar-thumb:hover{background:${T.accentHover}}
