@@ -305,7 +305,13 @@ function FeederPivotTable({ data, T }) {
     </div>
   );
 
-  const parseDate = s => { if(!s)return 0; const[d,m,y]=s.split('-'); return new Date(`${y}-${m}-${d}`).getTime(); };
+  const parseDate = s => {
+    if(!s)return 0;
+    const sep = s.includes('-') ? '-' : '/';
+    const[d,m,y]=s.split(sep);
+    if(!y)return 0;
+    return new Date(`${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`).getTime();
+  };
   const dateKey = data[0]?.DepartureDate!==undefined?'DepartureDate':'departureName';
   const allDates = [...new Set(data.map(d=>d.DepartureDate||d.departureName||''))].filter(Boolean).sort((a,b)=>parseDate(a)-parseDate(b));
   const dates = allDates.slice(0,20);
@@ -331,7 +337,14 @@ function FeederPivotTable({ data, T }) {
   const grandTotal=Object.values(grandTotals).reduce((a,b)=>a+b,0);
 
   // Format date short: dd/mm
-  const fmtShort = s => { if(!s)return s; const[d,m]=s.split('-'); return `${d}/${m}`; };
+  const fmtShort = s => {
+    if(!s)return s;
+    // Handle both dd-mm-yyyy and dd/mm/yyyy formats
+    const sep = s.includes('-') ? '-' : '/';
+    const parts = s.split(sep);
+    if(parts.length>=2) return `${parts[0]}/${parts[1]}`;
+    return s;
+  };
 
   const COL_W = 52;
   const HEADER_H = 80; // height for rotated headers
@@ -633,15 +646,7 @@ function HotelTab({token,T,API}) {
 }
 
 export default function App(){
-  const[token,setToken]=useState(()=>{
-    const t=localStorage.getItem("ttp_token")||"";
-    if(!t)return "";
-    try{
-      const p=JSON.parse(atob(t.split(".")[1]));
-      if(p.exp&&p.exp*1000<Date.now()){localStorage.removeItem("ttp_token");return "";}
-      return t;
-    }catch{localStorage.removeItem("ttp_token");return "";}
-  });
+  const[token,setToken]=useState(()=>localStorage.getItem("ttp_token")||"");
   const[user,setUser]=useState(null);
   const[tab,setTab]=useState("overview");
   const[themeKey,setThemeKey]=useState(()=>localStorage.getItem("ttp_theme")||"light");
@@ -1078,7 +1083,7 @@ export default function App(){
         )}
 
         {/* PAGE CONTENT */}
-        <div id="dashboard-content" style={{flex:1,padding:"18px 20px 50px",overflowY:"auto"}}>
+        <div id="dashboard-content" style={{flex:1,padding:"18px 20px 50px",overflowY:"auto",overflowX:"hidden"}}>
 
           {/* ══ OVERVIEW ═══════════════════════════════════════════════════════ */}
           {tab==="overview"&&(
@@ -1261,9 +1266,11 @@ export default function App(){
                   {/* Deck choice/class */}
                   {busView==="deck"&&(
                     <Card T={T}>
-                      <CardHdr title={`Deck Choice / Class — ${busLabel}`} T={T} right={
+                      <CardHdr title="Deck Choice / Class — Solmar" T={T} right={
                         <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                          <span style={{fontSize:10,color:T.textDim,background:T.tableAlt,padding:"2px 8px",borderRadius:10,border:`1px solid ${T.border}`}}>Sorted by departure date ↑</span>
+                          {deckData.length>0&&deckData[0].Total_Lower===0&&deckData[0].Total_Upper===0&&(
+                            <span style={{fontSize:10,color:T.warning,background:T.warningBg,padding:"2px 8px",borderRadius:10,border:`1px solid ${T.warning}`}}>⚠ Deck assignment pending — showing class totals only</span>
+                          )}
                           <span style={{fontSize:11,color:T.textDim}}>{deckData.length} rows</span>
                         </div>}/>
                       <DeckTable data={deckData} T={T}/>
@@ -1274,68 +1281,75 @@ export default function App(){
 
                 {/* Bus filter panel */}
                 {busFiltersOpen&&(
-                  <div style={{width:240,flexShrink:0,background:T.card,border:`1px solid ${T.border}`,borderRadius:12,padding:16,boxShadow:T.cardShadow,position:"sticky",top:70,maxHeight:"calc(100vh - 120px)",overflowY:"auto"}}>
-                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+                  <div style={{width:220,flexShrink:0,background:T.card,border:`1px solid ${T.border}`,borderRadius:12,padding:"16px 14px",boxShadow:T.cardShadow,position:"sticky",top:70,maxHeight:"calc(100vh - 90px)",overflowY:"auto",display:"flex",flexDirection:"column",gap:10}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",paddingBottom:10,borderBottom:`1px solid ${T.border}`}}>
                       <span style={{fontSize:13,fontWeight:700,color:T.text}}>Filters</span>
-                      <button onClick={()=>setBusFiltersOpen(false)} style={{background:"transparent",border:"none",cursor:"pointer",color:T.textMuted}}>{Ic.close}</button>
+                      <button onClick={()=>setBusFiltersOpen(false)} style={{background:"transparent",border:"none",cursor:"pointer",color:T.textMuted,fontSize:16,lineHeight:1}}>✕</button>
                     </div>
 
-                    {/* Quick date */}
-                    <div style={{marginBottom:10}}>
+                    {/* Quick year */}
+                    <div>
                       <label style={labelStyle}>Quick Select</label>
                       <div style={{display:"flex",gap:4}}>
                         {[["This Year",`${new Date().getFullYear()}-01-01`,`${new Date().getFullYear()}-12-31`],
                           ["Last Year",`${new Date().getFullYear()-1}-01-01`,`${new Date().getFullYear()-1}-12-31`],
                           ["All","",""]].map(([l,f,t])=>(
                           <button key={l} onClick={()=>setBusF(p=>({...p,dateFrom:f,dateTo:t}))}
-                            style={{flex:1,background:busF.dateFrom===f&&busF.dateTo===t?T.accent:T.tableAlt,color:busF.dateFrom===f&&busF.dateTo===t?"#fff":T.textMuted,border:`1px solid ${T.border}`,borderRadius:6,padding:"4px 2px",fontSize:10,fontWeight:600,cursor:"pointer"}}>{l}</button>
+                            style={{flex:1,background:busF.dateFrom===f&&busF.dateTo===t?T.accent:T.tableAlt,color:busF.dateFrom===f&&busF.dateTo===t?"#fff":T.textMuted,border:`1px solid ${T.border}`,borderRadius:6,padding:"5px 2px",fontSize:10,fontWeight:600,cursor:"pointer"}}>{l}</button>
                         ))}
                       </div>
                     </div>
 
-                    <div style={{marginBottom:10}}><label style={labelStyle}>Label / Dataset</label>
+                    <div><label style={labelStyle}>Departure From</label>
+                      <input type="date" value={busF.dateFrom||""} onChange={e=>setBusF(f=>({...f,dateFrom:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/>
+                    </div>
+                    <div><label style={labelStyle}>Departure To</label>
+                      <input type="date" value={busF.dateTo||""} onChange={e=>setBusF(f=>({...f,dateTo:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/>
+                    </div>
+
+                    {/* Label - only show for feeder */}
+                    {busView==="feeder"&&<div><label style={labelStyle}>Label</label>
                       <select value={busF.feederLabel||""} onChange={e=>setBusF(f=>({...f,feederLabel:e.target.value}))} style={inputStyle}>
                         <option value="">All Labels</option>
                         {["Solmar","Interbus","Solmar DE"].map(l=><option key={l} value={l}>{l}</option>)}
                       </select>
-                    </div>
-                    <div style={{marginBottom:10}}><label style={labelStyle}>Departure From</label><input type="date" value={busF.dateFrom||""} onChange={e=>setBusF(f=>({...f,dateFrom:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/></div>
-                    <div style={{marginBottom:10}}><label style={labelStyle}>Departure To</label><input type="date" value={busF.dateTo||""} onChange={e=>setBusF(f=>({...f,dateTo:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/></div>
+                    </div>}
 
-                    <div style={{marginBottom:10}}><label style={labelStyle}>Pendel Route</label>
+                    {/* Pendel - only for pendel and deck */}
+                    {busView!=="feeder"&&<div><label style={labelStyle}>Pendel Route</label>
                       <select value={busF.pendel||""} onChange={e=>setBusF(f=>({...f,pendel:e.target.value}))} style={inputStyle}>
                         <option value="">All Routes</option>
-                        {(busSlicers.pendels||[]).map(p=><option key={p} value={p}>{p.replace(' heen','').replace(' uitgaand','').replace(' Hinfahrt','')}</option>)}
+                        {(busSlicers.pendels||[]).map(p=><option key={p} value={p}>{p}</option>)}
                       </select>
-                    </div>
+                    </div>}
 
-                    <div style={{marginBottom:10}}><label style={labelStyle}>Region</label>
+                    <div><label style={labelStyle}>Region</label>
                       <select value={busF.region||""} onChange={e=>setBusF(f=>({...f,region:e.target.value}))} style={inputStyle}>
                         <option value="">All Regions</option>
                         {(busSlicers.regions||[]).map(r=><option key={r} value={r}>{r}</option>)}
                       </select>
                     </div>
 
-                    <div style={{marginBottom:10}}><label style={labelStyle}>Destination</label>
+                    <div><label style={labelStyle}>Destination</label>
                       <select value={busF.destination||""} onChange={e=>setBusF(f=>({...f,destination:e.target.value}))} style={inputStyle}>
                         <option value="">All Destinations</option>
                         {(busSlicers.destinations||[]).map(d=><option key={d} value={d}>{d}</option>)}
                       </select>
                     </div>
 
-                    <div style={{marginBottom:14}}><label style={labelStyle}>Weekday (Outbound)</label>
+                    <div><label style={labelStyle}>Weekday (Outbound)</label>
                       <select value={busF.weekday||""} onChange={e=>setBusF(f=>({...f,weekday:e.target.value}))} style={inputStyle}>
                         <option value="">All Days</option>
                         {["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map(d=><option key={d} value={d}>{d}</option>)}
                       </select>
                     </div>
 
-                    <div style={{display:"flex",gap:8}}>
+                    <div style={{display:"flex",gap:8,paddingTop:4}}>
                       <Btn onClick={()=>loadBus(busF)} T={T} style={{flex:1,justifyContent:"center"}}>Apply</Btn>
                       <Btn variant="ghost" onClick={()=>{
                         const y=new Date().getFullYear();
-                        const f={dateFrom:`${y}-01-01`,dateTo:`${y}-12-31`,pendel:"",region:"",destination:"",weekday:""};
-                        setBusF(f); loadBus(f);
+                        const f={dateFrom:`${y}-01-01`,dateTo:`${y}-12-31`,pendel:"",region:"",destination:"",weekday:"",feederLabel:""};
+                        setBusF(f);loadBus(f);
                       }} T={T} style={{flex:1,justifyContent:"center"}}>Reset</Btn>
                     </div>
                   </div>
@@ -1849,10 +1863,10 @@ export default function App(){
         ::-webkit-scrollbar-thumb{background:${T.accent};border-radius:10px;border:2px solid ${T.border}}
         ::-webkit-scrollbar-thumb:hover{background:${T.accentHover}}
         ::-webkit-scrollbar-corner{background:transparent}
-        /* Horizontal scrollbar fix */
-        body{overflow-x:hidden}
-        /* Table scroll containers */
-        .table-scroll{overflow-x:auto!important;-webkit-overflow-scrolling:touch}
+        /* No page-level horizontal scroll */
+        body,html{overflow-x:hidden}
+        /* Table scroll - allow both directions */
+        .table-scroll{overflow-x:auto;overflow-y:auto;-webkit-overflow-scrolling:touch}
         .table-scroll::-webkit-scrollbar{height:8px;width:6px}
         .table-scroll::-webkit-scrollbar-track{background:${T.tableAlt};border-radius:0 0 8px 8px}
         .table-scroll::-webkit-scrollbar-thumb{background:${T.accent};border-radius:6px;border:3px solid ${T.tableAlt}}
