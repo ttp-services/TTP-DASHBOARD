@@ -339,7 +339,7 @@ function FeederPivotTable({ data, T }) {
   // Format date short: dd/mm
   const fmtShort = s => {
     if(!s)return s;
-    // Handle both dd-mm-yyyy and dd/mm/yyyy formats → show dd-mm-yyyy
+    // Convert dd/mm/yyyy or dd-mm-yyyy to dd-mm-yyyy
     const sep = s.includes('/') ? '/' : '-';
     const parts = s.split(sep);
     if(parts.length>=3) return `${parts[0]}-${parts[1]}-${parts[2]}`;
@@ -347,8 +347,8 @@ function FeederPivotTable({ data, T }) {
     return s;
   };
 
-  const COL_W = 52;
-  const HEADER_H = 80; // height for rotated headers
+  const COL_W = 38;
+  const HEADER_H = 100; // height for full date rotated headers
 
   return (
     <div>
@@ -774,7 +774,8 @@ export default function App(){
     if(f.region)      p.region=f.region;
     if(f.destination) p.destination=f.destination;
     if(f.weekday)     p.weekday=f.weekday;
-    if(f.feederLabel) p.label=f.feederLabel;
+    if(f.feederLabel)  p.label=f.feederLabel;
+    if(f.feederLine)   p.feederLine=f.feederLine;
     if((f.datasets||[]).length) p.dataset=f.datasets;
     Promise.all([
       apiFetch("/api/dashboard/bus-kpis",p).catch(()=>({})),
@@ -1164,7 +1165,7 @@ export default function App(){
                 </button>
               </div>
 
-              <div style={{display:"flex",gap:16,alignItems:"flex-start"}}>
+              <div style={{display:"flex",gap:0,alignItems:"flex-start"}}>
                 <div style={{flex:1,minWidth:0}}>
                   {bLoad&&<div style={{textAlign:"center",padding:20,color:T.textMuted}}>Loading bus data...</div>}
 
@@ -1277,9 +1278,9 @@ export default function App(){
                   )}
                 </div>
 
-                {/* Bus filter panel */}
+                {/* Bus filter panel - overlay drawer */}
                 {busFiltersOpen&&(
-                  <div style={{width:230,flexShrink:0,background:T.card,border:`1px solid ${T.border}`,borderRadius:12,padding:"16px 14px",boxShadow:T.cardShadow,position:"sticky",top:70,maxHeight:"calc(100vh - 90px)",overflowY:"auto",display:"flex",flexDirection:"column",gap:11}}>
+                  <div style={{position:"fixed",top:52,right:0,width:260,height:"calc(100vh - 52px)",background:T.card,borderLeft:`1px solid ${T.border}`,boxShadow:"-4px 0 20px rgba(0,0,0,0.15)",zIndex:200,overflowY:"auto",display:"flex",flexDirection:"column",gap:11,padding:"16px 14px"}}>
 
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",paddingBottom:10,borderBottom:`1px solid ${T.border}`}}>
                       <span style={{fontSize:13,fontWeight:700,color:T.text}}>Filters</span>
@@ -1329,6 +1330,13 @@ export default function App(){
                       </select>
                     </div>
 
+                    {/* Feeder Line filter — for feeder view */}
+                    {busView==="feeder"&&<div><label style={labelStyle}>Feeder Line</label>
+                      <select value={busF.feederLine||""} onChange={e=>setBusF(f=>({...f,feederLine:e.target.value}))} style={inputStyle}>
+                        <option value="">All Lines</option>
+                        {(busSlicers.feederLines||[]).map(l=><option key={l} value={l}>{l}</option>)}
+                      </select>
+                    </div>}
                     {/* Label — for feeder */}
                     {busView==="feeder"&&<div><label style={labelStyle}>Label / Dataset</label>
                       <select value={busF.feederLabel||""} onChange={e=>setBusF(f=>({...f,feederLabel:e.target.value}))} style={inputStyle}>
@@ -1812,64 +1820,24 @@ export default function App(){
           .card{break-inside:avoid;}
         }
         @media (max-width:768px){
-          /* Sidebar — hidden on mobile, toggle-able */
-          aside{
-            width:100% !important;
-            height:auto !important;
-            position:fixed !important;
-            top:0 !important; left:0 !important;
-            z-index:200 !important;
-            flex-direction:row !important;
-            align-items:center !important;
-            padding:0 !important;
-            height:52px !important;
-            overflow:hidden !important;
-            border-right:none !important;
-            border-bottom:1px solid var(--border) !important;
-          }
-          aside nav{
-            display:flex !important;
-            flex-direction:row !important;
-            flex:1 !important;
-            padding:0 8px !important;
-            overflow-x:auto !important;
-            gap:2px !important;
-          }
-          aside nav button{
-            flex-shrink:0 !important;
-            padding:6px 10px !important;
-            font-size:11px !important;
-          }
-          /* Hide sidebar bottom section on mobile */
-          aside > div:last-child { display:none !important; }
-          aside > div:first-child { width:44px !important; flex-shrink:0 !important; }
-          /* Main — push down for top nav */
-          main{ margin-left:0 !important; margin-top:52px !important; }
-          /* KPI grid — 1 column */
-          .kpi-grid{grid-template-columns:1fr !important;}
-          /* Chart grid — 1 column */
-          .chart-grid{grid-template-columns:1fr !important;}
-          /* Header — compact */
-          header{height:44px !important; padding:0 10px !important;}
-          header span[style*="font-size:14px"]{font-size:12px !important;}
-          /* Filter panel full width */
-          .filter-panel{width:100% !important; position:fixed !important; top:96px !important; left:0 !important; right:0 !important; z-index:150 !important; border-radius:0 !important; max-height:70vh !important; overflow-y:auto !important;}
-          /* Cards padding */
-          .card-pad{padding:12px !important;}
-          /* Tables — ensure scroll */
-          .table-scroll{-webkit-overflow-scrolling:touch !important;}
-          /* Page content padding */
-          #dashboard-content{padding:10px !important;}
-          /* KPI font size */
-          .kpi-value{font-size:22px !important;}
-          /* Hide clock */
-          .hide-mobile{display:none !important;}
-          /* Bus filter sidebar — full width overlay */
-          .bus-filter-panel{width:100% !important; position:fixed !important; top:96px !important; left:0 !important; right:0 !important; z-index:150 !important; border-radius:0 !important; max-height:70vh !important; overflow-y:auto !important;}
+          aside{width:100%!important;height:52px!important;position:fixed!important;top:0!important;left:0!important;z-index:200!important;flex-direction:row!important;align-items:center!important;padding:0!important;overflow:hidden!important;border-right:none!important;border-bottom:1px solid #e2e8f0!important;}
+          aside nav{display:flex!important;flex-direction:row!important;flex:1!important;padding:0 6px!important;overflow-x:auto!important;gap:2px!important;scrollbar-width:none!important;}
+          aside nav::-webkit-scrollbar{display:none!important;}
+          aside nav button{flex-shrink:0!important;padding:6px 10px!important;font-size:11px!important;}
+          aside > div:last-child{display:none!important;}
+          aside > div:first-child{width:48px!important;flex-shrink:0!important;border-right:1px solid #e2e8f0!important;}
+          main{margin-left:0!important;margin-top:52px!important;}
+          .kpi-grid{grid-template-columns:1fr 1fr!important;}
+          .chart-grid{grid-template-columns:1fr!important;}
+          header{height:44px!important;padding:0 10px!important;}
+          #dashboard-content{padding:10px!important;overflow-x:hidden!important;}
+          .kpi-value{font-size:22px!important;}
+          .hide-mobile{display:none!important;}
+          .table-scroll{-webkit-overflow-scrolling:touch!important;max-width:calc(100vw - 20px)!important;}
         }
         @media (max-width:480px){
-          .kpi-grid{grid-template-columns:1fr !important;}
-          header .header-btns > *:not(:last-child):not(:nth-last-child(2)){display:none !important;}
+          .kpi-grid{grid-template-columns:1fr!important;}
+          header .header-btns > *:not(:last-child):not(:nth-last-child(2)){display:none!important;}
         }
         @keyframes bounce{0%,80%,100%{transform:scale(0.4);opacity:0.4}40%{transform:scale(1);opacity:1}}
         ::-webkit-scrollbar{width:6px;height:10px}
