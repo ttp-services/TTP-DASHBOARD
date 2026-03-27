@@ -352,7 +352,8 @@ function FeederPivotTable({ data, T }) {
       {allDates.length>15&&<div style={{padding:"6px 14px",background:T.warningBg,borderBottom:`1px solid ${T.border}`,fontSize:11,color:T.warning}}>
         Showing first 15 of {allDates.length} dates. Use date filters to narrow the range.
       </div>}
-      <div className="force-scroll" style={{overflowX:"auto",overflowY:"auto",maxHeight:560,paddingBottom:4}}>
+      <div style={{overflowX:"auto",overflowY:"visible",width:"100%",paddingBottom:16,cursor:"default"}}>
+      <div style={{overflowY:"auto",maxHeight:520}}>
         <table style={{borderCollapse:"collapse",fontSize:12,tableLayout:"fixed",width:`${180+80+(dates.length*COL_W)}px`}}>
           <thead style={{position:"sticky",top:0,zIndex:3}}>
             <tr style={{background:T.tableAlt}}>
@@ -421,6 +422,7 @@ function FeederPivotTable({ data, T }) {
             })}
           </tbody>
         </table>
+      </div>
       </div>
     </div>
   );
