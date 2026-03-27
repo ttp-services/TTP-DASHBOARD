@@ -339,10 +339,11 @@ function FeederPivotTable({ data, T }) {
   // Format date short: dd/mm
   const fmtShort = s => {
     if(!s)return s;
-    // Handle both dd-mm-yyyy and dd/mm/yyyy formats
-    const sep = s.includes('-') ? '-' : '/';
+    // Handle both dd-mm-yyyy and dd/mm/yyyy formats → show dd-mm-yyyy
+    const sep = s.includes('/') ? '/' : '-';
     const parts = s.split(sep);
-    if(parts.length>=2) return `${parts[0]}/${parts[1]}`;
+    if(parts.length>=3) return `${parts[0]}-${parts[1]}-${parts[2]}`;
+    if(parts.length>=2) return `${parts[0]}-${parts[1]}`;
     return s;
   };
 
@@ -859,7 +860,7 @@ export default function App(){
     {id:"overview",label:"Overview",icon:Ic.overview},
     {id:"bus",label:"Bus Occupancy",icon:Ic.bus},
     {id:"table",label:"Data Table",icon:Ic.table},
-    {id:"hotel",label:"Hotel",icon:"🏨"},
+    {id:"hotel",label:"Hotel",icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>},
     {id:"ai",label:"TTP AI",icon:Ic.ai},
     ...(isAdmin?[{id:"settings",label:"Settings",icon:Ic.settings}]:[]),
   ];
@@ -1283,6 +1284,21 @@ export default function App(){
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",paddingBottom:10,borderBottom:`1px solid ${T.border}`}}>
                       <span style={{fontSize:13,fontWeight:700,color:T.text}}>Filters</span>
                       <button onClick={()=>setBusFiltersOpen(false)} style={{background:"transparent",border:"none",cursor:"pointer",color:T.textMuted,fontSize:18,lineHeight:1,padding:0}}>×</button>
+                    </div>
+
+                    {/* Dataset chips */}
+                    <div>
+                      <label style={labelStyle}>Dataset</label>
+                      <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                        {[["Solmar","#22c55e"],["Interbus","#f59e0b"],["Solmar DE","#ef4444"],["Snowtravel","#3b82f6"]].map(([ds,c])=>{
+                          const sel=(busF.datasets||[]).includes(ds);
+                          return <button key={ds} onClick={()=>setBusF(f=>({...f,datasets:sel?(f.datasets||[]).filter(x=>x!==ds):[...(f.datasets||[]),ds]}))}
+                            style={{background:sel?`${c}22`:"transparent",border:`1px solid ${sel?c:T.border}`,borderRadius:20,color:sel?c:T.textMuted,padding:"4px 10px",fontSize:11,fontWeight:sel?700:400,cursor:"pointer",whiteSpace:"nowrap"}}>
+                            {ds}
+                          </button>;
+                        })}
+                      </div>
+                      {(busF.datasets||[]).length>0&&<div style={{fontSize:10,color:T.accent,marginTop:2}}>{busF.datasets.join(' + ')}</div>}
                     </div>
 
                     {/* Quick year buttons */}
