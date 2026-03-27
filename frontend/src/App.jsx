@@ -352,7 +352,7 @@ function FeederPivotTable({ data, T }) {
       {allDates.length>15&&<div style={{padding:"6px 14px",background:T.warningBg,borderBottom:`1px solid ${T.border}`,fontSize:11,color:T.warning}}>
         Showing first 15 of {allDates.length} dates. Use date filters to narrow the range.
       </div>}
-      <div className="table-scroll" style={{overflowX:"auto",overflowY:"auto",maxHeight:560}}>
+      <div style={{overflowX:"scroll",overflowY:"auto",maxHeight:560,paddingBottom:12}}>
         <table style={{borderCollapse:"collapse",fontSize:12,tableLayout:"fixed",width:`${180+80+(dates.length*COL_W)}px`}}>
           <thead style={{position:"sticky",top:0,zIndex:3}}>
             <tr style={{background:T.tableAlt}}>
@@ -461,7 +461,7 @@ function DeckTable({ data, T }) {
   };
 
   return (
-    <div className="table-scroll" style={{overflowX:"auto",overflowY:"auto",maxHeight:560}}>
+    <div style={{overflowX:"scroll",overflowY:"auto",maxHeight:560,paddingBottom:12}}>
       <table style={{borderCollapse:"collapse",fontSize:12,width:"100%"}}>
         <thead>
           <tr style={{background:T.tableAlt,position:"sticky",top:0,zIndex:2}}>
@@ -1842,6 +1842,8 @@ export default function App(){
         ::-webkit-scrollbar-corner{background:transparent}
         /* No page-level horizontal scroll */
         body,html{overflow-x:hidden}
+        /* Always show horizontal scrollbar on tables */
+        div[style*='overflow-x: scroll']{scrollbar-width:thin;}
         /* Table scroll - allow both directions */
         .table-scroll{overflow-x:auto;overflow-y:auto;-webkit-overflow-scrolling:touch}
         .table-scroll::-webkit-scrollbar{height:8px;width:6px}
