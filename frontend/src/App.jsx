@@ -632,7 +632,7 @@ function HotelTab({token,T,API}) {
 }
 
 export default function App(){
-  const[token,setToken]=useState(()=>localStorage.getItem("ttp_token")||"");
+  const[token,setToken]=useState(()=>localStorage.getItem("ttp_token")||sessionStorage.getItem("ttp_token")||"");
   const[user,setUser]=useState(null);
   const[tab,setTab]=useState("overview");
   const[themeKey,setThemeKey]=useState(()=>localStorage.getItem("ttp_theme")||"light");
@@ -665,6 +665,7 @@ export default function App(){
   const[busF,setBusF]=useState({dateFrom:`${new Date().getFullYear()}-01-01`,dateTo:`${new Date().getFullYear()}-12-31`,pendel:"",region:"",destination:"",weekday:""});
   const[busSlicers,setBusSlicers]=useState({pendels:[],regions:[],destinations:[]});
   const[bLoad,setBLoad]=useState(false);
+  const[busKpis,setBusKpis]=useState({});
 
   // Data table
   const[tableRows,setTableRows]=useState([]);
@@ -699,7 +700,7 @@ export default function App(){
 
   const switchTheme=k=>{setThemeKey(k);localStorage.setItem("ttp_theme",k);};
   const logout=()=>{localStorage.removeItem("ttp_token");setToken("");setUser(null);};
-  const onLogin=(tok,u)=>{localStorage.setItem("ttp_token",tok);setToken(tok);setUser(u);};
+  const onLogin=(tok,u)=>{localStorage.setItem("ttp_token",tok);sessionStorage.setItem("ttp_token",tok);setToken(tok);setUser(u);};
 
   const buildP=useCallback(f=>{
     const p={};
@@ -752,19 +753,20 @@ export default function App(){
   const loadBus=useCallback(f=>{
     if(!token)return;setBLoad(true);
     const p={};
-    if(f.dateFrom)   p.dateFrom=f.dateFrom;
-    if(f.dateTo)     p.dateTo=f.dateTo;
-    if(f.pendel)     p.pendel=f.pendel;
-    if(f.region)     p.region=f.region;
-    if(f.destination)p.destination=f.destination;
-    if(f.weekday)    p.weekday=f.weekday;
+    if(f.dateFrom)    p.dateFrom=f.dateFrom;
+    if(f.dateTo)      p.dateTo=f.dateTo;
+    if(f.pendel)      p.pendel=f.pendel;
+    if(f.region)      p.region=f.region;
+    if(f.destination) p.destination=f.destination;
+    if(f.weekday)     p.weekday=f.weekday;
+    if(f.feederLabel) p.label=f.feederLabel;
     Promise.all([
-      apiFetch("/api/dashboard/bus-class-summary",p).catch(()=>[]),
+      apiFetch("/api/dashboard/bus-kpis",p).catch(()=>({})),
       apiFetch("/api/dashboard/pendel-overview",p).catch(()=>[]),
       apiFetch("/api/dashboard/feeder-overview",p).catch(()=>[]),
       apiFetch("/api/dashboard/deck-class",p).catch(()=>[]),
-    ]).then(([bc,pd,fd,dc])=>{
-      if(Array.isArray(bc))setBusClass(bc);
+    ]).then(([bk,pd,fd,dc])=>{
+      if(bk&&!bk.error)setBusKpis(bk);
       if(Array.isArray(pd))setPendelData(pd);
       if(Array.isArray(fd))setFeederData(fd);
       if(Array.isArray(dc))setDeckData(dc);
@@ -988,10 +990,13 @@ export default function App(){
               {themeKey==="dark"?Ic.sun:Ic.moon} {themeKey==="dark"?"Light":"Dark"}
             </button>
             <button onClick={()=>loadOverview(applied)} style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:7,padding:"5px 8px",cursor:"pointer",color:T.textMuted,display:"flex"}}>{Ic.refresh}</button>
-            {tab!=="bus"&&<button onClick={()=>setFiltersOpen(o=>!o)} style={{background:filtersOpen?T.accent:"transparent",color:filtersOpen?"#fff":T.textMuted,border:`1px solid ${filtersOpen?T.accent:T.border}`,borderRadius:7,padding:"5px 11px",fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
+            {tab!=="bus"&&tab!=="overview"&&<button onClick={()=>setFiltersOpen(o=>!o)} style={{background:filtersOpen?T.accent:"transparent",color:filtersOpen?"#fff":T.textMuted,border:`1px solid ${filtersOpen?T.accent:T.border}`,borderRadius:7,padding:"5px 11px",fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
               {Ic.filter} Filters
             </button>}
-            <button onClick={exportCSV} style={{background:T.accent,color:"#fff",border:"none",borderRadius:7,padding:"6px 13px",fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>{Ic.download} Export</button>
+            {tab==="overview"&&<button onClick={()=>setFiltersOpen(o=>!o)} style={{background:filtersOpen?T.accent:"transparent",color:filtersOpen?"#fff":T.textMuted,border:`1px solid ${filtersOpen?T.accent:T.border}`,borderRadius:7,padding:"5px 11px",fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
+              {Ic.filter} Filters
+            </button>}
+            {tab==="table"&&<button onClick={exportCSV} style={{background:T.accent,color:"#fff",border:"none",borderRadius:7,padding:"6px 13px",fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>{Ic.download} Export</button>}
           </div>
         </header>
 
@@ -1015,10 +1020,17 @@ export default function App(){
                 <div key={k}><label style={labelStyle}>{l}</label><input type="date" value={filters[k]||""} onChange={e=>setFilters(f=>({...f,[k]:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/></div>
               ))}
               <div><label style={labelStyle}>Dataset</label>
-                <select value={(filters.dataset||[])[0]||""} onChange={e=>setFilters(f=>({...f,dataset:e.target.value?[e.target.value]:[]}))} style={inputStyle}>
-                  <option value="">All</option>
-                  {["Snowtravel","Solmar","Interbus","Solmar DE"].map(d=><option key={d} value={d}>{d}</option>)}
-                </select>
+                <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                  {["Solmar","Interbus","Solmar DE","Snowtravel"].map(d=>{
+                    const sel=(filters.dataset||[]).includes(d);
+                    const col=DS_COLORS[d]||T.textMuted;
+                    return <button key={d} onClick={()=>setFilters(f=>({...f,dataset:sel?(f.dataset||[]).filter(x=>x!==d):[...(f.dataset||[]),d]}))}
+                      style={{background:sel?`${col}22`:"transparent",border:`1px solid ${sel?col:T.border}`,borderRadius:20,color:sel?col:T.textMuted,padding:"4px 10px",fontSize:11,fontWeight:sel?700:400,cursor:"pointer"}}>
+                      {d}
+                    </button>;
+                  })}
+                </div>
+                {(filters.dataset||[]).length>0&&<div style={{fontSize:10,color:T.accent,marginTop:2}}>{filters.dataset.join(' + ')}</div>}
               </div>
               <div><label style={labelStyle}>Transport</label>
                 <select value={(filters.transport||[])[0]||""} onChange={e=>setFilters(f=>({...f,transport:e.target.value?[e.target.value]:[]}))} style={inputStyle}>
@@ -1142,11 +1154,34 @@ export default function App(){
                 <div style={{flex:1,minWidth:0}}>
                   {bLoad&&<div style={{textAlign:"center",padding:20,color:T.textMuted}}>Loading bus data...</div>}
 
-                  {/* Bus class charts */}
-                  {busView!=="feeder"&&(
-                    <div className="chart-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
-                      <Card T={T}><CardHdr title="Bookings by Bus Class — Solmar" T={T}/><div style={{padding:"14px 16px"}}><BusBarChart data={busClassFiltered} metric="bookings" title="" T={T}/></div></Card>
-                      <Card T={T}><CardHdr title="PAX by Bus Class — Solmar" T={T}/><div style={{padding:"14px 16px"}}><BusBarChart data={busClassFiltered} metric="pax" title="" T={T}/></div></Card>
+                  {/* Bus KPI Cards */}
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,marginBottom:14}}>
+                    {[
+                      {label:"Total PAX",val:busKpis.total_pax,c:"#3b82f6"},
+                      {label:"Royal Class",val:busKpis.royal_pax,c:"#8b5cf6"},
+                      {label:"First Class",val:busKpis.first_pax,c:"#22c55e"},
+                      {label:"Premium",val:busKpis.premium_pax,c:"#f59e0b"},
+                      {label:"Total Bookings",val:busKpis.total_bookings,c:"#06b6d4"},
+                    ].map(({label,val,c})=>(
+                      <Card key={label} style={{padding:"14px 16px"}} T={T}>
+                        <div style={{fontSize:10,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>{label}</div>
+                        <div style={{fontSize:22,fontWeight:800,color:c,lineHeight:1}}>{val!=null?Number(val).toLocaleString("nl-BE"):"—"}</div>
+                      </Card>
+                    ))}
+                  </div>
+                  {/* Deck split KPIs */}
+                  {busView==="deck"&&(
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
+                      {[
+                        {label:"Lower Deck",val:busKpis.lower_pax,c:"#ef4444"},
+                        {label:"Upper Deck",val:busKpis.upper_pax,c:"#f97316"},
+                        {label:"No Guarantee",val:busKpis.no_deck_pax,c:"#6b7280"},
+                      ].map(({label,val,c})=>(
+                        <Card key={label} style={{padding:"12px 16px"}} T={T}>
+                          <div style={{fontSize:10,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>{label}</div>
+                          <div style={{fontSize:20,fontWeight:800,color:c}}>{val!=null?Number(val).toLocaleString("nl-BE"):"—"}</div>
+                        </Card>
+                      ))}
                     </div>
                   )}
 
@@ -1207,7 +1242,7 @@ export default function App(){
                   {/* Feeder overview — pivot table only, no charts */}
                   {busView==="feeder"&&(
                     <Card T={T}>
-                      <CardHdr title={`Feeder Overview — ${busLabel} — All Routes (Outbound + Inbound combined)`} T={T}
+                      <CardHdr title={`Feeder Overview — Solmar${busF.feederLabel?' — '+busF.feederLabel:''}`} T={T}
                         right={<span style={{fontSize:11,color:T.textDim}}>{feederData.length} stops</span>}/>
                       <FeederPivotTable data={feederData} T={T}/>
                     </Card>
@@ -1248,6 +1283,12 @@ export default function App(){
                       </div>
                     </div>
 
+                    <div style={{marginBottom:10}}><label style={labelStyle}>Label / Dataset</label>
+                      <select value={busF.feederLabel||""} onChange={e=>setBusF(f=>({...f,feederLabel:e.target.value}))} style={inputStyle}>
+                        <option value="">All Labels</option>
+                        {["Solmar","Interbus","Solmar DE"].map(l=><option key={l} value={l}>{l}</option>)}
+                      </select>
+                    </div>
                     <div style={{marginBottom:10}}><label style={labelStyle}>Departure From</label><input type="date" value={busF.dateFrom||""} onChange={e=>setBusF(f=>({...f,dateFrom:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/></div>
                     <div style={{marginBottom:10}}><label style={labelStyle}>Departure To</label><input type="date" value={busF.dateTo||""} onChange={e=>setBusF(f=>({...f,dateTo:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/></div>
 
