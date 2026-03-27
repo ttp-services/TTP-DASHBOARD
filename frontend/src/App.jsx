@@ -923,8 +923,6 @@ export default function App(){
 
   const deckCols=[
     {label:"DEPARTURE",key:"dateDeparture",noWrap:true,bold:true,color:(_,T)=>T.accent},
-    {label:"RETURN",key:"dateReturn",noWrap:true,color:(_,T)=>T.textMuted},
-    {label:"PENDEL",key:"Pendel",noWrap:true},{label:"DEST",key:"Destination",noWrap:true},
     {label:"TOTAL",key:"Total",right:true,bold:true},
     {label:"RC LOWER",key:"Royal_Lower",right:true},{label:"RC UPPER",key:"Royal_Upper",right:true},{label:"RC NO",key:"Royal_NoDeck",right:true},
     {label:"FC LOWER",key:"First_Lower",right:true},{label:"FC UPPER",key:"First_Upper",right:true},{label:"FC NO",key:"First_NoDeck",right:true},
@@ -1246,7 +1244,7 @@ export default function App(){
                       <CardHdr title="Snowtravel Bus Occupancy" T={T} right={<span style={{fontSize:11,color:T.textDim}}>{stTrips.length} rows</span>}/>
                       <DataTable columns={[
                         {label:"DEPARTURE",key:"departure_date",noWrap:true,bold:true,color:(_,T)=>T.accent},
-                        {label:"RETURN",key:"return_date",noWrap:true,color:(_,T)=>T.textMuted},
+
                         {label:"DREAM CLASS",key:"dream_class",right:true,bold:true},
                         {label:"FIRST CLASS",key:"first_class",right:true,bold:true},
                         {label:"SLEEP/ROYAL",key:"sleep_royal_class",right:true,bold:true},
@@ -1280,27 +1278,14 @@ export default function App(){
 
                 {/* Bus filter panel */}
                 {busFiltersOpen&&(
-                  <div style={{width:220,flexShrink:0,background:T.card,border:`1px solid ${T.border}`,borderRadius:12,padding:"16px 14px",boxShadow:T.cardShadow,position:"sticky",top:70,maxHeight:"calc(100vh - 90px)",overflowY:"auto",display:"flex",flexDirection:"column",gap:10}}>
+                  <div style={{width:230,flexShrink:0,background:T.card,border:`1px solid ${T.border}`,borderRadius:12,padding:"16px 14px",boxShadow:T.cardShadow,position:"sticky",top:70,maxHeight:"calc(100vh - 90px)",overflowY:"auto",display:"flex",flexDirection:"column",gap:11}}>
+
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",paddingBottom:10,borderBottom:`1px solid ${T.border}`}}>
                       <span style={{fontSize:13,fontWeight:700,color:T.text}}>Filters</span>
-                      <button onClick={()=>setBusFiltersOpen(false)} style={{background:"transparent",border:"none",cursor:"pointer",color:T.textMuted,fontSize:16,lineHeight:1}}>✕</button>
+                      <button onClick={()=>setBusFiltersOpen(false)} style={{background:"transparent",border:"none",cursor:"pointer",color:T.textMuted,fontSize:18,lineHeight:1,padding:0}}>×</button>
                     </div>
 
-                    {/* Dataset filter */}
-                    <div>
-                      <label style={labelStyle}>Dataset</label>
-                      <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                        {[["Solmar","#22c55e"],["Interbus","#f59e0b"],["Solmar DE","#ef4444"],["Snowtravel","#3b82f6"]].map(([ds,c])=>{
-                          const sel=(busF.datasets||[]).includes(ds);
-                          return <button key={ds} onClick={()=>setBusF(f=>({...f,datasets:sel?(f.datasets||[]).filter(x=>x!==ds):[...(f.datasets||[]),ds]}))}
-                            style={{background:sel?`${c}22`:"transparent",border:`1px solid ${sel?c:T.border}`,borderRadius:20,color:sel?c:T.textMuted,padding:"3px 9px",fontSize:11,fontWeight:sel?700:400,cursor:"pointer"}}>
-                            {ds}
-                          </button>;
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Quick year */}
+                    {/* Quick year buttons */}
                     <div>
                       <label style={labelStyle}>Quick Select</label>
                       <div style={{display:"flex",gap:4}}>
@@ -1320,19 +1305,19 @@ export default function App(){
                       <input type="date" value={busF.dateTo||""} onChange={e=>setBusF(f=>({...f,dateTo:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/>
                     </div>
 
-                    {/* Label - only show for feeder */}
-                    {busView==="feeder"&&<div><label style={labelStyle}>Label</label>
-                      <select value={busF.feederLabel||""} onChange={e=>setBusF(f=>({...f,feederLabel:e.target.value}))} style={inputStyle}>
-                        <option value="">All Labels</option>
-                        {["Solmar","Interbus","Solmar DE"].map(l=><option key={l} value={l}>{l}</option>)}
-                      </select>
-                    </div>}
-
-                    {/* Pendel - only for pendel and deck */}
-                    {busView!=="feeder"&&<div><label style={labelStyle}>Pendel Route</label>
+                    {/* Pendel route */}
+                    <div><label style={labelStyle}>Pendel Route</label>
                       <select value={busF.pendel||""} onChange={e=>setBusF(f=>({...f,pendel:e.target.value}))} style={inputStyle}>
                         <option value="">All Routes</option>
                         {(busSlicers.pendels||[]).map(p=><option key={p} value={p}>{p}</option>)}
+                      </select>
+                    </div>
+
+                    {/* Label — for feeder */}
+                    {busView==="feeder"&&<div><label style={labelStyle}>Label / Dataset</label>
+                      <select value={busF.feederLabel||""} onChange={e=>setBusF(f=>({...f,feederLabel:e.target.value}))} style={inputStyle}>
+                        <option value="">All Labels</option>
+                        {["Solmar","Interbus","Solmar DE"].map(l=><option key={l} value={l}>{l}</option>)}
                       </select>
                     </div>}
 
@@ -1357,11 +1342,11 @@ export default function App(){
                       </select>
                     </div>
 
-                    <div style={{display:"flex",gap:8,paddingTop:4}}>
+                    <div style={{display:"flex",gap:8,paddingTop:4,borderTop:`1px solid ${T.border}`}}>
                       <Btn onClick={()=>loadBus(busF)} T={T} style={{flex:1,justifyContent:"center"}}>Apply</Btn>
                       <Btn variant="ghost" onClick={()=>{
                         const y=new Date().getFullYear();
-                        const f={dateFrom:`${y}-01-01`,dateTo:`${y}-12-31`,pendel:"",region:"",destination:"",weekday:"",feederLabel:""};
+                        const f={dateFrom:`${y}-01-01`,dateTo:`${y}-12-31`,pendel:"",region:"",destination:"",weekday:"",feederLabel:"",datasets:[]};
                         setBusF(f);loadBus(f);
                       }} T={T} style={{flex:1,justifyContent:"center"}}>Reset</Btn>
                     </div>
