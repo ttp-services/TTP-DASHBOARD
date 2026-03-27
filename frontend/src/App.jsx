@@ -297,121 +297,116 @@ function DataTable({columns,rows,emptyMsg="No data",T,maxHeight=460}){
 
 
 // ─── FEEDER PIVOT TABLE ───────────────────────────────────────────────────────
+// Dates as columns with 45° rotated headers (professional, like Excel/Google Sheets)
 function FeederPivotTable({ data, T }) {
   if (!data?.length) return (
     <div style={{padding:32,textAlign:"center",color:T.textMuted,fontSize:13}}>
-      No feeder data — open Filters panel, select a Label and date range, then click Apply
+      No feeder data — select a date range and click Apply
     </div>
   );
 
-  // Sort dates chronologically (dd-mm-yyyy → parse correctly)
-  const parseDate = s => { if(!s) return 0; const [d,m,y]=s.split('-'); return new Date(`${y}-${m}-${d}`).getTime(); };
-  const allDates = [...new Set(data.map(d => d.DepartureDate))].sort((a,b)=>parseDate(a)-parseDate(b));
-  const dates = allDates.slice(0, 20); // first 20 chronological dates
+  const parseDate = s => { if(!s)return 0; const[d,m,y]=s.split('-'); return new Date(`${y}-${m}-${d}`).getTime(); };
+  const allDates = [...new Set(data.map(d=>d.DepartureDate))].sort((a,b)=>parseDate(a)-parseDate(b));
+  const dates = allDates.slice(0,20);
 
-  // Build data structures
-  const lookup = {}; // routeNo -> stopName -> date -> pax
-  const routeStops = {}; // routeNo -> Set of stopNames (ordered)
-  const routeTotals = {}; // routeNo -> date -> pax
-  const routeInfo = {}; // routeNo -> routeLabel
-
-  data.forEach(d => {
-    const rk = String(d.RouteNo ?? 'X');
-    const sk = d.StopName || '—';
-    const dk = d.DepartureDate;
-    if (!dates.includes(dk)) return; // only show selected dates
-    routeInfo[rk] = d.RouteLabel || `Route ${rk}`;
-    if (!lookup[rk]) lookup[rk] = {};
-    if (!lookup[rk][sk]) lookup[rk][sk] = {};
-    lookup[rk][sk][dk] = (lookup[rk][sk][dk]||0) + (d.TotalPax||0);
-    if (!routeStops[rk]) routeStops[rk] = [];
-    if (!routeStops[rk].includes(sk)) routeStops[rk].push(sk);
-    if (!routeTotals[rk]) routeTotals[rk] = {};
-    routeTotals[rk][dk] = (routeTotals[rk][dk]||0) + (d.TotalPax||0);
+  // Build lookup: routeNo -> stopName -> date -> pax
+  const lookup={}, routeStops={}, routeTotals={}, routeInfo={};
+  data.forEach(d=>{
+    const rk=String(d.RouteNo??'X'), sk=d.StopName||'—', dk=d.DepartureDate;
+    if(!dates.includes(dk))return;
+    routeInfo[rk]=d.RouteLabel||`Route ${rk}`;
+    if(!lookup[rk])lookup[rk]={};
+    if(!lookup[rk][sk])lookup[rk][sk]={};
+    lookup[rk][sk][dk]=(lookup[rk][sk][dk]||0)+(d.TotalPax||0);
+    if(!routeStops[rk])routeStops[rk]=[];
+    if(!routeStops[rk].includes(sk))routeStops[rk].push(sk);
+    if(!routeTotals[rk])routeTotals[rk]={};
+    routeTotals[rk][dk]=(routeTotals[rk][dk]||0)+(d.TotalPax||0);
   });
 
-  const routes = Object.keys(lookup).sort((a,b) => {
-    if (a==='X') return 1; if (b==='X') return -1;
-    return parseInt(a)-parseInt(b);
-  });
+  const routes=Object.keys(lookup).sort((a,b)=>a==='X'?1:b==='X'?-1:parseInt(a)-parseInt(b));
+  const grandTotals={};
+  dates.forEach(d=>{grandTotals[d]=Object.values(routeTotals).reduce((s,rt)=>s+(rt[d]||0),0);});
+  const grandTotal=Object.values(grandTotals).reduce((a,b)=>a+b,0);
 
-  // Grand totals
-  const grandTotals = {};
-  dates.forEach(d => { grandTotals[d] = Object.values(routeTotals).reduce((s,rt)=>s+(rt[d]||0),0); });
-  const grandTotal = Object.values(grandTotals).reduce((a,b)=>a+b,0);
+  // Format date short: dd/mm
+  const fmtShort = s => { if(!s)return s; const[d,m]=s.split('-'); return `${d}/${m}`; };
 
-  const BG_ALT = T.tableAlt;
-  const BG_CARD = T.card;
-  const BG_HOVER = T.tableHover;
-  const COL_W = 72;
+  const COL_W = 52;
+  const HEADER_H = 80; // height for rotated headers
 
   return (
-    <div style={{position:"relative"}}>
-      {allDates.length > 20 && (
-        <div style={{padding:"6px 14px",background:T.warningBg,borderBottom:`1px solid ${T.border}`,fontSize:11,color:T.warning}}>
-          Showing last 20 of {allDates.length} dates. Use date filters to narrow the range.
-        </div>
-      )}
-      <div className="table-scroll" style={{overflowX:"auto",overflowY:"auto",maxHeight:500}}>
-        <table style={{borderCollapse:"collapse",fontSize:12,tableLayout:"fixed",width:`${180+80+(dates.length*COL_W)}px`}}>
+    <div>
+      {allDates.length>20&&<div style={{padding:"6px 14px",background:T.warningBg,borderBottom:`1px solid ${T.border}`,fontSize:11,color:T.warning}}>
+        Showing first 20 of {allDates.length} dates. Use date filters to narrow the range.
+      </div>}
+      <div className="table-scroll" style={{overflowX:"auto",overflowY:"auto",maxHeight:520}}>
+        <table style={{borderCollapse:"collapse",fontSize:12,tableLayout:"fixed",width:`${180+70+(dates.length*COL_W)}px`}}>
           <thead style={{position:"sticky",top:0,zIndex:3}}>
-            <tr style={{background:BG_ALT}}>
-              <th style={{width:180,padding:"8px 12px",textAlign:"left",fontSize:10,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:`2px solid ${T.border}`,borderRight:`2px solid ${T.border}`,position:"sticky",left:0,background:BG_ALT,zIndex:4}}>
-                PICK-UP POINT
+            <tr style={{background:T.tableAlt}}>
+              {/* Pick-up point header */}
+              <th style={{width:180,padding:"8px 12px",textAlign:"left",fontSize:10,fontWeight:700,color:T.textMuted,textTransform:"uppercase",borderBottom:`2px solid ${T.border}`,borderRight:`2px solid ${T.border}`,position:"sticky",left:0,background:T.tableAlt,zIndex:4,verticalAlign:"bottom"}}>
+                Pick-up point
               </th>
-              <th style={{width:80,padding:"8px 10px",textAlign:"right",fontSize:10,fontWeight:700,color:T.textMuted,textTransform:"uppercase",borderBottom:`2px solid ${T.border}`,borderRight:`2px solid ${T.border}`,background:BG_ALT}}>
-                TOTAL
+              {/* Total header */}
+              <th style={{width:70,padding:"8px 10px",textAlign:"right",fontSize:10,fontWeight:700,color:T.textMuted,textTransform:"uppercase",borderBottom:`2px solid ${T.border}`,borderRight:`2px solid ${T.border}`,background:T.tableAlt,verticalAlign:"bottom"}}>
+                Total
               </th>
+              {/* Date headers — rotated 45° */}
               {dates.map(d=>(
-                <th key={d} style={{width:COL_W,padding:"8px 6px",textAlign:"right",fontSize:10,fontWeight:600,color:T.textMuted,borderBottom:`2px solid ${T.border}`,borderRight:`1px solid ${T.border}`,background:BG_ALT,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
-                  {d}
+                <th key={d} style={{width:COL_W,height:HEADER_H,padding:0,borderBottom:`2px solid ${T.border}`,borderRight:`1px solid ${T.border}`,background:T.tableAlt,verticalAlign:"bottom",overflow:"visible"}}>
+                  <div style={{display:"flex",alignItems:"flex-end",justifyContent:"center",height:HEADER_H,paddingBottom:6}}>
+                    <span style={{display:"inline-block",transform:"rotate(-45deg)",transformOrigin:"bottom center",fontSize:10,fontWeight:600,color:T.textMuted,whiteSpace:"nowrap",lineHeight:1}}>
+                      {fmtShort(d)}
+                    </span>
+                  </div>
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {/* Grand total */}
-            <tr style={{background:`${T.accent}18`}}>
-              <td style={{padding:"8px 12px",fontWeight:700,color:T.accent,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,position:"sticky",left:0,background:`${T.accent}18`}}>
-                TOTAL ALL ROUTES
+            {/* Grand total row */}
+            <tr style={{background:`${T.accent}15`}}>
+              <td style={{padding:"8px 12px",fontWeight:700,color:T.accent,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,position:"sticky",left:0,background:`${T.accent}15`,fontSize:12}}>
+                Total all routes
               </td>
               <td style={{padding:"8px 10px",textAlign:"right",fontWeight:700,color:T.accent,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
                 {grandTotal.toLocaleString("nl-BE")}
               </td>
               {dates.map(d=>(
-                <td key={d} style={{padding:"8px 6px",textAlign:"right",fontWeight:700,color:grandTotals[d]>0?T.accent:T.textDim,borderRight:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
-                  {grandTotals[d]>0?grandTotals[d].toLocaleString("nl-BE"):""}
+                <td key={d} style={{padding:"8px 4px",textAlign:"right",fontWeight:700,color:grandTotals[d]>0?T.accent:T.textDim,borderRight:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,fontSize:11}}>
+                  {grandTotals[d]>0?grandTotals[d]:""}
                 </td>
               ))}
             </tr>
-            {/* Per route */}
+            {/* Routes and stops */}
             {routes.map(rk=>{
-              const stops = routeStops[rk]||[];
-              const routeTotal = stops.reduce((s,sk)=>s+Object.values(lookup[rk]?.[sk]||{}).reduce((a,b)=>a+b,0),0);
+              const stops=routeStops[rk]||[];
+              const routeTotal=stops.reduce((s,sk)=>s+Object.values(lookup[rk]?.[sk]||{}).reduce((a,b)=>a+b,0),0);
               return [
-                <tr key={`r-${rk}`} style={{background:BG_ALT,borderTop:`2px solid ${T.border}`}}>
-                  <td style={{padding:"8px 12px",fontWeight:700,color:T.text,fontSize:12,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,position:"sticky",left:0,background:BG_ALT}}>
+                <tr key={`r-${rk}`} style={{background:T.tableAlt,borderTop:`2px solid ${T.border}`}}>
+                  <td style={{padding:"7px 12px",fontWeight:700,color:T.text,fontSize:12,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,position:"sticky",left:0,background:T.tableAlt}}>
                     {routeInfo[rk]}
                   </td>
-                  <td style={{padding:"8px 10px",textAlign:"right",fontWeight:700,color:T.text,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
+                  <td style={{padding:"7px 10px",textAlign:"right",fontWeight:700,color:T.text,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
                     {routeTotal.toLocaleString("nl-BE")}
                   </td>
                   {dates.map(d=>{const v=routeTotals[rk]?.[d]||0;return(
-                    <td key={d} style={{padding:"8px 6px",textAlign:"right",fontWeight:600,color:v>0?T.text:T.textDim,borderRight:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
-                      {v>0?v.toLocaleString("nl-BE"):""}
+                    <td key={d} style={{padding:"7px 4px",textAlign:"right",fontWeight:600,color:v>0?T.text:T.textDim,borderRight:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,fontSize:11}}>
+                      {v>0?v:""}
                     </td>
                   );})}
                 </tr>,
                 ...stops.map((sk,si)=>(
-                  <tr key={`${rk}-${sk}`} style={{background:si%2===0?BG_CARD:BG_ALT}}>
-                    <td style={{padding:"7px 12px 7px 24px",color:T.textMuted,fontSize:11,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,position:"sticky",left:0,background:si%2===0?BG_CARD:BG_ALT,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                  <tr key={`${rk}-${sk}`} style={{background:si%2===0?T.card:T.tableAlt}}>
+                    <td style={{padding:"6px 12px 6px 22px",color:T.textMuted,fontSize:11,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,position:"sticky",left:0,background:si%2===0?T.card:T.tableAlt,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
                       {sk}
                     </td>
-                    <td style={{padding:"7px 10px",textAlign:"right",color:T.textMuted,fontSize:11,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
+                    <td style={{padding:"6px 10px",textAlign:"right",color:T.textMuted,fontSize:11,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
                       {Object.values(lookup[rk]?.[sk]||{}).reduce((a,b)=>a+b,0)||""}
                     </td>
                     {dates.map(d=>{const v=lookup[rk]?.[sk]?.[d]||0;return(
-                      <td key={d} style={{padding:"7px 6px",textAlign:"right",color:v>0?T.text:T.textDim,fontSize:11,borderRight:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
+                      <td key={d} style={{padding:"6px 4px",textAlign:"right",color:v>0?T.text:T.textDim,fontSize:11,borderRight:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
                         {v>0?v:""}
                       </td>
                     );})}
@@ -427,6 +422,7 @@ function FeederPivotTable({ data, T }) {
 }
 
 // ─── DECK TABLE ───────────────────────────────────────────────────────────────
+
 function DeckTable({ data, T }) {
   const [hover, setHover] = useState(-1);
   if (!data?.length) return (
@@ -1128,14 +1124,8 @@ export default function App(){
             <div>
               {/* Top bar */}
               <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16,flexWrap:"wrap"}}>
-                <div style={{position:"relative"}}>
-                  <button style={{background:T.accent,color:"#fff",border:"none",borderRadius:8,padding:"7px 14px",fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
-                    {busLabel} {Ic.chevDown}
-                  </button>
-                  <select value={busLabel} onChange={e=>{setBusLabel(e.target.value);setBusF(f=>({...f,label:e.target.value}));loadBus({...busF,label:e.target.value});}}
-                    style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",opacity:0,cursor:"pointer"}}>
-                    {["Solmar","Solmar DE","Interbus","Snowtravel"].map(l=><option key={l} value={l}>{l}</option>)}
-                  </select>
+                <div style={{background:T.accent,color:"#fff",border:"none",borderRadius:8,padding:"7px 14px",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",gap:5}}>
+                  🚌 Solmar Bus Occupancy
                 </div>
                 <div style={{display:"flex",background:T.card,border:`1px solid ${T.border}`,borderRadius:8,padding:3,gap:2}}>
                   {[["pendel","Pendel overview"],["feeder","Feeder overview"],["deck","Deck choice / class"]].map(([k,l])=>(
@@ -1152,47 +1142,55 @@ export default function App(){
                 <div style={{flex:1,minWidth:0}}>
                   {bLoad&&<div style={{textAlign:"center",padding:20,color:T.textMuted}}>Loading bus data...</div>}
 
-                  {/* Charts — hide for feeder view */}
-                  {busView!=="feeder"&&!isSnow&&(
+                  {/* Bus class charts */}
+                  {busView!=="feeder"&&(
                     <div className="chart-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
-                      <Card T={T}><CardHdr title={`Bookings by Bus Class — ${busLabel}`} T={T}/><div style={{padding:"14px 16px"}}><BusBarChart data={busClassFiltered} metric="bookings" title="" T={T}/></div></Card>
-                      <Card T={T}><CardHdr title={`Revenue by Bus Class — ${busLabel}`} T={T}/><div style={{padding:"14px 16px"}}><BusBarChart data={busClassFiltered} metric="revenue" title="" T={T}/></div></Card>
-                    </div>
-                  )}
-                  {busView!=="feeder"&&isSnow&&(
-                    <div className="chart-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
-                      <Card T={T}><CardHdr title="Bookings by Bus Class — Snowtravel" T={T}/><div style={{padding:"14px 16px"}}><BusBarChart data={busClassFiltered} metric="bookings" title="" T={T}/></div></Card>
-                      <Card T={T}><CardHdr title="PAX by Bus Class — Snowtravel" T={T}/><div style={{padding:"14px 16px"}}><BusBarChart data={busClassFiltered} metric="pax" title="" T={T}/></div></Card>
+                      <Card T={T}><CardHdr title="Bookings by Bus Class — Solmar" T={T}/><div style={{padding:"14px 16px"}}><BusBarChart data={busClassFiltered} metric="bookings" title="" T={T}/></div></Card>
+                      <Card T={T}><CardHdr title="PAX by Bus Class — Solmar" T={T}/><div style={{padding:"14px 16px"}}><BusBarChart data={busClassFiltered} metric="pax" title="" T={T}/></div></Card>
                     </div>
                   )}
 
                   {/* Pendel overview */}
-                  {busView==="pendel"&&!isSnow&&(
+                  {busView==="pendel"&&(
                     <Card T={T}>
-                      <CardHdr title={`Pendel Overview — ${busLabel}`} T={T}
-                        right={<div style={{display:"flex",gap:8,alignItems:"center"}}>
-                          <span style={{fontSize:11,color:T.success,fontWeight:600}}>⬆ Outbound</span>
-                          <span style={{fontSize:11,color:T.textDim}}>vs</span>
-                          <span style={{fontSize:11,color:T.warning,fontWeight:600}}>⬇ Inbound</span>
-                          <span style={{fontSize:11,color:T.textDim}}>{pendelData.length} rows</span>
+                      <CardHdr title="Pendel Overview — Solmar" T={T}
+                        right={<div style={{display:"flex",gap:12,alignItems:"center"}}>
+                          <span style={{fontSize:11,color:T.success,fontWeight:600}}>⬆ OUT</span>
+                          <span style={{fontSize:11,color:T.warning,fontWeight:600}}>⬇ IN</span>
+                          <span style={{fontSize:11,color:T.textDim}}>{pendelData.length} trips</span>
                         </div>}/>
                       {pendelData.length>0&&(
                         <div style={{padding:"8px 16px",background:T.accentLight,borderBottom:`1px solid ${T.border}`,display:"flex",gap:24,flexWrap:"wrap"}}>
-                          <span style={{fontSize:11,fontWeight:700,color:T.accent}}>SUMMARY: {pendelData.length} trips</span>
-                          <span style={{fontSize:11,color:T.success}}>Total OUT: {pendelData.reduce((s,r)=>s+(r.Outbound_Total||0),0).toLocaleString("nl-BE")}</span>
-                          <span style={{fontSize:11,color:T.warning}}>Total IN: {pendelData.reduce((s,r)=>s+(r.Inbound_Total||0),0).toLocaleString("nl-BE")}</span>
+                          <span style={{fontSize:11,fontWeight:700,color:T.accent}}>TOTAL: {pendelData.length} trips</span>
+                          <span style={{fontSize:11,color:T.success}}>OUT: {pendelData.reduce((s,r)=>s+(r.Outbound_Total||0),0).toLocaleString("nl-BE")}</span>
+                          <span style={{fontSize:11,color:T.warning}}>IN: {pendelData.reduce((s,r)=>s+(r.Inbound_Total||0),0).toLocaleString("nl-BE")}</span>
                         </div>
                       )}
-                      <DataTable columns={pendelCols} rows={pendelData} emptyMsg="No pendel data — click Apply in Filters" T={T}/>
+                      <DataTable columns={[
+                        {label:"START DATE",key:"StartDate",noWrap:true,bold:true,color:(_,T)=>T.accent},
+                        {label:"PENDEL",key:"Pendel",noWrap:true,color:(_,T)=>T.textMuted},
+                        {label:"OUT TOTAL",key:"Outbound_Total",right:true,bold:true,color:(_,T)=>T.success},
+                        {label:"OUT RC",key:"ORC",right:true,color:(_,T)=>T.success},
+                        {label:"OUT FC",key:"OFC",right:true,color:(_,T)=>T.success},
+                        {label:"OUT PRE",key:"OPRE",right:true,color:(_,T)=>T.success},
+                        {label:"IN TOTAL",key:"Inbound_Total",right:true,bold:true,color:(_,T)=>T.warning},
+                        {label:"IN RC",key:"RRC",right:true,color:(_,T)=>T.warning},
+                        {label:"IN FC",key:"RFC",right:true,color:(_,T)=>T.warning},
+                        {label:"IN PRE",key:"RPRE",right:true,color:(_,T)=>T.warning},
+                        {label:"DIFF RC",key:"Diff_Royal",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.Diff_Royal,T),render:r=>{const v=r.Diff_Royal||0;return v!==0?(v>0?"+":"")+v:"";}},
+                        {label:"DIFF FC",key:"Diff_First",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.Diff_First,T),render:r=>{const v=r.Diff_First||0;return v!==0?(v>0?"+":"")+v:"";}},
+                        {label:"DIFF PRE",key:"Diff_Premium",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.Diff_Premium,T),render:r=>{const v=r.Diff_Premium||0;return v!==0?(v>0?"+":"")+v:"";}},
+                        {label:"DIFF TOTAL",key:"Diff_Total",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.Diff_Total,T),render:r=>{const v=r.Diff_Total||0;return v!==0?(v>0?"+":"")+v:"";}},
+                      ]} rows={pendelData} emptyMsg="No pendel data — set date range and click Apply" T={T}/>
                       <div style={{padding:"7px 14px",borderTop:`1px solid ${T.border}`,fontSize:10,color:T.textDim}}>
                         RC = Royal Class &nbsp;|&nbsp; FC = First Class &nbsp;|&nbsp; PRE = Premium &nbsp;|&nbsp;
                         <span style={{color:T.success}}>OUT = Outbound</span> &nbsp;|&nbsp;
                         <span style={{color:T.warning}}>IN = Inbound</span> &nbsp;|&nbsp;
-                        DIFF = Outbound minus Inbound
+                        DIFF = Outbound minus Inbound (negative = more inbound than outbound)
                       </div>
                     </Card>
                   )}
-                  {busView==="pendel"&&isSnow&&(
+                  {busView==="pendel"&&false&&(
                     <Card T={T}>
                       <CardHdr title="Snowtravel Bus Occupancy" T={T} right={<span style={{fontSize:11,color:T.textDim}}>{stTrips.length} rows</span>}/>
                       <DataTable columns={[
