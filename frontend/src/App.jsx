@@ -1216,7 +1216,6 @@ export default function App(){
                       <DataTable columns={[
                         {label:"START DATE",key:"StartDate",noWrap:true,bold:true,color:(_,T)=>T.accent},
                         {label:"RETURN DATE",key:"EndDate",noWrap:true,color:(_,T)=>T.textMuted},
-                        {label:"PENDEL",key:"Pendel",noWrap:true,color:(_,T)=>T.textMuted},
                         {label:"OUT TOTAL",key:"Outbound_Total",right:true,bold:true,color:(_,T)=>T.success},
                         {label:"OUT RC",key:"ORC",right:true,color:(_,T)=>T.success},
                         {label:"OUT FC",key:"OFC",right:true,color:(_,T)=>T.success},
