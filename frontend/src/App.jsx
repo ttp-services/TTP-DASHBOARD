@@ -91,8 +91,10 @@ function LineChart({ data, T }) {
     const W=rect.width,H=rect.height,pad={top:28,right:20,bottom:38,left:58};
     ctx.clearRect(0,0,W,H);
     if(!data?.length) return;
-    const byY={}; data.forEach(d=>{if(!byY[d.year])byY[d.year]={};byY[d.year][d.month]=d.revenue||0;});
-    const years=Object.keys(byY).sort();
+    // Sort data chronologically
+    const sorted=[...data].sort((a,b)=>a.year!==b.year?a.year-b.year:a.month-b.month); // ASC for chart display
+    const byY={}; sorted.forEach(d=>{if(!byY[d.year])byY[d.year]={};byY[d.year][d.month]=d.revenue||0;});
+    const years=Object.keys(byY).sort((a,b)=>parseInt(a)-parseInt(b));
     const maxV=Math.max(...data.map(d=>d.revenue||0),1);
     const scX=m=>pad.left+(m-1)*(W-pad.left-pad.right)/11;
     const scY=v=>H-pad.bottom-(v/maxV)*(H-pad.top-pad.bottom);
@@ -429,86 +431,104 @@ function FeederPivotTable({ data, T }) {
 }
 
 // ─── DECK TABLE ───────────────────────────────────────────────────────────────
-// Matches Google Sheets: Datum | Total(Total/Lower/Upper/NoDeck) | Royal Class(...) | First Class(...) | Premium(...)
+// Clean rebuild matching Google Sheets: Datum | Total(Total/Lower/Upper/NoDeck) | RC | FC | PRE
 function DeckTable({ data, T }) {
   const [hover, setHover] = useState(-1);
+
   if (!data?.length) return (
-    <div style={{padding:24,textAlign:"center",color:T.textMuted,fontSize:13}}>
+    <div style={{padding:32,textAlign:"center",color:T.textMuted,fontSize:13}}>
       No deck data — adjust filters and click Apply
     </div>
   );
 
-  const sections = [
-    {key:"Total", label:"Total", color:T.accent, cols:[
-      {k:"Total",l:"Total",bold:true},{k:"Total_Lower",l:"Lower Deck"},{k:"Total_Upper",l:"Upper deck"},{k:"Total_NoDeck",l:"No deck"},
-    ]},
-    {key:"RC", label:"Royal Class", color:"#8b5cf6", cols:[
-      {k:"Royal_Total",l:"Total",bold:true},{k:"Royal_Lower",l:"Lower Deck"},{k:"Royal_Upper",l:"Upper deck"},{k:"Royal_NoDeck",l:"No deck"},
-    ]},
-    {key:"FC", label:"First Class", color:"#22c55e", cols:[
-      {k:"First_Total",l:"Total",bold:true},{k:"First_Lower",l:"Lower Deck"},{k:"First_Upper",l:"Upper deck"},{k:"First_NoDeck",l:"No deck"},
-    ]},
-    {key:"PRE", label:"Premium", color:"#f59e0b", cols:[
-      {k:"Premium_Total",l:"Total",bold:true},{k:"Premium_Lower",l:"Lower Deck"},{k:"Premium_Upper",l:"Upper deck"},{k:"Premium_NoDeck",l:"No deck"},
-    ]},
-  ];
-
-  // Format date: dd/mm/yyyy → d-m-yyyy (like Google Sheets)
-  const fmtDate=s=>{
+  // Parse and sort by date ASC
+  const parseD = s => {
+    if(!s)return 0;
+    const sep=s.includes('/')?'/':'-';
+    const[d,m,y]=s.split(sep);
+    if(!y)return 0;
+    return new Date(`${y}-${(m||'1').padStart(2,'0')}-${(d||'1').padStart(2,'0')}`).getTime();
+  };
+  const fmtD = s => {
     if(!s)return s;
     const sep=s.includes('/')?'/':'-';
     const[d,m,y]=s.split(sep);
     if(!y)return s;
     return `${parseInt(d)}-${parseInt(m)}-${y}`;
   };
-  // Sort data by actual date ascending
-  const sortedData=[...data].sort((a,b)=>{
-    const parse=s=>{if(!s)return 0;const sep=s.includes('/')?'/':'-';const[d,m,y]=s.split(sep);return new Date(`${y}-${(m||'1').padStart(2,'0')}-${(d||'1').padStart(2,'0')}`).getTime();};
-    return parse(a.dateDeparture)-parse(b.dateDeparture);
-  });
+
+  const sorted=[...data].sort((a,b)=>parseD(a.dateDeparture)-parseD(b.dateDeparture));
+
+  const sections=[
+    {key:"Total",   label:"Total",       color:"#3b82f6",
+     cols:[{k:"Total",l:"Total",bold:true},{k:"Total_Lower",l:"Lower Deck"},{k:"Total_Upper",l:"Upper Deck"},{k:"Total_NoDeck",l:"No Deck"}]},
+    {key:"Royal",   label:"Royal Class", color:"#8b5cf6",
+     cols:[{k:"Royal_Total",l:"Total",bold:true},{k:"Royal_Lower",l:"Lower Deck"},{k:"Royal_Upper",l:"Upper Deck"},{k:"Royal_NoDeck",l:"No Deck"}]},
+    {key:"First",   label:"First Class", color:"#22c55e",
+     cols:[{k:"First_Total",l:"Total",bold:true},{k:"First_Lower",l:"Lower Deck"},{k:"First_Upper",l:"Upper Deck"},{k:"First_NoDeck",l:"No Deck"}]},
+    {key:"Premium", label:"Premium",     color:"#f59e0b",
+     cols:[{k:"Premium_Total",l:"Total",bold:true},{k:"Premium_Lower",l:"Lower Deck"},{k:"Premium_Upper",l:"Upper Deck"},{k:"Premium_NoDeck",l:"No Deck"}]},
+  ];
+
+  const allZeroDeck = sorted.every(r=>!r.Total_Lower&&!r.Total_Upper);
 
   return (
-    <div className="force-scroll" style={{overflowX:"auto",overflowY:"auto",maxHeight:560,paddingBottom:4}}>
-      <table style={{borderCollapse:"collapse",fontSize:12,width:"100%"}}>
-        <thead>
-          <tr style={{background:T.tableAlt,position:"sticky",top:0,zIndex:2}}>
-            <th rowSpan={2} style={{padding:"10px 12px",textAlign:"left",fontSize:11,fontWeight:700,color:T.textMuted,textTransform:"uppercase",borderBottom:`1px solid ${T.border}`,borderRight:`2px solid ${T.border}`,minWidth:110,verticalAlign:"bottom"}}>Datum</th>
-            {sections.map(s=>(
-              <th key={s.key} colSpan={4} style={{padding:"8px 12px",textAlign:"center",fontSize:11,fontWeight:700,color:s.color,textTransform:"uppercase",borderBottom:`1px solid ${s.color}44`,borderLeft:`2px solid ${s.color}`,background:`${s.color}11`}}>
-                {s.label}
+    <div>
+      {allZeroDeck&&(
+        <div style={{padding:"8px 16px",background:T.warningBg,borderBottom:`1px solid ${T.border}`,fontSize:11,color:T.warning,display:"flex",alignItems:"center",gap:6}}>
+          ⚠ Lower / Upper deck assignment not yet available for 2026 — data pending from pipeline
+        </div>
+      )}
+      <div style={{overflowX:"auto",overflowY:"auto",maxHeight:560,paddingBottom:8,WebkitOverflowScrolling:"touch"}}>
+        <table style={{borderCollapse:"collapse",fontSize:12,minWidth:900}}>
+          <thead style={{position:"sticky",top:0,zIndex:3}}>
+            <tr style={{background:T.tableAlt}}>
+              <th rowSpan={2} style={{padding:"10px 14px",textAlign:"left",fontSize:11,fontWeight:700,color:T.textMuted,textTransform:"uppercase",borderBottom:`1px solid ${T.border}`,borderRight:`2px solid ${T.border}`,minWidth:110,verticalAlign:"bottom",position:"sticky",left:0,background:T.tableAlt,zIndex:4}}>
+                Datum
               </th>
-            ))}
-          </tr>
-          <tr style={{background:T.tableAlt,position:"sticky",top:33,zIndex:2}}>
-            {sections.map(s=>s.cols.map((c,ci)=>(
-              <th key={`${s.key}-${c.k}`} style={{padding:"6px 10px",textAlign:"right",fontSize:10,fontWeight:700,color:T.textDim,textTransform:"uppercase",borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap",...(ci===0?{borderLeft:`2px solid ${s.color}`}:{})}}>
-                {c.l}
-              </th>
-            )))}
-          </tr>
-        </thead>
-        <tbody>
-          {sortedData.map((row,i)=>(
-            <tr key={i} style={{background:hover===i?T.tableHover:i%2===0?T.card:T.tableAlt,borderBottom:`1px solid ${T.border}`,transition:"background 0.1s"}}
-              onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(-1)}>
-              <td style={{padding:"8px 12px",color:T.accent,fontWeight:700,whiteSpace:"nowrap",borderRight:`2px solid ${T.border}`}}>{fmtDate(row.dateDeparture)}</td>
-              {sections.map(s=>s.cols.map((c,ci)=>{
-                const v=row[c.k]||0;
-                return (
-                  <td key={`${s.key}-${c.k}`} style={{padding:"8px 10px",textAlign:"right",fontWeight:c.bold?"700":"400",color:v>0?(c.bold?s.color:T.text):T.textDim,...(ci===0?{borderLeft:`2px solid ${s.color}`}:{})}}>
-                    {v>0?v.toLocaleString("nl-BE"):""}
-                  </td>
-                );
-              }))}
+              {sections.map(s=>(
+                <th key={s.key} colSpan={4} style={{padding:"8px 16px",textAlign:"center",fontSize:11,fontWeight:700,color:s.color,textTransform:"uppercase",borderBottom:`2px solid ${s.color}`,borderLeft:`2px solid ${s.color}44`,background:`${s.color}11`,letterSpacing:"0.05em"}}>
+                  {s.label}
+                </th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+            <tr style={{background:T.tableAlt,position:"sticky",top:33,zIndex:2}}>
+              {sections.map(s=>s.cols.map((c,ci)=>(
+                <th key={`${s.key}-${c.k}`} style={{padding:"6px 10px",textAlign:"right",fontSize:10,fontWeight:700,color:T.textDim,textTransform:"uppercase",borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap",background:T.tableAlt,...(ci===0?{borderLeft:`2px solid ${s.color}44`}:{})}}>
+                  {c.l}
+                </th>
+              )))}
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((row,i)=>(
+              <tr key={i}
+                style={{background:hover===i?`${T.accent}11`:i%2===0?T.card:T.tableAlt,borderBottom:`1px solid ${T.border}`,transition:"background 0.1s",cursor:"default"}}
+                onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(-1)}>
+                <td style={{padding:"8px 14px",color:T.accent,fontWeight:700,whiteSpace:"nowrap",borderRight:`2px solid ${T.border}`,position:"sticky",left:0,background:hover===i?`${T.accent}11`:i%2===0?T.card:T.tableAlt}}>
+                  {fmtD(row.dateDeparture)}
+                </td>
+                {sections.map(s=>s.cols.map((c,ci)=>{
+                  const v=row[c.k]||0;
+                  return(
+                    <td key={`${s.key}-${c.k}`} style={{padding:"8px 10px",textAlign:"right",fontWeight:c.bold?700:400,color:v>0?(c.bold?s.color:T.text):T.textDim,...(ci===0?{borderLeft:`2px solid ${s.color}44`}:{})}}>
+                      {v>0?v.toLocaleString("nl-BE"):""}
+                    </td>
+                  );
+                }))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div style={{padding:"8px 16px",borderTop:`1px solid ${T.border}`,fontSize:10,color:T.textDim}}>
+        RC = Royal Class | FC = First Class | PRE = Premium | Lwr = Lower Deck | Upr = Upper Deck | No = No Deck
+      </div>
     </div>
   );
 }
 
-// ─── MAIN APP ─────────────────────────────────────────────────────────────────
+
 
 // ─── HOTEL INSIGHTS TAB ───────────────────────────────────────────────────────
 function HotelTab({token,T,API}) {
@@ -1140,11 +1160,12 @@ export default function App(){
                 <CardHdr title={`Year-Month Comparison ${Object.values(applied).some(v=>v&&(Array.isArray(v)?v.length:true))?"(filtered — reset for all data)":""}`} T={T} right={
                   <div style={{display:"flex",gap:4,alignItems:"center"}}>
                     <span style={{fontSize:11,color:T.textDim,marginRight:6}}>{ymData.length} rows</span>
+                    <span style={{fontSize:10,color:T.textDim,background:T.tableAlt,padding:"2px 8px",borderRadius:10,border:`1px solid ${T.border}`}}>← scroll →</span>
                     {["bookings","pax","revenue"].map(m=>(
                       <button key={m} onClick={()=>setYmMetric(m)} style={{background:ymMetric===m?T.accent:"transparent",color:ymMetric===m?"#fff":T.textMuted,border:`1px solid ${ymMetric===m?T.accent:T.border}`,borderRadius:5,padding:"3px 9px",fontSize:11,fontWeight:600,cursor:"pointer",textTransform:"capitalize"}}>{m==="revenue"?"Revenue":m==="bookings"?"Bookings":"PAX"}</button>
                     ))}
                   </div>}/>
-                <DataTable columns={ymCols} rows={ymData} emptyMsg="No data — apply filters or refresh" T={T}/>
+                <DataTable columns={ymCols} rows={[...ymData].sort((a,b)=>b.year!==a.year?b.year-a.year:b.month-a.month)} emptyMsg="No data — apply filters or refresh" T={T} scrollable={true}/>
               </Card>
             </div>
           )}
