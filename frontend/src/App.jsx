@@ -30,10 +30,21 @@ const DARK = {
 };
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const YEAR_COLORS = ["#8b5cf6","#f59e0b","#22c55e","#3b82f6"];
+
+// ── FIX 4: 8 fully distinct year colors — no duplicates even with 8 years ──
+const YEAR_COLORS = [
+  "#3b82f6", // blue       (2020 / oldest)
+  "#f59e0b", // amber
+  "#10b981", // emerald
+  "#ef4444", // red
+  "#a855f7", // purple
+  "#f97316", // orange
+  "#06b6d4", // cyan
+  "#ec4899", // pink       (2027 / newest)
+];
+
 const DS_COLORS = { Solmar:"#22c55e", Interbus:"#f59e0b", Snowtravel:"#3b82f6", "Solmar DE":"#ef4444" };
 const BASE = (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) || "http://localhost:3001";
-const PENDELS = ["BEN","CBR","SAL","SSE","LLO","COB","CSE","PEN"];
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 const dubaiTime = () => new Date().toLocaleTimeString("en-GB",{timeZone:"Asia/Dubai",hour:"2-digit",minute:"2-digit"});
@@ -42,6 +53,7 @@ const fmtN   = n => { if(n==null) return "—"; return Number(n).toLocaleString(
 const diffClr = (v,T) => v>0?T.success:v<0?T.danger:T.textMuted;
 const diffBg  = (v,T) => v>0?T.successBg:v<0?T.dangerBg:"transparent";
 
+// ── FIX 5: Validate token on every API call; throw 401 to trigger logout ──
 async function apiFetch(path, params={}) {
   const t = localStorage.getItem("ttp_token") || sessionStorage.getItem("ttp_token") || "";
   const qs = Object.entries(params).filter(([,v])=>v!=null&&v!=="")
@@ -50,6 +62,21 @@ async function apiFetch(path, params={}) {
   const r = await fetch(`${BASE}${path}${qs?"?"+qs:""}`,{headers:{"Authorization":`Bearer ${t}`}});
   if(r.status===401) throw Object.assign(new Error("Unauthorized"),{status:401});
   return r.json();
+}
+
+// ── FIX 5: Decode JWT and check expiry without a library ──
+function isTokenValid(token) {
+  if (!token) return false;
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return false;
+    const payload = JSON.parse(atob(parts[1]));
+    // exp is in seconds
+    if (payload.exp && Date.now() / 1000 > payload.exp) return false;
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // ─── SVG ICONS ────────────────────────────────────────────────────────────────
@@ -81,6 +108,7 @@ const Ic = {
 };
 
 // ─── CANVAS: LINE CHART ───────────────────────────────────────────────────────
+// FIX 3 + FIX 4: Chronological sort + distinct colors per year
 function LineChart({ data, T }) {
   const ref = useRef(null); const ptsRef = useRef([]); const [tip, setTip] = useState(null);
   useEffect(()=>{
@@ -91,19 +119,20 @@ function LineChart({ data, T }) {
     const W=rect.width,H=rect.height,pad={top:28,right:20,bottom:38,left:58};
     ctx.clearRect(0,0,W,H);
     if(!data?.length) return;
-    // Sort data chronologically
-    // Sort by date ASC - for fiscal year Dec 2025 appears before Jan 2026 naturally
-    const sorted=[...data].sort((a,b)=>{
-      // Create comparable date value
-      const da=a.year*100+a.month;
-      const db=b.year*100+b.month;
-      return da-db;
-    });
-    const byY={}; sorted.forEach(d=>{if(!byY[d.year])byY[d.year]={};byY[d.year][d.month]=d.revenue||0;});
+
+    // FIX 3: Sort strictly by year*100+month so cross-year ranges (Dec→Jan) are correct
+    const sorted=[...data].sort((a,b)=>(a.year*100+a.month)-(b.year*100+b.month));
+
+    // Build map: year → {month → revenue}
+    const byY={};
+    sorted.forEach(d=>{ if(!byY[d.year]) byY[d.year]={}; byY[d.year][d.month]=d.revenue||0; });
     const years=Object.keys(byY).sort((a,b)=>parseInt(a)-parseInt(b));
+
     const maxV=Math.max(...data.map(d=>d.revenue||0),1);
     const scX=m=>pad.left+(m-1)*(W-pad.left-pad.right)/11;
     const scY=v=>H-pad.bottom-(v/maxV)*(H-pad.top-pad.bottom);
+
+    // Grid lines
     for(let i=0;i<=4;i++){
       const y=H-pad.bottom-(i/4)*(H-pad.top-pad.bottom);
       ctx.strokeStyle=T.border;ctx.lineWidth=0.8;ctx.setLineDash([3,3]);
@@ -113,8 +142,10 @@ function LineChart({ data, T }) {
     }
     ctx.fillStyle=T.textDim;ctx.font="10px 'Segoe UI',sans-serif";ctx.textAlign="center";
     [1,2,3,4,5,6,7,8,9,10,11,12].forEach(m=>ctx.fillText(MONTHS[m-1],scX(m),H-pad.bottom+14));
+
     ptsRef.current=[];
     years.forEach((y,i)=>{
+      // FIX 4: Each year gets its own distinct color from the 8-color palette
       const color=YEAR_COLORS[i%YEAR_COLORS.length];
       ctx.strokeStyle=color;ctx.lineWidth=2.5;ctx.beginPath();let started=false;
       [1,2,3,4,5,6,7,8,9,10,11,12].forEach(m=>{
@@ -128,9 +159,17 @@ function LineChart({ data, T }) {
         ctx.beginPath();ctx.arc(p.x,p.y,4,0,Math.PI*2);ctx.fill();ctx.stroke();
       });
     });
+
+    // Legend
     let lx=pad.left;
-    years.forEach((y,i)=>{ctx.fillStyle=YEAR_COLORS[i%YEAR_COLORS.length];ctx.fillRect(lx,7,12,3);ctx.fillStyle=T.textDim;ctx.font="10px 'Segoe UI',sans-serif";ctx.textAlign="left";ctx.fillText(y,lx+15,13);lx+=48;});
+    years.forEach((y,i)=>{
+      const color=YEAR_COLORS[i%YEAR_COLORS.length];
+      ctx.fillStyle=color;ctx.fillRect(lx,7,16,3);
+      ctx.fillStyle=T.textDim;ctx.font="10px 'Segoe UI',sans-serif";ctx.textAlign="left";
+      ctx.fillText(y,lx+19,13);lx+=52;
+    });
   },[data,T]);
+
   const onMove=useCallback(e=>{
     const c=ref.current;if(!c)return;
     const rect=c.getBoundingClientRect();
@@ -139,12 +178,16 @@ function LineChart({ data, T }) {
     let n=null,d=28; ptsRef.current.forEach(p=>{const dd=Math.sqrt((p.x-mx)**2+(p.y-my)**2);if(dd<d){d=dd;n=p;}});
     setTip(n?{...n,cx:e.clientX,cy:e.clientY}:null);
   },[]);
-  return(<div style={{position:"relative"}}><canvas ref={ref} style={{width:"100%",height:220,display:"block",cursor:"crosshair"}} onMouseMove={onMove} onMouseLeave={()=>setTip(null)}/>
+
+  return(<div style={{position:"relative"}}>
+    <canvas ref={ref} style={{width:"100%",height:220,display:"block",cursor:"crosshair"}} onMouseMove={onMove} onMouseLeave={()=>setTip(null)}/>
     {tip&&<div style={{position:"fixed",left:tip.cx+14,top:tip.cy-48,background:tip.color,borderRadius:8,padding:"7px 12px",fontSize:12,color:"#fff",pointerEvents:"none",zIndex:9999,boxShadow:"0 4px 12px rgba(0,0,0,0.3)",whiteSpace:"nowrap"}}>
-      <b>{tip.month} {tip.year}</b><br/>{fmtEur(tip.value)}</div>}</div>);
+      <b>{tip.month} {tip.year}</b><br/>{fmtEur(tip.value)}</div>}
+  </div>);
 }
 
 // ─── CANVAS: BAR CHART ────────────────────────────────────────────────────────
+// FIX 3: Correct chronological ordering for cross-year date ranges
 function BarChart({ data, metric, onMetric, T }) {
   const ref=useRef(null);const barsRef=useRef([]);const[tip,setTip]=useState(null);
   useEffect(()=>{
@@ -154,13 +197,38 @@ function BarChart({ data, metric, onMetric, T }) {
     const ctx=c.getContext("2d");ctx.scale(dpr,dpr);
     const W=rect.width,H=rect.height,pad={top:28,right:20,bottom:38,left:52};
     ctx.clearRect(0,0,W,H);if(!data?.length)return;
-    const byY={};data.forEach(d=>{if(!byY[d.year])byY[d.year]={};byY[d.year][d.month]=metric==="bookings"?(d.bookings||0):metric==="pax"?(d.pax||0):(d.revenue||0);});
+
+    // FIX 3: Build year→month map from data sorted chronologically
+    // so Dec 2025 → Jan 2026 renders in the correct left-to-right order.
+    const byY={};
+    data.forEach(d=>{
+      if(!byY[d.year]) byY[d.year]={};
+      byY[d.year][d.month]= metric==="bookings"?(d.bookings||0):metric==="pax"?(d.pax||0):(d.revenue||0);
+    });
     const years=Object.keys(byY).sort();
+
+    // Determine the x-axis months in chronological order
+    // Find min and max year*100+month to define the axis range
+    const allYM=[...data].map(d=>d.year*100+d.month).sort((a,b)=>a-b);
+    const minYM=allYM[0], maxYM=allYM[allYM.length-1];
+
+    // Build ordered list of {year, month} slots
+    const slots=[];
+    let cur=minYM;
+    while(cur<=maxYM){
+      const yr=Math.floor(cur/100), mo=cur%100;
+      slots.push({yr,mo});
+      if(mo===12){cur=(yr+1)*100+1;}else{cur=yr*100+(mo+1);}
+    }
+    const N=slots.length||1;
+
     const allV=Object.values(byY).flatMap(y=>Object.values(y));
     const maxV=Math.max(...allV,1);
-    const slotW=(W-pad.left-pad.right)/12;
+    const slotW=(W-pad.left-pad.right)/N;
     const bW=Math.max(4,Math.floor(slotW/years.length)-2);
     const sy=v=>H-pad.bottom-(v/maxV)*(H-pad.top-pad.bottom);
+
+    // Grid
     for(let i=0;i<=4;i++){
       const yy=H-pad.bottom-(i/4)*(H-pad.top-pad.bottom);
       ctx.strokeStyle=T.border;ctx.lineWidth=0.8;ctx.setLineDash([3,3]);
@@ -168,22 +236,38 @@ function BarChart({ data, metric, onMetric, T }) {
       const v=maxV*i/4;ctx.fillStyle=T.textDim;ctx.font="10px 'Segoe UI',sans-serif";ctx.textAlign="right";
       ctx.fillText(metric==="revenue"?(v>=1e6?(v/1e6).toFixed(1)+"M":v>=1e3?(v/1e3).toFixed(0)+"K":Math.round(v)):(v>=1e3?(v/1e3).toFixed(0)+"K":Math.round(v)),pad.left-4,yy+3);
     }
+
+    // X-axis labels: show "MMM YY" when crossing year boundary, else just "MMM"
     ctx.fillStyle=T.textDim;ctx.font="10px 'Segoe UI',sans-serif";ctx.textAlign="center";
-    [1,2,3,4,5,6,7,8,9,10,11,12].forEach(m=>ctx.fillText(MONTHS[m-1],pad.left+(m-1)*slotW+slotW/2,H-pad.bottom+14));
+    const multiYear=new Set(slots.map(s=>s.yr)).size>1;
+    slots.forEach((s,si)=>{
+      const label=multiYear?`${MONTHS[s.mo-1]}'${String(s.yr).slice(2)}`:MONTHS[s.mo-1];
+      ctx.fillText(label,pad.left+si*slotW+slotW/2,H-pad.bottom+14);
+    });
+
     barsRef.current=[];
     years.forEach((y,i)=>{
       const color=YEAR_COLORS[i%YEAR_COLORS.length];ctx.fillStyle=color+"cc";
-      [1,2,3,4,5,6,7,8,9,10,11,12].forEach(m=>{
-        const v=byY[y][m]||0;if(!v)return;
-        const x=pad.left+(m-1)*slotW+i*(bW+1)+(slotW-years.length*(bW+1))/2;
+      slots.forEach((s,si)=>{
+        if(String(s.yr)!==String(y))return;
+        const v=byY[y]?.[s.mo]||0;if(!v)return;
+        const x=pad.left+si*slotW+i*(bW+1)+(slotW-years.length*(bW+1))/2;
         const barH=(v/maxV)*(H-pad.top-pad.bottom);
         ctx.fillRect(x,sy(v),bW,barH);
-        barsRef.current.push({x,y:sy(v),width:bW,height:barH,year:y,month:MONTHS[m-1],value:v,color});
+        barsRef.current.push({x,y:sy(v),width:bW,height:barH,year:y,month:MONTHS[s.mo-1],value:v,color});
       });
     });
+
+    // Legend
     let lx=pad.left;
-    years.forEach((y,i)=>{ctx.fillStyle=YEAR_COLORS[i%YEAR_COLORS.length];ctx.fillRect(lx,7,12,8);ctx.fillStyle=T.textDim;ctx.font="10px 'Segoe UI',sans-serif";ctx.textAlign="left";ctx.fillText(y,lx+15,14);lx+=48;});
+    years.forEach((y,i)=>{
+      const color=YEAR_COLORS[i%YEAR_COLORS.length];
+      ctx.fillStyle=color;ctx.fillRect(lx,7,12,8);
+      ctx.fillStyle=T.textDim;ctx.font="10px 'Segoe UI',sans-serif";ctx.textAlign="left";
+      ctx.fillText(y,lx+15,14);lx+=52;
+    });
   },[data,metric,T]);
+
   const onMove=useCallback(e=>{
     const c=ref.current;if(!c)return;
     const rect=c.getBoundingClientRect();
@@ -192,6 +276,7 @@ function BarChart({ data, metric, onMetric, T }) {
     const bar=barsRef.current.find(b=>mx>=b.x&&mx<=b.x+b.width&&my>=b.y&&my<=b.y+b.height);
     setTip(bar?{...bar,cx:e.clientX,cy:e.clientY}:null);
   },[]);
+
   return(<div style={{position:"relative"}}>
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
       <span style={{fontSize:11,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.07em"}}>BOOKINGS / PAX BY YEAR</span>
@@ -303,10 +388,7 @@ function DataTable({columns,rows,emptyMsg="No data",T,maxHeight=460}){
   </div>);
 }
 
-
 // ─── FEEDER PIVOT TABLE ───────────────────────────────────────────────────────
-// Dates as columns with normal horizontal headers (no rotation)
-// Matches Google Sheets exactly: Pick-up point | Pax (total) | date columns...
 function FeederPivotTable({ data, T }) {
   if (!data?.length) return (
     <div style={{padding:32,textAlign:"center",color:T.textMuted,fontSize:13}}>
@@ -316,7 +398,6 @@ function FeederPivotTable({ data, T }) {
 
   const parseDate = s => {
     if(!s)return 0;
-    const sep=s.includes('/')?' /':'-';
     const[d,m,y]=s.split(s.includes('/')?'/':'-');
     if(!y)return 0;
     return new Date(`${y}-${(m||'01').padStart(2,'0')}-${(d||'01').padStart(2,'0')}`).getTime();
@@ -344,86 +425,49 @@ function FeederPivotTable({ data, T }) {
   dates.forEach(d=>{grandTotals[d]=Object.values(routeTotals).reduce((s,rt)=>s+(rt[d]||0),0);});
   const grandTotal=Object.values(grandTotals).reduce((a,b)=>a+b,0);
 
-  // Format date for display: dd/mm/yyyy → dd-mm-yyyy
   const fmtDate=s=>{
     if(!s)return '';
-    const sep=s.includes('/')?'/':'-';
-    const parts=s.split(sep);
+    const parts=s.split(s.includes('/')?'/':'-');
     if(parts.length>=3)return `${parts[0]}-${parts[1]}-${parts[2]}`;
     return s;
   };
 
   const COL_W=90;
-
   return (
     <div>
       {allDates.length>15&&<div style={{padding:"6px 14px",background:T.warningBg,borderBottom:`1px solid ${T.border}`,fontSize:11,color:T.warning}}>
         Showing first 15 of {allDates.length} dates. Use date filters to narrow the range.
       </div>}
-      <div style={{overflowX:"auto",overflowY:"visible",width:"100%",paddingBottom:16,cursor:"default"}}>
+      <div style={{overflowX:"auto",width:"100%",paddingBottom:16}}>
       <div style={{overflowY:"auto",maxHeight:520}}>
         <table style={{borderCollapse:"collapse",fontSize:12,tableLayout:"fixed",width:`${180+80+(dates.length*COL_W)}px`}}>
           <thead style={{position:"sticky",top:0,zIndex:3}}>
             <tr style={{background:T.tableAlt}}>
-              <th style={{width:180,padding:"10px 12px",textAlign:"left",fontSize:11,fontWeight:700,color:T.textMuted,textTransform:"uppercase",borderBottom:`2px solid ${T.border}`,borderRight:`2px solid ${T.border}`,position:"sticky",left:0,background:T.tableAlt,zIndex:4}}>
-                Pick-up point
-              </th>
-              <th style={{width:80,padding:"10px 10px",textAlign:"right",fontSize:11,fontWeight:700,color:T.textMuted,textTransform:"uppercase",borderBottom:`2px solid ${T.border}`,borderRight:`2px solid ${T.border}`,background:T.tableAlt}}>
-                Pax (total)
-              </th>
-              {dates.map(d=>(
-                <th key={d} style={{width:COL_W,padding:"10px 6px",textAlign:"right",fontSize:11,fontWeight:600,color:T.accent,borderBottom:`2px solid ${T.border}`,borderRight:`1px solid ${T.border}`,background:T.tableAlt,whiteSpace:"nowrap"}}>
-                  {fmtDate(d)}
-                </th>
-              ))}
+              <th style={{width:180,padding:"10px 12px",textAlign:"left",fontSize:11,fontWeight:700,color:T.textMuted,textTransform:"uppercase",borderBottom:`2px solid ${T.border}`,borderRight:`2px solid ${T.border}`,position:"sticky",left:0,background:T.tableAlt,zIndex:4}}>Pick-up point</th>
+              <th style={{width:80,padding:"10px 10px",textAlign:"right",fontSize:11,fontWeight:700,color:T.textMuted,textTransform:"uppercase",borderBottom:`2px solid ${T.border}`,borderRight:`2px solid ${T.border}`,background:T.tableAlt}}>Pax (total)</th>
+              {dates.map(d=>(<th key={d} style={{width:COL_W,padding:"10px 6px",textAlign:"right",fontSize:11,fontWeight:600,color:T.accent,borderBottom:`2px solid ${T.border}`,borderRight:`1px solid ${T.border}`,background:T.tableAlt,whiteSpace:"nowrap"}}>{fmtDate(d)}</th>))}
             </tr>
           </thead>
           <tbody>
-            {/* Grand total row */}
             <tr style={{background:`${T.accent}18`}}>
-              <td style={{padding:"9px 12px",fontWeight:700,color:T.accent,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,position:"sticky",left:0,background:`${T.accent}18`,fontSize:12}}>
-                Totaal vertrek
-              </td>
-              <td style={{padding:"9px 10px",textAlign:"right",fontWeight:700,color:T.accent,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
-                {grandTotal.toLocaleString("nl-BE")}
-              </td>
-              {dates.map(d=>(
-                <td key={d} style={{padding:"9px 6px",textAlign:"right",fontWeight:700,color:grandTotals[d]>0?T.accent:T.textDim,borderRight:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
-                  {grandTotals[d]>0?grandTotals[d]:""}
-                </td>
-              ))}
+              <td style={{padding:"9px 12px",fontWeight:700,color:T.accent,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,position:"sticky",left:0,background:`${T.accent}18`,fontSize:12}}>Totaal vertrek</td>
+              <td style={{padding:"9px 10px",textAlign:"right",fontWeight:700,color:T.accent,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>{grandTotal.toLocaleString("nl-BE")}</td>
+              {dates.map(d=>(<td key={d} style={{padding:"9px 6px",textAlign:"right",fontWeight:700,color:grandTotals[d]>0?T.accent:T.textDim,borderRight:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>{grandTotals[d]>0?grandTotals[d]:""}</td>))}
             </tr>
-            {/* Routes and stops */}
             {routes.map(rk=>{
               const stops=routeStops[rk]||[];
               const routeTotal=stops.reduce((s,sk)=>s+Object.values(lookup[rk]?.[sk]||{}).reduce((a,b)=>a+b,0),0);
               return [
                 <tr key={`r-${rk}`} style={{background:T.tableAlt,borderTop:`2px solid ${T.border}`}}>
-                  <td style={{padding:"8px 12px",fontWeight:700,color:T.text,fontSize:12,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,position:"sticky",left:0,background:T.tableAlt}}>
-                    {routeInfo[rk]}
-                  </td>
-                  <td style={{padding:"8px 10px",textAlign:"right",fontWeight:700,color:T.text,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
-                    {routeTotal>0?routeTotal.toLocaleString("nl-BE"):""}
-                  </td>
-                  {dates.map(d=>{const v=routeTotals[rk]?.[d]||0;return(
-                    <td key={d} style={{padding:"8px 6px",textAlign:"right",fontWeight:600,color:v>0?T.accent:T.textDim,borderRight:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
-                      {v>0?v:""}
-                    </td>
-                  );})}
+                  <td style={{padding:"8px 12px",fontWeight:700,color:T.text,fontSize:12,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,position:"sticky",left:0,background:T.tableAlt}}>{routeInfo[rk]}</td>
+                  <td style={{padding:"8px 10px",textAlign:"right",fontWeight:700,color:T.text,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>{routeTotal>0?routeTotal.toLocaleString("nl-BE"):""}</td>
+                  {dates.map(d=>{const v=routeTotals[rk]?.[d]||0;return(<td key={d} style={{padding:"8px 6px",textAlign:"right",fontWeight:600,color:v>0?T.accent:T.textDim,borderRight:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>{v>0?v:""}</td>);})}
                 </tr>,
                 ...stops.map((sk,si)=>(
                   <tr key={`${rk}-${sk}`} style={{background:si%2===0?T.card:T.tableAlt}}>
-                    <td style={{padding:"7px 12px 7px 22px",color:T.textMuted,fontSize:11,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,position:"sticky",left:0,background:si%2===0?T.card:T.tableAlt,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
-                      {sk}
-                    </td>
-                    <td style={{padding:"7px 10px",textAlign:"right",color:T.textMuted,fontSize:11,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
-                      {Object.values(lookup[rk]?.[sk]||{}).reduce((a,b)=>a+b,0)||""}
-                    </td>
-                    {dates.map(d=>{const v=lookup[rk]?.[sk]?.[d]||0;return(
-                      <td key={d} style={{padding:"7px 6px",textAlign:"right",color:v>0?T.text:T.textDim,fontSize:11,borderRight:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
-                        {v>0?v:""}
-                      </td>
-                    );})}
+                    <td style={{padding:"7px 12px 7px 22px",color:T.textMuted,fontSize:11,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,position:"sticky",left:0,background:si%2===0?T.card:T.tableAlt,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{sk}</td>
+                    <td style={{padding:"7px 10px",textAlign:"right",color:T.textMuted,fontSize:11,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>{Object.values(lookup[rk]?.[sk]||{}).reduce((a,b)=>a+b,0)||""}</td>
+                    {dates.map(d=>{const v=lookup[rk]?.[sk]?.[d]||0;return(<td key={d} style={{padding:"7px 6px",textAlign:"right",color:v>0?T.text:T.textDim,fontSize:11,borderRight:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>{v>0?v:""}</td>);})}
                   </tr>
                 ))
               ];
@@ -437,17 +481,10 @@ function FeederPivotTable({ data, T }) {
 }
 
 // ─── DECK TABLE ───────────────────────────────────────────────────────────────
-// Clean rebuild matching Google Sheets: Datum | Total(Total/Lower/Upper/NoDeck) | RC | FC | PRE
 function DeckTable({ data, T }) {
   const [hover, setHover] = useState(-1);
+  if (!data?.length) return (<div style={{padding:32,textAlign:"center",color:T.textMuted,fontSize:13}}>No deck data — adjust filters and click Apply</div>);
 
-  if (!data?.length) return (
-    <div style={{padding:32,textAlign:"center",color:T.textMuted,fontSize:13}}>
-      No deck data — adjust filters and click Apply
-    </div>
-  );
-
-  // Parse and sort by date ASC
   const parseD = s => {
     if(!s)return 0;
     const sep=s.includes('/')?'/':'-';
@@ -464,77 +501,42 @@ function DeckTable({ data, T }) {
   };
 
   const sorted=[...data].sort((a,b)=>parseD(a.dateDeparture)-parseD(b.dateDeparture));
-
   const sections=[
-    {key:"Total",   label:"Total",       color:"#3b82f6",
-     cols:[{k:"Total",l:"Total",bold:true},{k:"Total_Lower",l:"Lower Deck"},{k:"Total_Upper",l:"Upper Deck"},{k:"Total_NoDeck",l:"No Deck"}]},
-    {key:"Royal",   label:"Royal Class", color:"#8b5cf6",
-     cols:[{k:"Royal_Total",l:"Total",bold:true},{k:"Royal_Lower",l:"Lower Deck"},{k:"Royal_Upper",l:"Upper Deck"},{k:"Royal_NoDeck",l:"No Deck"}]},
-    {key:"First",   label:"First Class", color:"#22c55e",
-     cols:[{k:"First_Total",l:"Total",bold:true},{k:"First_Lower",l:"Lower Deck"},{k:"First_Upper",l:"Upper Deck"},{k:"First_NoDeck",l:"No Deck"}]},
-    {key:"Premium", label:"Premium",     color:"#f59e0b",
-     cols:[{k:"Premium_Total",l:"Total",bold:true},{k:"Premium_Lower",l:"Lower Deck"},{k:"Premium_Upper",l:"Upper Deck"},{k:"Premium_NoDeck",l:"No Deck"}]},
+    {key:"Total",   label:"Total",       color:"#3b82f6",cols:[{k:"Total",l:"Total",bold:true},{k:"Total_Lower",l:"Lower Deck"},{k:"Total_Upper",l:"Upper Deck"},{k:"Total_NoDeck",l:"No Deck"}]},
+    {key:"Royal",   label:"Royal Class", color:"#8b5cf6",cols:[{k:"Royal_Total",l:"Total",bold:true},{k:"Royal_Lower",l:"Lower Deck"},{k:"Royal_Upper",l:"Upper Deck"},{k:"Royal_NoDeck",l:"No Deck"}]},
+    {key:"First",   label:"First Class", color:"#22c55e",cols:[{k:"First_Total",l:"Total",bold:true},{k:"First_Lower",l:"Lower Deck"},{k:"First_Upper",l:"Upper Deck"},{k:"First_NoDeck",l:"No Deck"}]},
+    {key:"Premium", label:"Premium",     color:"#f59e0b",cols:[{k:"Premium_Total",l:"Total",bold:true},{k:"Premium_Lower",l:"Lower Deck"},{k:"Premium_Upper",l:"Upper Deck"},{k:"Premium_NoDeck",l:"No Deck"}]},
   ];
-
   const allZeroDeck = sorted.every(r=>!r.Total_Lower&&!r.Total_Upper);
 
   return (
     <div>
-      {allZeroDeck&&(
-        <div style={{padding:"8px 16px",background:T.warningBg,borderBottom:`1px solid ${T.border}`,fontSize:11,color:T.warning,display:"flex",alignItems:"center",gap:6}}>
-          ⚠ Lower / Upper deck assignment not yet available for 2026 — data pending from pipeline
-        </div>
-      )}
-      <div style={{overflowX:"auto",overflowY:"auto",maxHeight:560,paddingBottom:8,WebkitOverflowScrolling:"touch"}}>
+      {allZeroDeck&&(<div style={{padding:"8px 16px",background:T.warningBg,borderBottom:`1px solid ${T.border}`,fontSize:11,color:T.warning}}>⚠ Lower / Upper deck assignment not yet available — data pending from pipeline</div>)}
+      <div style={{overflowX:"auto",overflowY:"auto",maxHeight:560,paddingBottom:8}}>
         <table style={{borderCollapse:"collapse",fontSize:12,minWidth:900}}>
           <thead style={{position:"sticky",top:0,zIndex:3}}>
             <tr style={{background:T.tableAlt}}>
-              <th rowSpan={2} style={{padding:"10px 14px",textAlign:"left",fontSize:11,fontWeight:700,color:T.textMuted,textTransform:"uppercase",borderBottom:`1px solid ${T.border}`,borderRight:`2px solid ${T.border}`,minWidth:110,verticalAlign:"bottom",position:"sticky",left:0,background:T.tableAlt,zIndex:4}}>
-                Datum
-              </th>
-              {sections.map(s=>(
-                <th key={s.key} colSpan={4} style={{padding:"8px 16px",textAlign:"center",fontSize:11,fontWeight:700,color:s.color,textTransform:"uppercase",borderBottom:`2px solid ${s.color}`,borderLeft:`2px solid ${s.color}44`,background:`${s.color}11`,letterSpacing:"0.05em"}}>
-                  {s.label}
-                </th>
-              ))}
+              <th rowSpan={2} style={{padding:"10px 14px",textAlign:"left",fontSize:11,fontWeight:700,color:T.textMuted,textTransform:"uppercase",borderBottom:`1px solid ${T.border}`,borderRight:`2px solid ${T.border}`,minWidth:110,verticalAlign:"bottom",position:"sticky",left:0,background:T.tableAlt,zIndex:4}}>Datum</th>
+              {sections.map(s=>(<th key={s.key} colSpan={4} style={{padding:"8px 16px",textAlign:"center",fontSize:11,fontWeight:700,color:s.color,textTransform:"uppercase",borderBottom:`2px solid ${s.color}`,borderLeft:`2px solid ${s.color}44`,background:`${s.color}11`,letterSpacing:"0.05em"}}>{s.label}</th>))}
             </tr>
             <tr style={{background:T.tableAlt,position:"sticky",top:33,zIndex:2}}>
-              {sections.map(s=>s.cols.map((c,ci)=>(
-                <th key={`${s.key}-${c.k}`} style={{padding:"6px 10px",textAlign:"right",fontSize:10,fontWeight:700,color:T.textDim,textTransform:"uppercase",borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap",background:T.tableAlt,...(ci===0?{borderLeft:`2px solid ${s.color}44`}:{})}}>
-                  {c.l}
-                </th>
-              )))}
+              {sections.map(s=>s.cols.map((c,ci)=>(<th key={`${s.key}-${c.k}`} style={{padding:"6px 10px",textAlign:"right",fontSize:10,fontWeight:700,color:T.textDim,textTransform:"uppercase",borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap",background:T.tableAlt,...(ci===0?{borderLeft:`2px solid ${s.color}44`}:{})}}>{c.l}</th>)))}
             </tr>
           </thead>
           <tbody>
             {sorted.map((row,i)=>(
-              <tr key={i}
-                style={{background:hover===i?`${T.accent}11`:i%2===0?T.card:T.tableAlt,borderBottom:`1px solid ${T.border}`,transition:"background 0.1s",cursor:"default"}}
-                onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(-1)}>
-                <td style={{padding:"8px 14px",color:T.accent,fontWeight:700,whiteSpace:"nowrap",borderRight:`2px solid ${T.border}`,position:"sticky",left:0,background:hover===i?`${T.accent}11`:i%2===0?T.card:T.tableAlt}}>
-                  {fmtD(row.dateDeparture)}
-                </td>
-                {sections.map(s=>s.cols.map((c,ci)=>{
-                  const v=row[c.k]||0;
-                  return(
-                    <td key={`${s.key}-${c.k}`} style={{padding:"8px 10px",textAlign:"right",fontWeight:c.bold?700:400,color:v>0?(c.bold?s.color:T.text):T.textDim,...(ci===0?{borderLeft:`2px solid ${s.color}44`}:{})}}>
-                      {v>0?v.toLocaleString("nl-BE"):""}
-                    </td>
-                  );
-                }))}
+              <tr key={i} style={{background:hover===i?`${T.accent}11`:i%2===0?T.card:T.tableAlt,borderBottom:`1px solid ${T.border}`,transition:"background 0.1s"}} onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(-1)}>
+                <td style={{padding:"8px 14px",color:T.accent,fontWeight:700,whiteSpace:"nowrap",borderRight:`2px solid ${T.border}`,position:"sticky",left:0,background:hover===i?`${T.accent}11`:i%2===0?T.card:T.tableAlt}}>{fmtD(row.dateDeparture)}</td>
+                {sections.map(s=>s.cols.map((c,ci)=>{const v=row[c.k]||0;return(<td key={`${s.key}-${c.k}`} style={{padding:"8px 10px",textAlign:"right",fontWeight:c.bold?700:400,color:v>0?(c.bold?s.color:T.text):T.textDim,...(ci===0?{borderLeft:`2px solid ${s.color}44`}:{})}}>{v>0?v.toLocaleString("nl-BE"):""}</td>);}))}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <div style={{padding:"8px 16px",borderTop:`1px solid ${T.border}`,fontSize:10,color:T.textDim}}>
-        RC = Royal Class | FC = First Class | PRE = Premium | Lwr = Lower Deck | Upr = Upper Deck | No = No Deck
-      </div>
+      <div style={{padding:"8px 16px",borderTop:`1px solid ${T.border}`,fontSize:10,color:T.textDim}}>RC = Royal Class | FC = First Class | PRE = Premium | Lwr = Lower Deck | Upr = Upper Deck | No = No Deck</div>
     </div>
   );
 }
-
-
 
 // ─── HOTEL INSIGHTS TAB ───────────────────────────────────────────────────────
 function HotelTab({token,T,API}) {
@@ -550,30 +552,17 @@ function HotelTab({token,T,API}) {
     Promise.all([
       fetch(`${API}/api/dashboard/hotel-stats`,{headers:h}).then(r=>r.json()),
       fetch(`${API}/api/dashboard/hotel-ratings`,{headers:h}).then(r=>r.json()),
-    ]).then(([s,r])=>{
-      setStats(s); setRatings(Array.isArray(r)?r:[]);
-      setLoading(false);
-    }).catch(()=>setLoading(false));
+    ]).then(([s,r])=>{setStats(s);setRatings(Array.isArray(r)?r:[]);setLoading(false);}).catch(()=>setLoading(false));
   },[token,API]);
 
   const loadReviews=(code)=>{
     setSelHotel(code);
     const h={"Authorization":`Bearer ${token}`};
-    fetch(`${API}/api/dashboard/hotel-reviews?code=${code}&limit=20`,{headers:h})
-      .then(r=>r.json()).then(d=>setReviews(d.rows||[]));
-  };
-
-  const stars=(r)=>{
-    if(!r) return '—';
-    const n=parseFloat(r);
-    const full=Math.floor(n/2);
-    return '★'.repeat(full)+'☆'.repeat(5-full)+` ${n.toFixed(1)}`;
+    fetch(`${API}/api/dashboard/hotel-reviews?code=${code}&limit=20`,{headers:h}).then(r=>r.json()).then(d=>setReviews(d.rows||[]));
   };
 
   const filtered=ratings.filter(r=>(r.accommodation_name||r.accommodation_code||'').toLowerCase().includes(search.toLowerCase()));
-
   if(loading) return <div style={{padding:40,textAlign:'center',color:T.textMuted}}>Loading hotel data...</div>;
-
   const noData=!stats?.total_hotels;
 
   return (
@@ -582,24 +571,13 @@ function HotelTab({token,T,API}) {
         <div style={{textAlign:"center",padding:"60px 20px",background:T.card,borderRadius:14,border:`1px solid ${T.border}`}}>
           <div style={{fontSize:44,marginBottom:16}}>🏨</div>
           <div style={{fontSize:20,fontWeight:800,color:T.text,marginBottom:8}}>Hotel Insights</div>
-          <div style={{fontSize:13,color:T.textMuted,marginBottom:20,maxWidth:420,margin:"0 auto 20px"}}>
-            TravelTrustIt reviews will appear here. Run the ETL script to load hotel review data.
-          </div>
-          <code style={{fontSize:11,background:T.tableAlt,padding:"8px 16px",borderRadius:8,color:T.accent,display:"block",maxWidth:500,margin:"0 auto"}}>
-            node src/scripts/loadHotelReviews.js
-          </code>
+          <div style={{fontSize:13,color:T.textMuted,marginBottom:20,maxWidth:420,margin:"0 auto 20px"}}>TravelTrustIt reviews will appear here. Run the ETL script to load hotel review data.</div>
+          <code style={{fontSize:11,background:T.tableAlt,padding:"8px 16px",borderRadius:8,color:T.accent,display:"block",maxWidth:500,margin:"0 auto"}}>node src/scripts/loadHotelReviews.js</code>
         </div>
       ) : (
         <>
-          {/* Stats */}
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12,marginBottom:20}}>
-            {[
-              {label:"Total Hotels",value:stats?.total_hotels?.toLocaleString('nl-BE')},
-              {label:"Total Reviews",value:stats?.total_reviews?.toLocaleString('nl-BE')},
-              {label:"Avg Rating",value:stats?.avg_rating?`${stats.avg_rating}/10`:'—'},
-              {label:"High Rated",value:stats?.high_rated?.toLocaleString('nl-BE'),sub:"≥8.0"},
-              {label:"Latest Review",value:stats?.latest_review?stats.latest_review.split('T')[0]:'—'},
-            ].map(s=>(
+            {[{label:"Total Hotels",value:stats?.total_hotels?.toLocaleString('nl-BE')},{label:"Total Reviews",value:stats?.total_reviews?.toLocaleString('nl-BE')},{label:"Avg Rating",value:stats?.avg_rating?`${stats.avg_rating}/10`:'—'},{label:"High Rated",value:stats?.high_rated?.toLocaleString('nl-BE'),sub:"≥8.0"},{label:"Latest Review",value:stats?.latest_review?stats.latest_review.split('T')[0]:'—'}].map(s=>(
               <Card key={s.label} style={{padding:"14px 16px"}} T={T}>
                 <div style={{fontSize:10,fontWeight:700,color:T.textMuted,textTransform:"uppercase",marginBottom:6}}>{s.label}</div>
                 <div style={{fontSize:20,fontWeight:800,color:T.text}}>{s.value||'—'}</div>
@@ -607,23 +585,14 @@ function HotelTab({token,T,API}) {
               </Card>
             ))}
           </div>
-
-          {/* Search + Table */}
           <div style={{background:T.card,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
             <div style={{padding:"12px 16px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
               <span style={{fontSize:13,fontWeight:700,color:T.text}}>Hotel Ratings — {filtered.length} properties</span>
-              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search hotel..."
-                style={{padding:"6px 12px",background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:8,color:T.text,fontSize:12,outline:"none",width:200}}/>
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search hotel..." style={{padding:"6px 12px",background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:8,color:T.text,fontSize:12,outline:"none",width:200}}/>
             </div>
             <div style={{overflowX:"auto"}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                <thead>
-                  <tr style={{background:T.tableAlt}}>
-                    {["Hotel","Code","Overall","Sleep","Location","Cleanliness","Service","Reviews","Action"].map(h=>(
-                      <th key={h} style={{padding:"8px 12px",textAlign:"left",color:T.textMuted,fontWeight:700,fontSize:11,whiteSpace:"nowrap"}}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
+                <thead><tr style={{background:T.tableAlt}}>{["Hotel","Code","Overall","Sleep","Location","Cleanliness","Service","Reviews","Action"].map(h=>(<th key={h} style={{padding:"8px 12px",textAlign:"left",color:T.textMuted,fontWeight:700,fontSize:11,whiteSpace:"nowrap"}}>{h}</th>))}</tr></thead>
                 <tbody>
                   {filtered.slice(0,50).map((r,i)=>(
                     <tr key={r.accommodation_code} style={{borderTop:`1px solid ${T.border}`,background:i%2?T.tableAlt:"transparent"}}>
@@ -635,20 +604,15 @@ function HotelTab({token,T,API}) {
                       <td style={{padding:"8px 12px",color:T.textMuted}}>{r.avg_cleanliness||'—'}</td>
                       <td style={{padding:"8px 12px",color:T.textMuted}}>{r.avg_service||'—'}</td>
                       <td style={{padding:"8px 12px",color:T.textMuted}}>{r.total_reviews||0}</td>
-                      <td style={{padding:"8px 12px"}}>
-                        <button onClick={()=>loadReviews(r.accommodation_code)}
-                          style={{background:T.accent,color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer"}}>Reviews</button>
-                      </td>
+                      <td style={{padding:"8px 12px"}}><button onClick={()=>loadReviews(r.accommodation_code)} style={{background:T.accent,color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer"}}>Reviews</button></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           </div>
-
-          {/* Reviews panel */}
           {selHotel&&reviews.length>0&&(
-            <div style={{marginTop:16,background:T.cardBg,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+            <div style={{marginTop:16,background:T.card,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
               <div style={{padding:"12px 16px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                 <span style={{fontSize:13,fontWeight:700,color:T.text}}>Reviews — {selHotel}</span>
                 <button onClick={()=>{setSelHotel(null);setReviews([]);}} style={{background:"transparent",border:"none",cursor:"pointer",color:T.textMuted,fontSize:16}}>✕</button>
@@ -674,8 +638,21 @@ function HotelTab({token,T,API}) {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── MAIN APP ─────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
 export default function App(){
-  const[token,setToken]=useState(()=>localStorage.getItem("ttp_token")||"");
+  // ── FIX 5: Initialize token only if it's still valid ──
+  const[token,setToken]=useState(()=>{
+    const stored = localStorage.getItem("ttp_token") || sessionStorage.getItem("ttp_token") || "";
+    if(!isTokenValid(stored)){
+      localStorage.removeItem("ttp_token");
+      sessionStorage.removeItem("ttp_token");
+      return "";
+    }
+    return stored;
+  });
+
   const[user,setUser]=useState(null);
   const[tab,setTab]=useState("overview");
   const[themeKey,setThemeKey]=useState(()=>localStorage.getItem("ttp_theme")||"light");
@@ -696,9 +673,7 @@ export default function App(){
   const[slicers,setSlicers]=useState({transportTypes:[],datasets:[],labels:[]});
 
   // Bus
-  const[busLabel,setBusLabel]=useState("Solmar");
   const[busView,setBusView]=useState("pendel");
-  const[busTrips,setBusTrips]=useState([]);
   const[busClass,setBusClass]=useState([]);
   const[stTrips,setStTrips]=useState([]);
   const[pendelData,setPendelData]=useState([]);
@@ -730,7 +705,6 @@ export default function App(){
   const[showExportModal,setShowExportModal]=useState(false);
   const[exportOpts,setExportOpts]=useState({datasets:[],status:"",depFrom:"",depTo:"",bkFrom:"",bkTo:""});
   const[showAddUser,setShowAddUser]=useState(false);
-  const[showNewPw,setShowNewPw]=useState(false);
   const[editUser,setEditUser]=useState(null);
   const[newUser,setNewUser]=useState({name:"",username:"",email:"",password:"",role:"viewer"});
   const[apiKeys,setApiKeys]=useState({openai:"",anthropic:"",emailAlert:""});
@@ -739,11 +713,45 @@ export default function App(){
   const[lastSync,setLastSync]=useState("");
 
   useEffect(()=>{const iv=setInterval(()=>setClock(dubaiTime()),1000);return()=>clearInterval(iv);},[]);
-  useEffect(()=>{if(!token)return;try{const p=JSON.parse(atob(token.split(".")[1]));setUser(p.user||p);}catch{}},[token]);
+
+  // ── FIX 5: Parse user from token; also validate expiry on every render ──
+  useEffect(()=>{
+    if(!token) return;
+    if(!isTokenValid(token)){
+      logout();
+      return;
+    }
+    try{const p=JSON.parse(atob(token.split(".")[1]));setUser(p.user||p);}catch{}
+  },[token]);
 
   const switchTheme=k=>{setThemeKey(k);localStorage.setItem("ttp_theme",k);};
-  const logout=()=>{localStorage.removeItem("ttp_token");sessionStorage.removeItem("ttp_token");setToken("");setUser(null);};
-  const onLogin=(tok,u)=>{localStorage.setItem("ttp_token",tok);sessionStorage.setItem("ttp_token",tok);setToken(tok);setUser(u);};
+
+  const logout=()=>{
+    localStorage.removeItem("ttp_token");
+    sessionStorage.removeItem("ttp_token");
+    setToken("");
+    setUser(null);
+  };
+
+  const onLogin=(tok,u)=>{
+    localStorage.setItem("ttp_token",tok);
+    sessionStorage.setItem("ttp_token",tok);
+    setToken(tok);
+    setUser(u);
+  };
+
+  // ── FIX 5: Global 401 handler — if any apiFetch throws 401, force logout ──
+  const safeApiFetch = useCallback(async (path, params={}) => {
+    try {
+      return await apiFetch(path, params);
+    } catch(e) {
+      if(e.status===401) {
+        logout();
+        return null;
+      }
+      throw e;
+    }
+  },[]);
 
   const buildP=useCallback(f=>{
     const p={};
@@ -760,24 +768,24 @@ export default function App(){
     if(!token)return;setOLoad(true);
     const p=buildP(f);
     Promise.all([
-      apiFetch("/api/dashboard/kpis",p).catch(()=>null),
-      apiFetch("/api/dashboard/revenue-by-year",p).catch(()=>[]),
-      apiFetch("/api/dashboard/year-month-comparison",p).catch(()=>[]),
+      safeApiFetch("/api/dashboard/kpis",p),
+      safeApiFetch("/api/dashboard/revenue-by-year",p),
+      safeApiFetch("/api/dashboard/year-month-comparison",p),
     ]).then(([k,r,ym])=>{
       if(k&&!k.error)setKpis(k);
       if(Array.isArray(r))setRevData(r);
       if(Array.isArray(ym))setYmData(ym);
       setLastSync(dubaiTime());
     }).catch(console.error).finally(()=>setOLoad(false));
-  },[token,buildP]);
+  },[token,buildP,safeApiFetch]);
 
-  // Load users from backend
   const loadUsers = useCallback(async()=>{
     if(!token||user?.role!=="admin") return;
     setUsersLoad(true); setUsersError("");
     try {
       const t = localStorage.getItem("ttp_token");
       const r = await fetch(`${BASE}/api/auth/users`,{headers:{"Authorization":`Bearer ${t}`}});
+      if(r.status===401){logout();return;}
       if(r.ok){ const d=await r.json(); if(Array.isArray(d)) setUsers(d); }
       else setUsersError("Failed to load users");
     } catch { setUsersError("Cannot connect to server"); }
@@ -786,7 +794,7 @@ export default function App(){
 
   useEffect(()=>{
     if(!token)return;
-    apiFetch("/api/dashboard/slicers",{}).then(d=>{if(d&&!d.error)setSlicers(d);}).catch(()=>{});
+    safeApiFetch("/api/dashboard/slicers",{}).then(d=>{if(d&&!d.error)setSlicers(d);});
     loadOverview({});
   },[token]);
 
@@ -802,29 +810,28 @@ export default function App(){
     if(f.region)      p.region=f.region;
     if(f.destination) p.destination=f.destination;
     if(f.weekday)     p.weekday=f.weekday;
-    if(f.feederLabel)  p.label=f.feederLabel;
-    if(f.feederLine)   p.feederLine=f.feederLine;
+    if(f.feederLabel) p.label=f.feederLabel;
+    if(f.feederLine)  p.feederLine=f.feederLine;
     if((f.datasets||[]).length) p.dataset=f.datasets;
     Promise.all([
-      apiFetch("/api/dashboard/bus-kpis",p).catch(()=>({})),
-      apiFetch("/api/dashboard/pendel-overview",p).catch(()=>[]),
-      apiFetch("/api/dashboard/feeder-overview",p).catch(()=>[]),
-      apiFetch("/api/dashboard/deck-class",p).catch(()=>[]),
+      safeApiFetch("/api/dashboard/bus-kpis",p),
+      safeApiFetch("/api/dashboard/pendel-overview",p),
+      safeApiFetch("/api/dashboard/feeder-overview",p),
+      safeApiFetch("/api/dashboard/deck-class",p),
     ]).then(([bk,pd,fd,dc])=>{
       if(bk&&!bk.error)setBusKpis(bk);
       if(Array.isArray(pd))setPendelData(pd);
       if(Array.isArray(fd))setFeederData(fd);
       if(Array.isArray(dc))setDeckData(dc);
     }).finally(()=>setBLoad(false));
-  },[token]);
+  },[token,safeApiFetch]);
 
   useEffect(()=>{
     if(token){
       const y=new Date().getFullYear();
       const initF={dateFrom:`${y}-01-01`,dateTo:`${y}-12-31`,pendel:"",region:"",destination:"",weekday:""};
-      setBusF(initF);
-      loadBus(initF);
-      apiFetch("/api/dashboard/bus-slicers",{}).then(d=>{if(d&&!d.error)setBusSlicers(d);}).catch(()=>{});
+      setBusF(initF);loadBus(initF);
+      safeApiFetch("/api/dashboard/bus-slicers",{}).then(d=>{if(d&&!d.error)setBusSlicers(d);});
     }
   },[token]);
 
@@ -832,27 +839,28 @@ export default function App(){
     if(!token)return;setTLoad(true);
     const p={...tableFilters,page:tablePage,limit:50};
     const endpoint=tableFilters.dataset==="Snowtravel"?"/api/dashboard/snowtravel-table":"/api/dashboard/bookings-table";
-    apiFetch(endpoint,p).then(d=>{
+    safeApiFetch(endpoint,p).then(d=>{
       if(d?.rows){setTableRows(d.rows);setTableTotal(d.total||0);}
     }).catch(()=>[]).finally(()=>setTLoad(false));
-  },[token,tableFilters,tablePage]);
+  },[token,tableFilters,tablePage,safeApiFetch]);
 
   useEffect(()=>{if(token&&tab==="table"){setTablePage(1);loadTable();};},[token,tab]);
   useEffect(()=>{if(token&&tab==="table")loadTable();},[tablePage]);
 
-
   useEffect(()=>{if(chatRef.current)chatRef.current.scrollTop=chatRef.current.scrollHeight;},[msgs]);
+
   const sendAI=async msg=>{
     if(!msg.trim()||aiLoad)return;
     setMsgs(m=>[...m,{role:"user",text:msg}]);setAiInput("");setAiLoad(true);
     try{
       const r=await fetch(`${BASE}/api/ai/chat`,{method:"POST",headers:{"Authorization":`Bearer ${localStorage.getItem("ttp_token")}`,"Content-Type":"application/json"},body:JSON.stringify({message:msg})});
-      if(r.status===401){setMsgs(m=>[...m,{role:"assistant",text:"Session expired. Please refresh the page."}]);setAiLoad(false);return;}
+      if(r.status===401){logout();return;}
       const d=await r.json();
       setMsgs(m=>[...m,{role:"assistant",text:d.reply||"No response."}]);
     }catch{setMsgs(m=>[...m,{role:"assistant",text:"Connection error. Please try again."}]);}
     finally{setAiLoad(false);}
   };
+
   const doExport=(type)=>{
     const p={};
     if(exportOpts.dataset)p.dataset=exportOpts.dataset;
@@ -861,12 +869,14 @@ export default function App(){
     if(exportOpts.depTo)p.departureDateTo=exportOpts.depTo;
     if(exportOpts.bkFrom)p.bookingDateFrom=exportOpts.bkFrom;
     if(exportOpts.bkTo)p.bookingDateTo=exportOpts.bkTo;
-    const qs=new URLSearchParams({...p,token}).toString();
-    if(type==="excel"){window.open(`${API}/api/dashboard/export-excel?${qs}`,"_blank");setShowExportModal(false);return;}
-    if(type==="csv"){window.open(`${API}/api/dashboard/export?${qs}`,"_blank");setShowExportModal(false);return;}
+    const t=localStorage.getItem("ttp_token");
+    const qs=new URLSearchParams({...p,token:t}).toString();
+    if(type==="excel"){window.open(`${BASE}/api/dashboard/export-excel?${qs}`,"_blank");setShowExportModal(false);return;}
+    if(type==="csv"){window.open(`${BASE}/api/dashboard/export?${qs}`,"_blank");setShowExportModal(false);return;}
     if(type==="print"){setShowExportModal(false);setTimeout(()=>window.print(),100);return;}
     setShowExportModal(false);
   };
+
   const exportCSV=()=>setShowExportModal(true);
 
   const QUICK=[
@@ -879,12 +889,8 @@ export default function App(){
   ];
 
   const isAdmin=user?.role==="admin";
-  const isSnow=false; // Solmar only — bus data from solmar_bus_bookings_modified
-  const busClassFiltered=busClass; // already filtered DEF only in backend
-  const handleTabClick = (newTab) => {
-    setTab(newTab);
-    if (newTab === "bus") setBusFiltersOpen(true);
-  };
+  const handleTabClick=(newTab)=>{setTab(newTab);if(newTab==="bus")setBusFiltersOpen(true);};
+
   const NAV=[
     {id:"overview",label:"Overview",icon:Ic.overview},
     {id:"bus",label:"Bus Occupancy",icon:Ic.bus},
@@ -894,70 +900,56 @@ export default function App(){
     ...(isAdmin?[{id:"settings",label:"Settings",icon:Ic.settings}]:[]),
   ];
 
-  if(!token)return <Login onLogin={onLogin} themeKey={themeKey} onTheme={switchTheme}/>;
+  // ── FIX 5: If no valid token, always show Login ──
+  if(!token) return <Login onLogin={onLogin} themeKey={themeKey} onTheme={switchTheme}/>;
 
   const inputStyle={width:"100%",boxSizing:"border-box",background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:7,padding:"7px 10px",fontSize:13,color:T.text,outline:"none"};
   const labelStyle={fontSize:11,fontWeight:700,color:T.textMuted,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.04em",display:"block"};
 
-  // ─── YoY TABLE COLUMNS ───────────────────────────────────────────────────────
+  // ─── FIX 2: YoY TABLE COLUMNS — now includes diffBookings + diffPax ────────
   const ymCols = [
-    {label:"PERIOD",key:"period",noWrap:true,bold:true,color:(_,T)=>T.accent,render:r=>`${MONTHS[(r.month||1)-1]}-${r.year}`},
-    {label:"LAST YEAR",key:"ly",noWrap:true,color:(_,T)=>T.textMuted,render:r=>`${MONTHS[(r.month||1)-1]}-${(r.year||0)-1}`},
-    {label:"CURRENT",key:"curr",right:true,bold:true,render:r=>ymMetric==="bookings"?fmtN(r.currentBookings):ymMetric==="pax"?fmtN(r.currentPax):fmtEur(r.currentRevenue)},
-    {label:"PREVIOUS",key:"prev",right:true,color:(_,T)=>T.textMuted,render:r=>ymMetric==="bookings"?fmtN(r.previousBookings):ymMetric==="pax"?fmtN(r.previousPax):fmtEur(r.previousRevenue)},
-    {label:"DIFFERENCE",key:"diff",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(ymMetric==="bookings"?r.diffBookings:ymMetric==="pax"?r.diffPax:r.diffRevenue,T),render:r=>{const d=ymMetric==="bookings"?r.diffBookings:ymMetric==="pax"?r.diffPax:r.diffRevenue;return(d>0?"+":"")+( ymMetric==="revenue"?fmtEur(d):fmtN(d));}},
-    {label:"DIFF %",key:"pct",right:true,noWrap:true,color:(r,T)=>{const d=ymMetric==="bookings"?r.diffBookings:ymMetric==="pax"?r.diffPax:r.diffRevenue;return diffClr(d,T);},render:r=>{const p=ymMetric==="bookings"?r.diffPctBookings:ymMetric==="pax"?r.diffPctPax:r.diffPctRevenue;return p!=null?(p>0?"+":"")+Number(p).toFixed(1)+"%":"—";}},
-  ];
-
-  // ─── BUS COLUMNS ─────────────────────────────────────────────────────────────
-  const busCols=[
-    {label:"START DATE",key:"StartDate",noWrap:true,bold:true,color:(_,T)=>T.accent},
-    {label:"END DATE",key:"EndDate",noWrap:true,color:(_,T)=>T.textMuted},
-    {label:"RC OUT",key:"ORC",right:true},{label:"FC",key:"OFC",right:true},{label:"PRE",key:"OPRE",right:true},
-    {label:"TOTAL OUT",key:"OTotal",right:true,bold:true},
-    {label:"RC",key:"RRC",right:true},{label:"FC",key:"RFC",right:true},{label:"PRE",key:"RPRE",right:true},
-    {label:"TOTAL RET",key:"RTotal",right:true,bold:true},
-    {label:"RC DIFF",key:"RC_Diff",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.RC_Diff,T),render:r=>(r.RC_Diff>0?"+":"")+r.RC_Diff},
-    {label:"FC DIFF",key:"FC_Diff",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.FC_Diff,T),render:r=>(r.FC_Diff>0?"+":"")+r.FC_Diff},
-    {label:"PRE DIFF",key:"PRE_Diff",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.PRE_Diff,T),render:r=>(r.PRE_Diff>0?"+":"")+r.PRE_Diff},
-    {label:"TOTAL DIFF",key:"Total_Difference",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.Total_Difference,T),render:r=>(r.Total_Difference>0?"+":"")+r.Total_Difference},
-  ];
-
-  const pendelCols=[
-    {label:"START DATE",key:"StartDate",noWrap:true,bold:true,color:(_,T)=>T.accent},
-    {label:"END DATE",key:"EndDate",noWrap:true,color:(_,T)=>T.textMuted},
-    {label:"OUT TOTAL",key:"Outbound_Total",right:true,bold:true,color:(_,T)=>T.success},
-    {label:"OUT RC",key:"ORC",right:true,color:(_,T)=>T.success},
-    {label:"OUT FC",key:"OFC",right:true,color:(_,T)=>T.success},
-    {label:"OUT PRE",key:"OPRE",right:true,color:(_,T)=>T.success},
-    {label:"IN TOTAL",key:"Inbound_Total",right:true,bold:true,color:(_,T)=>T.warning},
-    {label:"IN RC",key:"RRC",right:true,color:(_,T)=>T.warning},
-    {label:"IN FC",key:"RFC",right:true,color:(_,T)=>T.warning},
-    {label:"IN PRE",key:"RPRE",right:true,color:(_,T)=>T.warning},
-    {label:"DIFF RC",key:"Diff_Royal",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.Diff_Royal,T),render:r=>{const v=r.Diff_Royal||0;return v!==0?(v>0?"+":"")+v:"";}},
-    {label:"DIFF FC",key:"Diff_First",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.Diff_First,T),render:r=>{const v=r.Diff_First||0;return v!==0?(v>0?"+":"")+v:"";}},
-    {label:"DIFF PRE",key:"Diff_Premium",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.Diff_Premium,T),render:r=>{const v=r.Diff_Premium||0;return v!==0?(v>0?"+":"")+v:"";}},
-    {label:"DIFF TOTAL",key:"Diff_Total",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.Diff_Total,T),render:r=>{const v=r.Diff_Total||0;return v!==0?(v>0?"+":"")+v:"";}},
-  ];
-
-  const feederCols=[
-    {label:"DEP DATE",key:"DepartureDate",noWrap:true,bold:true,color:(_,T)=>T.accent},
-    {label:"LABEL",key:"LabelName",noWrap:true},
-    {label:"FEEDER LINE",key:"FeederLine",noWrap:true},
-    {label:"DIRECTION",key:"Direction",noWrap:true,render:r=>{const d=r.Direction;return <span style={{color:d==="Outbound"?"#22c55e":"#f59e0b",fontWeight:600,fontSize:11}}>{d}</span>;}},
-    {label:"ROUTE",key:"RouteLabel",noWrap:true},
-    {label:"STOP",key:"StopName",noWrap:true},
-    {label:"STOP TYPE",key:"StopType",noWrap:true,color:(_,T)=>T.textMuted},
-    {label:"PAX",key:"TotalPax",right:true,bold:true},
-    {label:"BOOKINGS",key:"BookingCount",right:true},
-  ];
-
-  const deckCols=[
-    {label:"DEPARTURE",key:"dateDeparture",noWrap:true,bold:true,color:(_,T)=>T.accent},
-    {label:"TOTAL",key:"Total",right:true,bold:true},
-    {label:"RC LOWER",key:"Royal_Lower",right:true},{label:"RC UPPER",key:"Royal_Upper",right:true},{label:"RC NO",key:"Royal_NoDeck",right:true},
-    {label:"FC LOWER",key:"First_Lower",right:true},{label:"FC UPPER",key:"First_Upper",right:true},{label:"FC NO",key:"First_NoDeck",right:true},
-    {label:"PRE LOWER",key:"Premium_Lower",right:true},{label:"PRE UPPER",key:"Premium_Upper",right:true},{label:"PRE NO",key:"Premium_NoDeck",right:true},
+    {label:"PERIOD",key:"period",noWrap:true,bold:true,color:(_,T)=>T.accent,
+      render:r=>`${MONTHS[(r.month||1)-1]}-${r.year}`},
+    {label:"PREV YEAR",key:"ly",noWrap:true,color:(_,T)=>T.textMuted,
+      render:r=>`${MONTHS[(r.month||1)-1]}-${(r.year||0)-1}`},
+    {label:"CURRENT",key:"curr",right:true,bold:true,
+      render:r=>ymMetric==="bookings"?fmtN(r.currentBookings):ymMetric==="pax"?fmtN(r.currentPax):fmtEur(r.currentRevenue)},
+    {label:"PREVIOUS",key:"prev",right:true,color:(_,T)=>T.textMuted,
+      // FIX 2: previousBookings / previousPax were rendered but backend was joining correctly;
+      // ensure the columns reference the right fields
+      render:r=>ymMetric==="bookings"
+        ? (r.previousBookings!=null?fmtN(r.previousBookings):"—")
+        : ymMetric==="pax"
+        ? (r.previousPax!=null?fmtN(r.previousPax):"—")
+        : fmtEur(r.previousRevenue)},
+    {label:"DIFF",key:"diff",right:true,bold:true,noWrap:true,
+      color:(r,T)=>diffClr(
+        ymMetric==="bookings"?(r.currentBookings-(r.previousBookings||0)):
+        ymMetric==="pax"?(r.currentPax-(r.previousPax||0)):
+        r.diffRevenue, T),
+      render:r=>{
+        const d=ymMetric==="bookings"
+          ? (r.currentBookings-(r.previousBookings||0))
+          : ymMetric==="pax"
+          ? (r.currentPax-(r.previousPax||0))
+          : r.diffRevenue;
+        if(d==null) return "—";
+        return (d>0?"+":"")+(ymMetric==="revenue"?fmtEur(d):fmtN(d));
+      }},
+    {label:"DIFF %",key:"pct",right:true,noWrap:true,
+      color:(r,T)=>{
+        const d=ymMetric==="bookings"?(r.currentBookings-(r.previousBookings||0)):ymMetric==="pax"?(r.currentPax-(r.previousPax||0)):r.diffRevenue;
+        return diffClr(d,T);
+      },
+      render:r=>{
+        const p=ymMetric==="revenue"?r.diffPctRevenue:
+          ymMetric==="bookings"&&r.previousBookings>0
+            ?((r.currentBookings-r.previousBookings)/r.previousBookings)*100
+          : ymMetric==="pax"&&r.previousPax>0
+            ?((r.currentPax-r.previousPax)/r.previousPax)*100
+          : null;
+        return p!=null?(p>0?"+":"")+Number(p).toFixed(1)+"%":"—";
+      }},
   ];
 
   const tableCols=[
@@ -996,7 +988,8 @@ export default function App(){
         </div>
         <nav style={{flex:1,padding:"8px 6px",overflowY:"auto"}}>
           {NAV.map(n=>(
-            <button key={n.id} onClick={()=>{handleTabClick(n.id);if(window.innerWidth<=768)setSidebarOpen(false);}} title={!sidebarOpen?n.label:undefined} style={{display:"flex",alignItems:"center",gap:10,width:"100%",background:tab===n.id?T.navActive:"transparent",color:tab===n.id?T.accent:T.textMuted,border:"none",borderRadius:8,padding:"9px 11px",fontSize:13,fontWeight:tab===n.id?600:400,cursor:"pointer",textAlign:"left",marginBottom:2,transition:"all 0.15s"}}
+            <button key={n.id} onClick={()=>{handleTabClick(n.id);if(window.innerWidth<=768)setSidebarOpen(false);}} title={!sidebarOpen?n.label:undefined}
+              style={{display:"flex",alignItems:"center",gap:10,width:"100%",background:tab===n.id?T.navActive:"transparent",color:tab===n.id?T.accent:T.textMuted,border:"none",borderRadius:8,padding:"9px 11px",fontSize:13,fontWeight:tab===n.id?600:400,cursor:"pointer",textAlign:"left",marginBottom:2,transition:"all 0.15s"}}
               onMouseEnter={e=>{if(tab!==n.id){e.currentTarget.style.background=T.navHover;e.currentTarget.style.color=T.text;}}}
               onMouseLeave={e=>{if(tab!==n.id){e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.textMuted;}}}>
               <span style={{flexShrink:0,opacity:tab===n.id?1:0.7}}>{n.icon}</span>
@@ -1029,15 +1022,11 @@ export default function App(){
             <span style={{fontSize:14,fontWeight:700,color:T.text}}>{NAV.find(n=>n.id===tab)?.label}</span>
           </div>
           <div className="header-btns" style={{display:"flex",alignItems:"center",gap:8}}>
-            {lastSync&&<span style={{fontSize:11,color:T.textDim,display:"none"}}>Last sync: {lastSync}</span>}
             <button onClick={()=>switchTheme(themeKey==="dark"?"light":"dark")} style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:7,padding:"5px 8px",cursor:"pointer",color:T.textMuted,display:"flex",alignItems:"center",gap:4,fontSize:11}}>
               {themeKey==="dark"?Ic.sun:Ic.moon} {themeKey==="dark"?"Light":"Dark"}
             </button>
             <button onClick={()=>loadOverview(applied)} style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:7,padding:"5px 8px",cursor:"pointer",color:T.textMuted,display:"flex"}}>{Ic.refresh}</button>
-            {tab!=="bus"&&tab!=="overview"&&<button onClick={()=>setFiltersOpen(o=>!o)} style={{background:filtersOpen?T.accent:"transparent",color:filtersOpen?"#fff":T.textMuted,border:`1px solid ${filtersOpen?T.accent:T.border}`,borderRadius:7,padding:"5px 11px",fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
-              {Ic.filter} Filters
-            </button>}
-            {tab==="overview"&&<button onClick={()=>setFiltersOpen(o=>!o)} style={{background:filtersOpen?T.accent:"transparent",color:filtersOpen?"#fff":T.textMuted,border:`1px solid ${filtersOpen?T.accent:T.border}`,borderRadius:7,padding:"5px 11px",fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
+            {(tab==="overview"||tab==="table")&&<button onClick={()=>setFiltersOpen(o=>!o)} style={{background:filtersOpen?T.accent:"transparent",color:filtersOpen?"#fff":T.textMuted,border:`1px solid ${filtersOpen?T.accent:T.border}`,borderRadius:7,padding:"5px 11px",fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
               {Ic.filter} Filters
             </button>}
             {tab==="table"&&<button onClick={exportCSV} style={{background:T.accent,color:"#fff",border:"none",borderRadius:7,padding:"6px 13px",fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>{Ic.download} Export</button>}
@@ -1066,34 +1055,26 @@ export default function App(){
               <div><label style={labelStyle}>Dataset</label>
                 <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
                   {["Solmar","Interbus","Solmar DE","Snowtravel"].map(d=>{
-                    const sel=(filters.dataset||[]).includes(d);
-                    const col=DS_COLORS[d]||T.textMuted;
+                    const sel=(filters.dataset||[]).includes(d);const col=DS_COLORS[d]||T.textMuted;
                     return <button key={d} onClick={()=>setFilters(f=>({...f,dataset:sel?(f.dataset||[]).filter(x=>x!==d):[...(f.dataset||[]),d]}))}
-                      style={{background:sel?`${col}22`:"transparent",border:`1px solid ${sel?col:T.border}`,borderRadius:20,color:sel?col:T.textMuted,padding:"4px 10px",fontSize:11,fontWeight:sel?700:400,cursor:"pointer"}}>
-                      {d}
-                    </button>;
+                      style={{background:sel?`${col}22`:"transparent",border:`1px solid ${sel?col:T.border}`,borderRadius:20,color:sel?col:T.textMuted,padding:"4px 10px",fontSize:11,fontWeight:sel?700:400,cursor:"pointer"}}>{d}</button>;
                   })}
                 </div>
-                {(filters.dataset||[]).length>0&&<div style={{fontSize:10,color:T.accent,marginTop:2}}>{filters.dataset.join(' + ')}</div>}
               </div>
               <div><label style={labelStyle}>Transport</label>
                 <select value={(filters.transport||[])[0]||""} onChange={e=>setFilters(f=>({...f,transport:e.target.value?[e.target.value]:[]}))} style={inputStyle}>
                   <option value="">All</option>
-                  {[...new Set((slicers.transportTypes||[]).map(t=>(t||"").toLowerCase().replace("owntransport","own transport").trim()))].filter(Boolean).map(t=><option key={t} value={t}>{t}</option>)}
+                  {[...new Set((slicers.transportTypes||[]).map(t=>(t||"").toLowerCase().trim()))].filter(Boolean).map(t=><option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
-              <div>
-                <label style={labelStyle}>Year</label>
+              <div><label style={labelStyle}>Year</label>
                 <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
                   {[2023,2024,2025,2026].map(y=>{
                     const sel=(filters.years||[]).includes(y);
                     return <button key={y} onClick={()=>setFilters(f=>({...f,years:sel?(f.years||[]).filter(x=>x!==y):[...(f.years||[]),y]}))}
-                      style={{background:sel?T.accent:"transparent",color:sel?"#fff":T.textMuted,border:`1px solid ${sel?T.accent:T.border}`,borderRadius:6,padding:"4px 10px",fontSize:12,fontWeight:sel?700:400,cursor:"pointer",flex:1}}>
-                      {y}
-                    </button>;
+                      style={{background:sel?T.accent:"transparent",color:sel?"#fff":T.textMuted,border:`1px solid ${sel?T.accent:T.border}`,borderRadius:6,padding:"4px 10px",fontSize:12,fontWeight:sel?700:400,cursor:"pointer",flex:1}}>{y}</button>;
                   })}
                 </div>
-                {(filters.years||[]).length>0&&<div style={{fontSize:10,color:T.accent,marginTop:3}}>Selected: {filters.years.join(", ")}</div>}
               </div>
               <div><label style={labelStyle}>Status</label>
                 <div style={{display:"flex",gap:5}}>
@@ -1115,75 +1096,95 @@ export default function App(){
         {/* PAGE CONTENT */}
         <div id="dashboard-content" style={{flex:1,padding:"18px 20px 50px",overflowY:"auto",overflowX:"hidden"}}>
 
-          {/* ══ OVERVIEW ═══════════════════════════════════════════════════════ */}
+          {/* ══ OVERVIEW ══════════════════════════════════════════════════════ */}
           {tab==="overview"&&(
             <div>
               {oLoad&&<div style={{textAlign:"center",padding:16,color:T.textMuted,fontSize:13}}>Loading...</div>}
+
               {/* KPI Cards */}
               <div className="kpi-grid" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:16}}>
-                {/* Period badge above cards */}
-              {kpis?.periodLabel&&(
-                <div style={{gridColumn:"1/-1",display:"flex",alignItems:"center",gap:6,marginBottom:-6}}>
-                  <span style={{fontSize:11,color:T.textDim}}>Showing:</span>
-                  <span style={{fontSize:11,fontWeight:700,color:T.accent,background:T.accentLight,padding:"3px 10px",borderRadius:20,border:`1px solid ${T.accent}33`}}>{kpis.periodLabel}</span>
-                  {Object.values(applied).some(v=>v&&(Array.isArray(v)?v.length:true))&&(
-                    <button onClick={()=>{setFilters({depFrom:"",depTo:"",bkFrom:"",bkTo:"",dataset:[],status:[],transport:[],years:[]});setApplied({});loadOverview({});}}
-                      style={{fontSize:11,color:T.warning,background:T.warningBg,border:`1px solid ${T.warning}44`,borderRadius:12,padding:"2px 8px",cursor:"pointer",fontWeight:600}}>✕ Reset filters</button>
-                  )}
-                </div>
-              )}
-              {[
-                {label:"Total Bookings",curr:kpis?.currentBookings,prev:kpis?.previousBookings,diff:kpis?.differenceBookings,pct:kpis?.percentBookings,f:fmtN,c:"#3b82f6"},
-                {label:"Total PAX",curr:kpis?.currentPax,prev:kpis?.previousPax,diff:kpis?.differencePax,pct:kpis?.percentPax,f:fmtN,c:"#22c55e"},
-                {label:"Gross Revenue",curr:kpis?.currentRevenue,prev:kpis?.previousRevenue,diff:kpis?.differenceRevenue,pct:kpis?.percentRevenue,f:fmtEur,c:"#f59e0b"},
-              ].map(({label,curr,prev,diff,pct,f,c})=>(
-                <Card key={label} style={{padding:"18px 20px"}} T={T}>
-                  <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:12}}>
-                    <div style={{width:8,height:8,borderRadius:"50%",background:c,flexShrink:0}}/>
-                    <span style={{fontSize:11,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.07em"}}>{label}</span>
+
+                {/* FIX 1: Period badge — shows the actual date range / year being displayed */}
+                {kpis?.periodLabel&&(
+                  <div style={{gridColumn:"1/-1",display:"flex",alignItems:"center",gap:8,marginBottom:-4}}>
+                    <span style={{fontSize:11,color:T.textDim}}>Showing:</span>
+                    <span style={{fontSize:12,fontWeight:700,color:T.accent,background:T.accentLight,padding:"4px 12px",borderRadius:20,border:`1px solid ${T.accent}33`}}>
+                      {kpis.periodLabel}
+                    </span>
+                    {kpis.prevLabel&&(
+                      <span style={{fontSize:11,color:T.textDim}}>
+                        vs <span style={{fontWeight:600,color:T.textMuted}}>{kpis.prevLabel}</span>
+                      </span>
+                    )}
+                    {Object.values(applied).some(v=>v&&(Array.isArray(v)?v.length:true))&&(
+                      <button onClick={()=>{setFilters({depFrom:"",depTo:"",bkFrom:"",bkTo:"",dataset:[],status:[],transport:[],years:[]});setApplied({});loadOverview({});}}
+                        style={{fontSize:11,color:T.warning,background:T.warningBg,border:`1px solid ${T.warning}44`,borderRadius:12,padding:"2px 8px",cursor:"pointer",fontWeight:600}}>✕ Reset filters</button>
+                    )}
                   </div>
-                  <div className="kpi-value" style={{fontSize:28,fontWeight:800,color:T.text,lineHeight:1,marginBottom:5}}>{curr!=null?f(curr):"—"}</div>
-                  <div style={{fontSize:12,color:T.textMuted,marginBottom:8}}>
-                    {prev!=null&&prev>0
-                      ? <>{kpis?.prevLabel||"prev"}: <span style={{fontWeight:600}}>{f(prev)}</span></>
-                      : <span style={{color:T.textDim}}>no previous data</span>
-                    }
-                  </div>
-                  <div style={{display:"flex",alignItems:"center",gap:7}}>
-                    {diff!=null&&diff!==0&&<span style={{display:"flex",alignItems:"center",gap:2,color:diffClr(diff,T),fontSize:12,fontWeight:700}}>{diff>=0?Ic.arrowUp:Ic.arrowDown}{f(Math.abs(diff))}</span>}
-                    {pct!=null&&<span style={{background:diffBg(diff,T),color:diffClr(diff,T),fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:10,border:`1px solid ${diffClr(diff,T)}33`}}>{diff>=0?"+":""}{Number(pct).toFixed(1)}%</span>}
-                  </div>
-                </Card>
-              ))}
+                )}
+
+                {[
+                  {label:"Total Bookings",curr:kpis?.currentBookings,prev:kpis?.previousBookings,diff:kpis?.differenceBookings,pct:kpis?.percentBookings,f:fmtN,c:"#3b82f6"},
+                  {label:"Total PAX",curr:kpis?.currentPax,prev:kpis?.previousPax,diff:kpis?.differencePax,pct:kpis?.percentPax,f:fmtN,c:"#22c55e"},
+                  {label:"Gross Revenue",curr:kpis?.currentRevenue,prev:kpis?.previousRevenue,diff:kpis?.differenceRevenue,pct:kpis?.percentRevenue,f:fmtEur,c:"#f59e0b"},
+                ].map(({label,curr,prev,diff,pct,f,c})=>(
+                  <Card key={label} style={{padding:"18px 20px"}} T={T}>
+                    <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:12}}>
+                      <div style={{width:8,height:8,borderRadius:"50%",background:c,flexShrink:0}}/>
+                      <span style={{fontSize:11,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.07em"}}>{label}</span>
+                    </div>
+                    <div className="kpi-value" style={{fontSize:28,fontWeight:800,color:T.text,lineHeight:1,marginBottom:5}}>{curr!=null?f(curr):"—"}</div>
+                    {/* FIX 1: Show the prev label from backend so it matches what period is being compared */}
+                    <div style={{fontSize:12,color:T.textMuted,marginBottom:8}}>
+                      {prev!=null&&prev>0
+                        ? <>{kpis?.prevLabel||"prev. year"}: <span style={{fontWeight:600}}>{f(prev)}</span></>
+                        : <span style={{color:T.textDim}}>no previous data</span>
+                      }
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:7}}>
+                      {diff!=null&&diff!==0&&<span style={{display:"flex",alignItems:"center",gap:2,color:diffClr(diff,T),fontSize:12,fontWeight:700}}>{diff>=0?Ic.arrowUp:Ic.arrowDown}{f(Math.abs(diff))}</span>}
+                      {pct!=null&&<span style={{background:diffBg(diff,T),color:diffClr(diff,T),fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:10,border:`1px solid ${diffClr(diff,T)}33`}}>{diff>=0?"+":""}{Number(pct).toFixed(1)}%</span>}
+                    </div>
+                  </Card>
+                ))}
               </div>
+
               {/* Charts */}
               <div className="chart-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:16}}>
                 <Card T={T}><CardHdr title="Revenue by Year" T={T}/><div style={{padding:"14px 16px 12px"}}><LineChart data={revData} T={T}/></div></Card>
                 <Card T={T}><div style={{padding:"14px 16px 0"}}><BarChart data={revData} metric={barMetric} onMetric={setBarMetric} T={T}/></div><div style={{height:12}}/></Card>
               </div>
-              {/* YoY Table */}
+
+              {/* FIX 2: YoY Table — prior year column now shows correctly */}
               <Card T={T}>
-                <CardHdr title={`Year-Month Comparison ${Object.values(applied).some(v=>v&&(Array.isArray(v)?v.length:true))?"(filtered — reset for all data)":""}`} T={T} right={
-                  <div style={{display:"flex",gap:4,alignItems:"center"}}>
-                    <span style={{fontSize:11,color:T.textDim,marginRight:6}}>{ymData.length} rows</span>
-                    <span style={{fontSize:10,color:T.textDim,background:T.tableAlt,padding:"2px 8px",borderRadius:10,border:`1px solid ${T.border}`}}>← scroll →</span>
-                    {["bookings","pax","revenue"].map(m=>(
-                      <button key={m} onClick={()=>setYmMetric(m)} style={{background:ymMetric===m?T.accent:"transparent",color:ymMetric===m?"#fff":T.textMuted,border:`1px solid ${ymMetric===m?T.accent:T.border}`,borderRadius:5,padding:"3px 9px",fontSize:11,fontWeight:600,cursor:"pointer",textTransform:"capitalize"}}>{m==="revenue"?"Revenue":m==="bookings"?"Bookings":"PAX"}</button>
-                    ))}
-                  </div>}/>
-                <DataTable columns={ymCols} rows={[...ymData].sort((a,b)=>b.year!==a.year?b.year-a.year:b.month-a.month)} emptyMsg="No data — apply filters or refresh" T={T} scrollable={true}/>
+                <CardHdr
+                  title={`Year-Month Comparison${Object.values(applied).some(v=>v&&(Array.isArray(v)?v.length:true))?" (filtered — reset for all data)":""}`}
+                  T={T}
+                  right={
+                    <div style={{display:"flex",gap:4,alignItems:"center"}}>
+                      <span style={{fontSize:11,color:T.textDim,marginRight:6}}>{ymData.length} rows</span>
+                      <span style={{fontSize:10,color:T.textDim,background:T.tableAlt,padding:"2px 8px",borderRadius:10,border:`1px solid ${T.border}`}}>← scroll →</span>
+                      {["bookings","pax","revenue"].map(m=>(
+                        <button key={m} onClick={()=>setYmMetric(m)} style={{background:ymMetric===m?T.accent:"transparent",color:ymMetric===m?"#fff":T.textMuted,border:`1px solid ${ymMetric===m?T.accent:T.border}`,borderRadius:5,padding:"3px 9px",fontSize:11,fontWeight:600,cursor:"pointer",textTransform:"capitalize"}}>
+                          {m==="revenue"?"Revenue":m==="bookings"?"Bookings":"PAX"}
+                        </button>
+                      ))}
+                    </div>}/>
+                <DataTable
+                  columns={ymCols}
+                  // Sort descending: newest year+month first
+                  rows={[...ymData].sort((a,b)=>b.year!==a.year?b.year-a.year:b.month-a.month)}
+                  emptyMsg="No data — apply filters or refresh"
+                  T={T}/>
               </Card>
             </div>
           )}
 
-          {/* ══ BUS OCCUPANCY ══════════════════════════════════════════════════ */}
+          {/* ══ BUS OCCUPANCY ═════════════════════════════════════════════════ */}
           {tab==="bus"&&(
             <div>
-              {/* Top bar */}
               <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16,flexWrap:"wrap"}}>
-                <div style={{background:T.accent,color:"#fff",border:"none",borderRadius:8,padding:"7px 14px",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",gap:5}}>
-                  🚌 Solmar Bus Occupancy
-                </div>
+                <div style={{background:T.accent,color:"#fff",border:"none",borderRadius:8,padding:"7px 14px",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",gap:5}}>🚌 Solmar Bus Occupancy</div>
                 <div style={{display:"flex",background:T.card,border:`1px solid ${T.border}`,borderRadius:8,padding:3,gap:2}}>
                   {[["pendel","Pendel overview"],["feeder","Feeder overview"],["deck","Deck choice / class"]].map(([k,l])=>(
                     <button key={k} onClick={()=>setBusView(k)} style={{background:busView===k?T.accent:"transparent",color:busView===k?"#fff":T.textMuted,border:"none",borderRadius:6,padding:"6px 13px",fontSize:12,fontWeight:busView===k?600:400,cursor:"pointer",whiteSpace:"nowrap"}}>{l}</button>
@@ -1214,14 +1215,11 @@ export default function App(){
                       </Card>
                     ))}
                   </div>
-                  {/* Deck split KPIs */}
+
+                  {/* Deck KPIs */}
                   {busView==="deck"&&(
                     <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
-                      {[
-                        {label:"Lower Deck",val:busKpis.lower_pax,c:"#ef4444"},
-                        {label:"Upper Deck",val:busKpis.upper_pax,c:"#f97316"},
-                        {label:"No Guarantee",val:busKpis.no_deck_pax,c:"#6b7280"},
-                      ].map(({label,val,c})=>(
+                      {[{label:"Lower Deck",val:busKpis.lower_pax,c:"#ef4444"},{label:"Upper Deck",val:busKpis.upper_pax,c:"#f97316"},{label:"No Guarantee",val:busKpis.no_deck_pax,c:"#6b7280"}].map(({label,val,c})=>(
                         <Card key={label} style={{padding:"12px 16px"}} T={T}>
                           <div style={{fontSize:10,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>{label}</div>
                           <div style={{fontSize:20,fontWeight:800,color:c}}>{val!=null?Number(val).toLocaleString("nl-BE"):"—"}</div>
@@ -1230,15 +1228,14 @@ export default function App(){
                     </div>
                   )}
 
-                  {/* Pendel overview */}
+                  {/* Pendel */}
                   {busView==="pendel"&&(
                     <Card T={T}>
-                      <CardHdr title="Pendel Overview — Solmar" T={T}
-                        right={<div style={{display:"flex",gap:12,alignItems:"center"}}>
-                          <span style={{fontSize:11,color:T.success,fontWeight:600}}>⬆ OUT</span>
-                          <span style={{fontSize:11,color:T.warning,fontWeight:600}}>⬇ IN</span>
-                          <span style={{fontSize:11,color:T.textDim}}>{pendelData.length} trips</span>
-                        </div>}/>
+                      <CardHdr title="Pendel Overview — Solmar" T={T} right={<div style={{display:"flex",gap:12,alignItems:"center"}}>
+                        <span style={{fontSize:11,color:T.success,fontWeight:600}}>⬆ OUT</span>
+                        <span style={{fontSize:11,color:T.warning,fontWeight:600}}>⬇ IN</span>
+                        <span style={{fontSize:11,color:T.textDim}}>{pendelData.length} trips</span>
+                      </div>}/>
                       {pendelData.length>0&&(
                         <div style={{padding:"8px 16px",background:T.accentLight,borderBottom:`1px solid ${T.border}`,display:"flex",gap:24,flexWrap:"wrap"}}>
                           <span style={{fontSize:11,fontWeight:700,color:T.accent}}>TOTAL: {pendelData.length} trips</span>
@@ -1263,37 +1260,22 @@ export default function App(){
                         {label:"DIFF TOTAL",key:"Diff_Total",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.Diff_Total,T),render:r=>{const v=r.Diff_Total||0;return v!==0?(v>0?"+":"")+v:"";}},
                       ]} rows={pendelData} emptyMsg="No pendel data — set date range and click Apply" T={T}/>
                       <div style={{padding:"7px 14px",borderTop:`1px solid ${T.border}`,fontSize:10,color:T.textDim}}>
-                        RC = Royal Class &nbsp;|&nbsp; FC = First Class &nbsp;|&nbsp; PRE = Premium &nbsp;|&nbsp;
-                        <span style={{color:T.success}}>OUT = Outbound</span> &nbsp;|&nbsp;
-                        <span style={{color:T.warning}}>IN = Inbound</span> &nbsp;|&nbsp;
-                        DIFF = Outbound minus Inbound (negative = more inbound than outbound)
+                        RC = Royal Class | FC = First Class | PRE = Premium |
+                        <span style={{color:T.success}}> OUT = Outbound</span> |
+                        <span style={{color:T.warning}}> IN = Inbound</span> | DIFF = Out minus In
                       </div>
                     </Card>
                   )}
-                  {busView==="pendel"&&false&&(
-                    <Card T={T}>
-                      <CardHdr title="Snowtravel Bus Occupancy" T={T} right={<span style={{fontSize:11,color:T.textDim}}>{stTrips.length} rows</span>}/>
-                      <DataTable columns={[
-                        {label:"DEPARTURE",key:"departure_date",noWrap:true,bold:true,color:(_,T)=>T.accent},
 
-                        {label:"DREAM CLASS",key:"dream_class",right:true,bold:true},
-                        {label:"FIRST CLASS",key:"first_class",right:true,bold:true},
-                        {label:"SLEEP/ROYAL",key:"sleep_royal_class",right:true,bold:true},
-                        {label:"TOTAL PAX",key:"total_pax",right:true,bold:true,color:(_,T)=>T.accent},
-                      ]} rows={stTrips} emptyMsg="No Snowtravel bus data" T={T}/>
-                    </Card>
-                  )}
-
-                  {/* Feeder overview — pivot table only, no charts */}
+                  {/* Feeder */}
                   {busView==="feeder"&&(
                     <Card T={T}>
-                      <CardHdr title={`Feeder Overview — Solmar${busF.feederLabel?' — '+busF.feederLabel:''}`} T={T}
-                        right={<span style={{fontSize:11,color:T.textDim}}>{feederData.length} stops</span>}/>
+                      <CardHdr title={`Feeder Overview — Solmar${busF.feederLabel?' — '+busF.feederLabel:''}`} T={T} right={<span style={{fontSize:11,color:T.textDim}}>{feederData.length} stops</span>}/>
                       <FeederPivotTable data={feederData} T={T}/>
                     </Card>
                   )}
 
-                  {/* Deck choice/class */}
+                  {/* Deck */}
                   {busView==="deck"&&(
                     <Card T={T}>
                       <CardHdr title="Deck Choice / Class — Solmar" T={T} right={
@@ -1302,99 +1284,65 @@ export default function App(){
                           <span style={{fontSize:11,color:T.textDim}}>{deckData.length} rows</span>
                         </div>}/>
                       <DeckTable data={deckData} T={T}/>
-                      <div style={{padding:"7px 14px",borderTop:`1px solid ${T.border}`,fontSize:10,color:T.textDim}}>RC = Royal Class &nbsp;|&nbsp; FC = First Class &nbsp;|&nbsp; PRE = Premium &nbsp;|&nbsp; Lwr = Lower Deck &nbsp;|&nbsp; Upr = Upper Deck &nbsp;|&nbsp; No = No Deck</div>
+                      <div style={{padding:"7px 14px",borderTop:`1px solid ${T.border}`,fontSize:10,color:T.textDim}}>RC = Royal Class | FC = First Class | PRE = Premium | Lwr = Lower | Upr = Upper | No = No Deck</div>
                     </Card>
                   )}
                 </div>
 
-                {/* Bus filter panel - overlay drawer */}
+                {/* Bus filter panel */}
                 {busFiltersOpen&&(
                   <div style={{position:"fixed",top:52,right:0,width:260,height:"calc(100vh - 52px)",background:T.card,borderLeft:`1px solid ${T.border}`,boxShadow:"-4px 0 20px rgba(0,0,0,0.15)",zIndex:200,overflowY:"auto",display:"flex",flexDirection:"column",gap:11,padding:"16px 14px"}}>
-
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",paddingBottom:10,borderBottom:`1px solid ${T.border}`}}>
                       <span style={{fontSize:13,fontWeight:700,color:T.text}}>Filters</span>
                       <button onClick={()=>setBusFiltersOpen(false)} style={{background:"transparent",border:"none",cursor:"pointer",color:T.textMuted,fontSize:18,lineHeight:1,padding:0}}>×</button>
                     </div>
-
-                    {/* Dataset chips */}
-                    <div>
-                      <label style={labelStyle}>Dataset</label>
-                      <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                        {[["Solmar","#22c55e"],["Interbus","#f59e0b"],["Solmar DE","#ef4444"],["Snowtravel","#3b82f6"]].map(([ds,c])=>{
-                          const sel=(busF.datasets||[]).includes(ds);
-                          return <button key={ds} onClick={()=>setBusF(f=>({...f,datasets:sel?(f.datasets||[]).filter(x=>x!==ds):[...(f.datasets||[]),ds]}))}
-                            style={{background:sel?`${c}22`:"transparent",border:`1px solid ${sel?c:T.border}`,borderRadius:20,color:sel?c:T.textMuted,padding:"4px 10px",fontSize:11,fontWeight:sel?700:400,cursor:"pointer",whiteSpace:"nowrap"}}>
-                            {ds}
-                          </button>;
-                        })}
-                      </div>
-                      {(busF.datasets||[]).length>0&&<div style={{fontSize:10,color:T.accent,marginTop:2}}>{busF.datasets.join(' + ')}</div>}
-                    </div>
-
-                    {/* Quick year buttons */}
                     <div>
                       <label style={labelStyle}>Quick Select</label>
                       <div style={{display:"flex",gap:4}}>
-                        {[["This Year",`${new Date().getFullYear()}-01-01`,`${new Date().getFullYear()}-12-31`],
-                          ["Last Year",`${new Date().getFullYear()-1}-01-01`,`${new Date().getFullYear()-1}-12-31`],
-                          ["All","",""]].map(([l,f,t])=>(
+                        {[["This Year",`${new Date().getFullYear()}-01-01`,`${new Date().getFullYear()}-12-31`],["Last Year",`${new Date().getFullYear()-1}-01-01`,`${new Date().getFullYear()-1}-12-31`],["All","",""]].map(([l,f,t])=>(
                           <button key={l} onClick={()=>setBusF(p=>({...p,dateFrom:f,dateTo:t}))}
                             style={{flex:1,background:busF.dateFrom===f&&busF.dateTo===t?T.accent:T.tableAlt,color:busF.dateFrom===f&&busF.dateTo===t?"#fff":T.textMuted,border:`1px solid ${T.border}`,borderRadius:6,padding:"5px 2px",fontSize:10,fontWeight:600,cursor:"pointer"}}>{l}</button>
                         ))}
                       </div>
                     </div>
-
-                    <div><label style={labelStyle}>Departure From</label>
-                      <input type="date" value={busF.dateFrom||""} onChange={e=>setBusF(f=>({...f,dateFrom:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/>
-                    </div>
-                    <div><label style={labelStyle}>Departure To</label>
-                      <input type="date" value={busF.dateTo||""} onChange={e=>setBusF(f=>({...f,dateTo:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/>
-                    </div>
-
-                    {/* Pendel route */}
+                    <div><label style={labelStyle}>Departure From</label><input type="date" value={busF.dateFrom||""} onChange={e=>setBusF(f=>({...f,dateFrom:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/></div>
+                    <div><label style={labelStyle}>Departure To</label><input type="date" value={busF.dateTo||""} onChange={e=>setBusF(f=>({...f,dateTo:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/></div>
                     <div><label style={labelStyle}>Pendel Route</label>
                       <select value={busF.pendel||""} onChange={e=>setBusF(f=>({...f,pendel:e.target.value}))} style={inputStyle}>
                         <option value="">All Routes</option>
                         {(busSlicers.pendels||[]).map(p=><option key={p} value={p}>{p}</option>)}
                       </select>
                     </div>
-
-                    {/* Feeder Line filter — for feeder view */}
                     {busView==="feeder"&&<div><label style={labelStyle}>Feeder Line</label>
                       <select value={busF.feederLine||""} onChange={e=>setBusF(f=>({...f,feederLine:e.target.value}))} style={inputStyle}>
                         <option value="">All Lines</option>
                         {(busSlicers.feederLines||[]).map(l=><option key={l} value={l}>{l}</option>)}
                       </select>
                     </div>}
-                    {/* Label — for feeder */}
                     {busView==="feeder"&&<div><label style={labelStyle}>Label / Dataset</label>
                       <select value={busF.feederLabel||""} onChange={e=>setBusF(f=>({...f,feederLabel:e.target.value}))} style={inputStyle}>
                         <option value="">All Labels</option>
                         {["Solmar","Interbus","Solmar DE"].map(l=><option key={l} value={l}>{l}</option>)}
                       </select>
                     </div>}
-
                     <div><label style={labelStyle}>Region</label>
                       <select value={busF.region||""} onChange={e=>setBusF(f=>({...f,region:e.target.value}))} style={inputStyle}>
                         <option value="">All Regions</option>
                         {(busSlicers.regions||[]).map(r=><option key={r} value={r}>{r}</option>)}
                       </select>
                     </div>
-
                     <div><label style={labelStyle}>Destination</label>
                       <select value={busF.destination||""} onChange={e=>setBusF(f=>({...f,destination:e.target.value}))} style={inputStyle}>
                         <option value="">All Destinations</option>
                         {(busSlicers.destinations||[]).map(d=><option key={d} value={d}>{d}</option>)}
                       </select>
                     </div>
-
                     <div><label style={labelStyle}>Weekday (Outbound)</label>
                       <select value={busF.weekday||""} onChange={e=>setBusF(f=>({...f,weekday:e.target.value}))} style={inputStyle}>
                         <option value="">All Days</option>
                         {["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map(d=><option key={d} value={d}>{d}</option>)}
                       </select>
                     </div>
-
                     <div style={{display:"flex",gap:8,paddingTop:4,borderTop:`1px solid ${T.border}`}}>
                       <Btn onClick={()=>loadBus(busF)} T={T} style={{flex:1,justifyContent:"center"}}>Apply</Btn>
                       <Btn variant="ghost" onClick={()=>{
@@ -1404,11 +1352,12 @@ export default function App(){
                       }} T={T} style={{flex:1,justifyContent:"center"}}>Reset</Btn>
                     </div>
                   </div>
-                )}              </div>
+                )}
+              </div>
             </div>
           )}
 
-          {/* ══ DATA TABLE ═════════════════════════════════════════════════════ */}
+          {/* ══ DATA TABLE ════════════════════════════════════════════════════ */}
           {tab==="table"&&(
             <div>
               <Card T={T} style={{padding:"13px 16px",marginBottom:14}}>
@@ -1417,56 +1366,27 @@ export default function App(){
                     <label style={labelStyle}>Search Booking ID</label>
                     <div style={{position:"relative"}}>
                       <span style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",color:T.textDim}}>{Ic.search}</span>
-                      <input value={tableFilters.search||""} onChange={e=>setTableFilters(f=>({...f,search:e.target.value}))} placeholder="e.g. booking number..."
-                        style={{...inputStyle,paddingLeft:30}}/>
+                      <input value={tableFilters.search||""} onChange={e=>setTableFilters(f=>({...f,search:e.target.value}))} placeholder="e.g. booking number..." style={{...inputStyle,paddingLeft:30}}/>
                     </div>
                   </div>
-                  <div>
-                    <label style={labelStyle}>Dataset</label>
+                  <div><label style={labelStyle}>Dataset</label>
                     <select value={tableFilters.dataset||""} onChange={e=>setTableFilters(f=>({...f,dataset:e.target.value}))} style={inputStyle}>
                       <option value="">All datasets</option>
                       {["Snowtravel","Solmar","Interbus","Solmar DE"].map(d=><option key={d} value={d}>{d}</option>)}
                     </select>
                   </div>
-                  <div>
-                    <label style={labelStyle}>Status</label>
+                  <div><label style={labelStyle}>Status</label>
                     <select value={tableFilters.status||""} onChange={e=>setTableFilters(f=>({...f,status:e.target.value}))} style={inputStyle}>
-                      <option value="">All</option>
-                      <option value="ok">OK</option>
-                      <option value="cancelled">Cancelled</option>
+                      <option value="">All</option><option value="ok">OK</option><option value="cancelled">Cancelled</option>
                     </select>
                   </div>
-                  <div>
-                    <label style={labelStyle}>Booking From</label>
-                    <input type="date" value={tableFilters.bkFrom||""} onChange={e=>setTableFilters(f=>({...f,bkFrom:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/>
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Booking To</label>
-                    <input type="date" value={tableFilters.bkTo||""} onChange={e=>setTableFilters(f=>({...f,bkTo:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/>
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Departure From</label>
-                    <input type="date" value={tableFilters.depFrom||""} onChange={e=>setTableFilters(f=>({...f,depFrom:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/>
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Departure To</label>
-                    <input type="date" value={tableFilters.depTo||""} onChange={e=>setTableFilters(f=>({...f,depTo:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/>
-                  </div>
+                  {[["Booking From","bkFrom"],["Booking To","bkTo"],["Departure From","depFrom"],["Departure To","depTo"]].map(([l,k])=>(
+                    <div key={k}><label style={labelStyle}>{l}</label><input type="date" value={tableFilters[k]||""} onChange={e=>setTableFilters(f=>({...f,[k]:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/></div>
+                  ))}
                   <div style={{display:"flex",gap:7,alignItems:"flex-end",paddingTop:18,flexShrink:0}}>
                     <Btn onClick={()=>{setTablePage(1);loadTable();}} T={T}>Apply</Btn>
                     <Btn onClick={exportCSV} T={T} style={{background:T.successBg,color:T.success,fontWeight:700}}>{Ic.download} CSV</Btn>
                     <Btn onClick={()=>window.print()} T={T} variant="ghost">Print</Btn>
-                    <Btn onClick={async()=>{
-                      try{
-                        const h2c=(await import('html2canvas')).default;
-                        const el=document.getElementById('dashboard-content');
-                        if(!el){alert('Content not found');return;}
-                        const canvas=await h2c(el,{scale:2,useCORS:true,backgroundColor:T.bg});
-                        const link=document.createElement('a');
-                        link.download=`ttp-dashboard-${new Date().toISOString().split('T')[0]}.jpg`;
-                        link.href=canvas.toDataURL('image/jpeg',0.92);link.click();
-                      }catch(e){alert('PDF/Image export: '+e.message);}
-                    }} T={T} variant="ghost">Save JPG</Btn>
                   </div>
                 </div>
               </Card>
@@ -1485,7 +1405,7 @@ export default function App(){
             </div>
           )}
 
-          {/* ══ AI ═══════════════════════════════════════════════════════════════ */}
+          {/* ══ AI ════════════════════════════════════════════════════════════ */}
           {tab==="ai"&&(
             <div style={{display:"grid",gridTemplateColumns:"1fr 270px",gap:14,height:"calc(100vh - 160px)"}}>
               <Card T={T} style={{display:"flex",flexDirection:"column",overflow:"hidden"}}>
@@ -1499,8 +1419,7 @@ export default function App(){
                   {aiLoad&&<div style={{display:"flex",gap:3,padding:"6px 0"}}>{[0,1,2].map(i=><div key={i} style={{width:7,height:7,borderRadius:"50%",background:T.textDim,animation:`bounce 1s ${i*0.2}s infinite`}}/>)}</div>}
                 </div>
                 <div style={{padding:"10px 14px",borderTop:`1px solid ${T.border}`,display:"flex",gap:7}}>
-                  <input value={aiInput} onChange={e=>setAiInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&sendAI(aiInput)}
-                    placeholder="Ask about bookings, revenue, PAX..." style={{...inputStyle,flex:1}}/>
+                  <input value={aiInput} onChange={e=>setAiInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&sendAI(aiInput)} placeholder="Ask about bookings, revenue, PAX..." style={{...inputStyle,flex:1}}/>
                   <Btn onClick={()=>sendAI(aiInput)} disabled={aiLoad||!aiInput.trim()} T={T} style={{flexShrink:0}}>{Ic.send} Send</Btn>
                 </div>
               </Card>
@@ -1526,8 +1445,8 @@ export default function App(){
             </div>
           )}
 
-          {/* ══ HOTEL INSIGHTS ══════════════════════════════════════════════ */}
-          {tab==="hotel"&&<HotelTab token={token} T={T} API={API}/>}
+          {/* ══ HOTEL ═════════════════════════════════════════════════════════ */}
+          {tab==="hotel"&&<HotelTab token={token} T={T} API={BASE}/>}
 
           {/* ══ SETTINGS ══════════════════════════════════════════════════════ */}
           {tab==="settings"&&isAdmin&&(
@@ -1598,7 +1517,7 @@ export default function App(){
               {stTab==="api"&&(
                 <div style={{maxWidth:500}}>
                   <div style={{fontSize:15,fontWeight:700,color:T.text,marginBottom:14}}>API Configuration</div>
-                  {[["OpenAI API Key","openai","sk-proj-...","Powers TTP AI assistant"],["Anthropic API Key","anthropic","sk-ant-...","Alternative AI provider"],].map(([l,k,ph,desc])=>(
+                  {[["OpenAI API Key","openai","sk-proj-...","Powers TTP AI assistant"],["Anthropic API Key","anthropic","sk-ant-...","Alternative AI provider"]].map(([l,k,ph,desc])=>(
                     <Card key={k} T={T} style={{padding:"15px 16px",marginBottom:10}}>
                       <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:10}}>
                         <span style={{color:T.accent}}>{Ic.key}</span>
@@ -1647,55 +1566,6 @@ export default function App(){
                   </Card>
                 </div>
               )}
-              {stTab==="ai_prompts"&&(
-                <div>
-                  <div style={{marginBottom:16}}>
-                    <div style={{fontSize:13,fontWeight:700,color:T.text,marginBottom:4}}>AI System Prompt</div>
-                    <div style={{fontSize:11,color:T.textMuted,marginBottom:10}}>This prompt controls how the AI agent behaves, what data it can access, and how it responds to questions. Changes take effect immediately.</div>
-                    <textarea
-                      defaultValue={`You are TTP AI — the analytics assistant for TTP Services (Belgian travel company).
-You have LIVE data from Azure SQL.
-
-DATASETS:
-- Solmar: CustomerOverview WHERE Dataset='Solmar'
-- Interbus: CustomerOverview WHERE Dataset='Interbus'
-- Solmar DE: CustomerOverview WHERE Dataset='Solmar DE'
-- Snowtravel: ST_Bookings
-- DEF = confirmed | DEF-GEANNULEERD = cancelled
-
-RULES:
-1. If question is ambiguous, ASK BACK before answering.
-2. Only use numbers from the live data context.
-3. Always ask: which dataset? which date range? confirmed only?`}
-                      style={{width:"100%",minHeight:220,padding:"12px 14px",background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:10,color:T.text,fontSize:12,fontFamily:"monospace",resize:"vertical",outline:"none",boxSizing:"border-box",lineHeight:1.6}}
-                    />
-                    <div style={{marginTop:8,display:"flex",gap:8}}>
-                      <Btn T={T} style={{justifyContent:"center"}}>Save Prompt</Btn>
-                      <span style={{fontSize:11,color:T.textDim,alignSelf:"center"}}>Prompt is stored in backend environment variables</span>
-                    </div>
-                  </div>
-                  <div style={{borderTop:`1px solid ${T.border}`,paddingTop:16,marginTop:8}}>
-                    <div style={{fontSize:13,fontWeight:700,color:T.text,marginBottom:8}}>AI Data Access</div>
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                      {[
-                        {label:"CustomerOverview (Solmar/Interbus/Solmar DE)",enabled:true},
-                        {label:"ST_Bookings (Snowtravel)",enabled:true},
-                        {label:"BUStrips (Pendel)",enabled:false},
-                        {label:"FeederOverview",enabled:false},
-                        {label:"HotelRatings",enabled:false},
-                        {label:"HotelReviews",enabled:false},
-                      ].map(({label,enabled})=>(
-                        <div key={label} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:T.tableAlt,borderRadius:8,border:`1px solid ${T.border}`}}>
-                          <div style={{width:8,height:8,borderRadius:"50%",background:enabled?T.success:T.textDim,flexShrink:0}}/>
-                          <span style={{fontSize:11,color:enabled?T.text:T.textMuted}}>{label}</span>
-                          <span style={{marginLeft:"auto",fontSize:10,color:enabled?T.success:T.textDim,fontWeight:600}}>{enabled?"Active":"Inactive"}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
             </div>
           )}
         </div>
@@ -1704,55 +1574,13 @@ RULES:
         <div style={{background:T.headerBg,borderTop:`1px solid ${T.border}`,padding:"4px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,flexShrink:0}}>
           <div style={{display:"flex",gap:14,alignItems:"center",flexWrap:"wrap"}}>
             <span style={{color:T.textDim}}>Last sync: <span style={{color:T.accent,fontWeight:600}}>{lastSync||"—"}</span> Dubai</span>
-            {[["Solmar",kpis?.currentBookings!=null?"Live":"—"],["Snowtravel","Live"],["Interbus","Live"],["Solmar DE","Live"]].map(([k,v])=>(
-              <span key={k} style={{color:T.textDim}}><span style={{color:T.textMuted,fontWeight:600}}>{k}</span>: <span style={{color:T.success}}>{v}</span></span>
+            {[["Solmar","#22c55e"],["Snowtravel","#3b82f6"],["Interbus","#f59e0b"],["Solmar DE","#ef4444"]].map(([k,c])=>(
+              <span key={k} style={{color:T.textDim}}><span style={{color:T.textMuted,fontWeight:600}}>{k}</span>: <span style={{color:c}}>● Live</span></span>
             ))}
           </div>
-          <span style={{color:T.textDim}}>Auto-refresh 00:00 Dubai · TTP Analytics v2.1 · <span style={{color:T.success}}>●</span> Live</span>
+          <span style={{color:T.textDim}}>Auto-refresh 00:00 Dubai · TTP Analytics v2.1</span>
         </div>
       </main>
-
-      {/* EXPORT MODAL */}
-      {showExportModal&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowExportModal(false)}>
-          <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:28,width:460,boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}} onClick={e=>e.stopPropagation()}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
-              <span style={{fontSize:16,fontWeight:700,color:T.text}}>Export Data</span>
-              <button onClick={()=>setShowExportModal(false)} style={{background:"transparent",border:"none",cursor:"pointer",color:T.textMuted}}>{Ic.close}</button>
-            </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
-              {[["Booking From","bkFrom"],["Booking To","bkTo"],["Departure From","depFrom"],["Departure To","depTo"]].map(([l,k])=>(
-                <div key={k}><label style={labelStyle}>{l}</label>
-                  <input type="date" value={exportOpts[k]||""} onChange={e=>setExportOpts(o=>({...o,[k]:e.target.value}))}
-                    style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/>
-                </div>
-              ))}
-            </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
-              <div><label style={labelStyle}>Dataset</label>
-                <select value={exportOpts.dataset||""} onChange={e=>setExportOpts(o=>({...o,dataset:e.target.value}))} style={inputStyle}>
-                  <option value="">All Datasets</option>
-                  {["Snowtravel","Solmar","Interbus","Solmar DE"].map(d=><option key={d} value={d}>{d}</option>)}
-                </select>
-              </div>
-              <div><label style={labelStyle}>Status</label>
-                <select value={exportOpts.status||""} onChange={e=>setExportOpts(o=>({...o,status:e.target.value}))} style={inputStyle}>
-                  <option value="">All Status</option>
-                  <option value="ok">OK only</option>
-                  <option value="cancelled">Cancelled only</option>
-                </select>
-              </div>
-            </div>
-            <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>doExport("csv")} style={{flex:1,background:T.success,color:"#fff",border:"none",borderRadius:8,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>{Ic.download} CSV</button>
-              <button onClick={()=>doExport("excel")} style={{flex:1,background:"#0e7490",color:"#fff",border:"none",borderRadius:8,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer"}}>📊 Excel</button>
-              <button onClick={()=>doExport("print")} style={{flex:1,background:T.accent,color:"#fff",border:"none",borderRadius:8,padding:"10px",fontSize:13,fontWeight:600,cursor:"pointer"}}>Print</button>
-              <button onClick={()=>doExport("pdf")} style={{flex:1,background:"transparent",border:`1px solid ${T.border}`,borderRadius:8,padding:"10px",fontSize:13,fontWeight:600,cursor:"pointer",color:T.textMuted}}>📄 Save PDF</button>
-            </div>
-          </div>
-        </div>
-      )}
-
 
       {/* EXPORT MODAL */}
       {showExportModal&&(
@@ -1762,73 +1590,46 @@ RULES:
               <span style={{fontSize:16,fontWeight:700,color:T.text}}>Export Data</span>
               <button onClick={()=>setShowExportModal(false)} style={{background:"transparent",border:"none",cursor:"pointer",color:T.textMuted}}>{Ic.close}</button>
             </div>
-            {/* Dataset */}
             <div style={{marginBottom:14}}>
               <label style={{fontSize:11,fontWeight:700,color:T.textMuted,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em",display:"block"}}>Dataset</label>
               <div style={{display:"flex",flexDirection:"column",gap:4,background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:8,padding:"10px 12px"}}>
                 {["Snowtravel","Solmar","Interbus","Solmar DE"].map(d=>{
                   const sel=(exportOpts.datasets||[]).includes(d);
                   return <label key={d} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:T.text,cursor:"pointer"}}>
-                    <input type="checkbox" checked={sel} onChange={e=>setExportOpts(o=>({...o,datasets:e.target.checked?[...o.datasets,d]:o.datasets.filter(x=>x!==d)}))} style={{accentColor:T.accent}}/>
+                    <input type="checkbox" checked={sel} onChange={e=>setExportOpts(o=>({...o,datasets:e.target.checked?[...(o.datasets||[]),d]:(o.datasets||[]).filter(x=>x!==d)}))} style={{accentColor:T.accent}}/>
                     <span style={{color:DS_COLORS[d]||T.text,fontWeight:sel?600:400}}>{d}</span>
                   </label>;
                 })}
-                <div style={{marginTop:4,fontSize:11,color:T.textDim}}>{(exportOpts.datasets||[]).length===0?"All datasets selected":exportOpts.datasets.join(", ")}</div>
+                <div style={{marginTop:4,fontSize:11,color:T.textDim}}>{(exportOpts.datasets||[]).length===0?"All datasets":exportOpts.datasets.join(", ")}</div>
               </div>
             </div>
-            {/* Status */}
             <div style={{marginBottom:14}}>
               <label style={{fontSize:11,fontWeight:700,color:T.textMuted,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em",display:"block"}}>Status</label>
               <div style={{display:"flex",gap:6}}>
                 {[["","All"],["ok","OK only"],["cancelled","Cancelled only"]].map(([v,l])=>{
-                  const active=exportOpts.status===v;
-                  const col=v==="ok"?T.success:v==="cancelled"?T.danger:T.textMuted;
+                  const active=exportOpts.status===v;const col=v==="ok"?T.success:v==="cancelled"?T.danger:T.textMuted;
                   return <button key={v} onClick={()=>setExportOpts(o=>({...o,status:v}))} style={{flex:1,background:active?`${col}22`:"transparent",border:`1px solid ${active?col:T.border}`,borderRadius:7,color:active?col:T.textMuted,padding:"7px 6px",fontSize:12,fontWeight:active?700:400,cursor:"pointer"}}>{l}</button>;
                 })}
               </div>
             </div>
-            {/* Date ranges */}
             {[["Departure Date","depFrom","depTo"],["Booking Date","bkFrom","bkTo"]].map(([label,fromK,toK])=>(
               <div key={label} style={{marginBottom:14}}>
                 <label style={{fontSize:11,fontWeight:700,color:T.textMuted,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em",display:"block"}}>{label}</label>
                 <div style={{display:"flex",gap:8}}>
-                  <div style={{flex:1}}>
-                    <input type="date" value={exportOpts[fromK]||""} onChange={e=>setExportOpts(o=>({...o,[fromK]:e.target.value}))}
-                      placeholder="From" style={{width:"100%",boxSizing:"border-box",background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:7,padding:"8px 10px",fontSize:13,color:T.text,outline:"none",colorScheme:themeKey==="dark"?"dark":"light"}}/>
-                  </div>
-                  <div style={{flex:1}}>
-                    <input type="date" value={exportOpts[toK]||""} onChange={e=>setExportOpts(o=>({...o,[toK]:e.target.value}))}
-                      placeholder="To" style={{width:"100%",boxSizing:"border-box",background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:7,padding:"8px 10px",fontSize:13,color:T.text,outline:"none",colorScheme:themeKey==="dark"?"dark":"light"}}/>
-                  </div>
+                  <input type="date" value={exportOpts[fromK]||""} onChange={e=>setExportOpts(o=>({...o,[fromK]:e.target.value}))} style={{flex:1,...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/>
+                  <input type="date" value={exportOpts[toK]||""} onChange={e=>setExportOpts(o=>({...o,[toK]:e.target.value}))} style={{flex:1,...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/>
                 </div>
               </div>
             ))}
-            {/* Export buttons */}
             <div style={{display:"flex",gap:8,marginTop:8,paddingTop:16,borderTop:`1px solid ${T.border}`}}>
-              <button onClick={doExportCSV} style={{flex:1,background:T.success,color:"#fff",border:"none",borderRadius:8,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-                {Ic.download} Download CSV
-              </button>
-              <button onClick={()=>{setShowExportModal(false);setTimeout(()=>window.print(),100);}} style={{flex:1,background:T.accent,color:"#fff",border:"none",borderRadius:8,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer"}}>
-                Print
-              </button>
-              <button onClick={async()=>{
-                setShowExportModal(false);
-                try{
-                  const h2c=(await import('html2canvas')).default;
-                  const el=document.getElementById('dashboard-content');
-                  if(!el)return;
-                  const canvas=await h2c(el,{scale:1.5,useCORS:true,backgroundColor:T.bg});
-                  const link=document.createElement('a');
-                  link.download=`ttp-${new Date().toISOString().split('T')[0]}.jpg`;
-                  link.href=canvas.toDataURL('image/jpeg',0.9);link.click();
-                }catch(e){alert('Export error: '+e.message);}
-              }} style={{flex:1,background:T.warning,color:"#fff",border:"none",borderRadius:8,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer"}}>
-                Save JPG
-              </button>
+              <button onClick={()=>doExport("csv")} style={{flex:1,background:T.success,color:"#fff",border:"none",borderRadius:8,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>{Ic.download} CSV</button>
+              <button onClick={()=>doExport("excel")} style={{flex:1,background:"#0e7490",color:"#fff",border:"none",borderRadius:8,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer"}}>📊 Excel</button>
+              <button onClick={()=>doExport("print")} style={{flex:1,background:T.accent,color:"#fff",border:"none",borderRadius:8,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer"}}>Print</button>
             </div>
           </div>
         </div>
       )}
+
       {/* ADD USER MODAL */}
       {showAddUser&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowAddUser(false)}>
@@ -1895,49 +1696,30 @@ RULES:
           main{margin-left:0!important;}
           #dashboard-content{padding:0!important;}
           body{background:white!important;}
-          .card{break-inside:avoid;}
         }
         @media (max-width:768px){
           aside{width:100%!important;height:52px!important;position:fixed!important;top:0!important;left:0!important;z-index:200!important;flex-direction:row!important;align-items:center!important;padding:0!important;overflow:hidden!important;border-right:none!important;border-bottom:1px solid #e2e8f0!important;}
           aside nav{display:flex!important;flex-direction:row!important;flex:1!important;padding:0 6px!important;overflow-x:auto!important;gap:2px!important;scrollbar-width:none!important;}
-          aside nav::-webkit-scrollbar{display:none!important;}
-          aside nav button{flex-shrink:0!important;padding:6px 10px!important;font-size:11px!important;}
           aside > div:last-child{display:none!important;}
           aside > div:first-child{width:48px!important;flex-shrink:0!important;border-right:1px solid #e2e8f0!important;}
           main{margin-left:0!important;margin-top:52px!important;}
           .kpi-grid{grid-template-columns:1fr 1fr!important;}
           .chart-grid{grid-template-columns:1fr!important;}
-          header{height:44px!important;padding:0 10px!important;}
-          #dashboard-content{padding:8px!important;overflow-x:hidden!important;}
-          .chart-grid{grid-template-columns:1fr!important;}
-          .kpi-grid{grid-template-columns:1fr 1fr!important;}
-          .kpi-value{font-size:22px!important;}
+          #dashboard-content{padding:8px!important;}
           .hide-mobile{display:none!important;}
-          .table-scroll{-webkit-overflow-scrolling:touch!important;max-width:calc(100vw - 20px)!important;}
+          .table-scroll{-webkit-overflow-scrolling:touch!important;}
         }
         @media (max-width:480px){
           .kpi-grid{grid-template-columns:1fr!important;}
-          header .header-btns > *:not(:last-child):not(:nth-last-child(2)){display:none!important;}
+          .kpi-value{font-size:22px!important;}
         }
         @keyframes bounce{0%,80%,100%{transform:scale(0.4);opacity:0.4}40%{transform:scale(1);opacity:1}}
-        ::-webkit-scrollbar{width:6px;height:10px}
+        ::-webkit-scrollbar{width:6px;height:8px}
         ::-webkit-scrollbar-track{background:${T.border};border-radius:10px}
-        ::-webkit-scrollbar-thumb{background:${T.accent};border-radius:10px;border:2px solid ${T.border}}
+        ::-webkit-scrollbar-thumb{background:${T.accent};border-radius:10px}
         ::-webkit-scrollbar-thumb:hover{background:${T.accentHover}}
-        ::-webkit-scrollbar-corner{background:transparent}
-        /* No page-level horizontal scroll */
         body,html{overflow-x:hidden}
-        /* Always show horizontal scrollbar */
-        .force-scroll{overflow-x:auto!important;-webkit-overflow-scrolling:touch}
-        .force-scroll::-webkit-scrollbar{height:8px!important;display:block!important}
-        .force-scroll::-webkit-scrollbar-track{background:${T.tableAlt};border-radius:4px}
-        .force-scroll::-webkit-scrollbar-thumb{background:${T.accent};border-radius:4px;min-width:40px}
-        /* Table scroll - allow both directions */
         .table-scroll{overflow-x:auto;overflow-y:auto;-webkit-overflow-scrolling:touch}
-        .table-scroll::-webkit-scrollbar{height:8px;width:6px}
-        .table-scroll::-webkit-scrollbar-track{background:${T.tableAlt};border-radius:0 0 8px 8px}
-        .table-scroll::-webkit-scrollbar-thumb{background:${T.accent};border-radius:6px;border:3px solid ${T.tableAlt}}
-        .table-scroll::-webkit-scrollbar-thumb:hover{background:${T.accentHover}}
         input[type="date"]::-webkit-calendar-picker-indicator{opacity:0.5;cursor:pointer;filter:${themeKey==="dark"?"invert(1)":"none"}}
         select option{background:${T.card};color:${T.text}}
       `}</style>
