@@ -92,7 +92,13 @@ function LineChart({ data, T }) {
     ctx.clearRect(0,0,W,H);
     if(!data?.length) return;
     // Sort data chronologically
-    const sorted=[...data].sort((a,b)=>a.year!==b.year?a.year-b.year:a.month-b.month); // ASC for chart display
+    // Sort by date ASC - for fiscal year Dec 2025 appears before Jan 2026 naturally
+    const sorted=[...data].sort((a,b)=>{
+      // Create comparable date value
+      const da=a.year*100+a.month;
+      const db=b.year*100+b.month;
+      return da-db;
+    });
     const byY={}; sorted.forEach(d=>{if(!byY[d.year])byY[d.year]={};byY[d.year][d.month]=d.revenue||0;});
     const years=Object.keys(byY).sort((a,b)=>parseInt(a)-parseInt(b));
     const maxV=Math.max(...data.map(d=>d.revenue||0),1);
@@ -573,7 +579,7 @@ function HotelTab({token,T,API}) {
   return (
     <div style={{padding:"20px"}}>
       {noData ? (
-        <div style={{textAlign:"center",padding:"60px 20px",background:T.cardBg,borderRadius:14,border:`1px solid ${T.border}`}}>
+        <div style={{textAlign:"center",padding:"60px 20px",background:T.card,borderRadius:14,border:`1px solid ${T.border}`}}>
           <div style={{fontSize:44,marginBottom:16}}>🏨</div>
           <div style={{fontSize:20,fontWeight:800,color:T.text,marginBottom:8}}>Hotel Insights</div>
           <div style={{fontSize:13,color:T.textMuted,marginBottom:20,maxWidth:420,margin:"0 auto 20px"}}>
@@ -603,7 +609,7 @@ function HotelTab({token,T,API}) {
           </div>
 
           {/* Search + Table */}
-          <div style={{background:T.cardBg,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+          <div style={{background:T.card,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
             <div style={{padding:"12px 16px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
               <span style={{fontSize:13,fontWeight:700,color:T.text}}>Hotel Ratings — {filtered.length} properties</span>
               <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search hotel..."
@@ -1189,8 +1195,8 @@ export default function App(){
                 </button>
               </div>
 
-              <div style={{display:"flex",gap:0,alignItems:"flex-start"}}>
-                <div style={{flex:1,minWidth:0}}>
+              <div style={{display:"flex",gap:0,alignItems:"flex-start",minWidth:0,overflow:"hidden"}}>
+                <div style={{flex:1,minWidth:0,overflow:"hidden"}}>
                   {bLoad&&<div style={{textAlign:"center",padding:20,color:T.textMuted}}>Loading bus data...</div>}
 
                   {/* Bus KPI Cards */}
@@ -1641,6 +1647,55 @@ export default function App(){
                   </Card>
                 </div>
               )}
+              {stTab==="ai_prompts"&&(
+                <div>
+                  <div style={{marginBottom:16}}>
+                    <div style={{fontSize:13,fontWeight:700,color:T.text,marginBottom:4}}>AI System Prompt</div>
+                    <div style={{fontSize:11,color:T.textMuted,marginBottom:10}}>This prompt controls how the AI agent behaves, what data it can access, and how it responds to questions. Changes take effect immediately.</div>
+                    <textarea
+                      defaultValue={`You are TTP AI — the analytics assistant for TTP Services (Belgian travel company).
+You have LIVE data from Azure SQL.
+
+DATASETS:
+- Solmar: CustomerOverview WHERE Dataset='Solmar'
+- Interbus: CustomerOverview WHERE Dataset='Interbus'
+- Solmar DE: CustomerOverview WHERE Dataset='Solmar DE'
+- Snowtravel: ST_Bookings
+- DEF = confirmed | DEF-GEANNULEERD = cancelled
+
+RULES:
+1. If question is ambiguous, ASK BACK before answering.
+2. Only use numbers from the live data context.
+3. Always ask: which dataset? which date range? confirmed only?`}
+                      style={{width:"100%",minHeight:220,padding:"12px 14px",background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:10,color:T.text,fontSize:12,fontFamily:"monospace",resize:"vertical",outline:"none",boxSizing:"border-box",lineHeight:1.6}}
+                    />
+                    <div style={{marginTop:8,display:"flex",gap:8}}>
+                      <Btn T={T} style={{justifyContent:"center"}}>Save Prompt</Btn>
+                      <span style={{fontSize:11,color:T.textDim,alignSelf:"center"}}>Prompt is stored in backend environment variables</span>
+                    </div>
+                  </div>
+                  <div style={{borderTop:`1px solid ${T.border}`,paddingTop:16,marginTop:8}}>
+                    <div style={{fontSize:13,fontWeight:700,color:T.text,marginBottom:8}}>AI Data Access</div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                      {[
+                        {label:"CustomerOverview (Solmar/Interbus/Solmar DE)",enabled:true},
+                        {label:"ST_Bookings (Snowtravel)",enabled:true},
+                        {label:"BUStrips (Pendel)",enabled:false},
+                        {label:"FeederOverview",enabled:false},
+                        {label:"HotelRatings",enabled:false},
+                        {label:"HotelReviews",enabled:false},
+                      ].map(({label,enabled})=>(
+                        <div key={label} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:T.tableAlt,borderRadius:8,border:`1px solid ${T.border}`}}>
+                          <div style={{width:8,height:8,borderRadius:"50%",background:enabled?T.success:T.textDim,flexShrink:0}}/>
+                          <span style={{fontSize:11,color:enabled?T.text:T.textMuted}}>{label}</span>
+                          <span style={{marginLeft:"auto",fontSize:10,color:enabled?T.success:T.textDim,fontWeight:600}}>{enabled?"Active":"Inactive"}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
             </div>
           )}
         </div>
@@ -1853,7 +1908,9 @@ export default function App(){
           .kpi-grid{grid-template-columns:1fr 1fr!important;}
           .chart-grid{grid-template-columns:1fr!important;}
           header{height:44px!important;padding:0 10px!important;}
-          #dashboard-content{padding:10px!important;overflow-x:hidden!important;}
+          #dashboard-content{padding:8px!important;overflow-x:hidden!important;}
+          .chart-grid{grid-template-columns:1fr!important;}
+          .kpi-grid{grid-template-columns:1fr 1fr!important;}
           .kpi-value{font-size:22px!important;}
           .hide-mobile{display:none!important;}
           .table-scroll{-webkit-overflow-scrolling:touch!important;max-width:calc(100vw - 20px)!important;}
