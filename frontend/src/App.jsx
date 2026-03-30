@@ -461,6 +461,11 @@ function DeckTable({ data, T }) {
     if(!y)return s;
     return `${parseInt(d)}-${parseInt(m)}-${y}`;
   };
+  // Sort data by actual date ascending
+  const sortedData=[...data].sort((a,b)=>{
+    const parse=s=>{if(!s)return 0;const sep=s.includes('/')?'/':'-';const[d,m,y]=s.split(sep);return new Date(`${y}-${(m||'1').padStart(2,'0')}-${(d||'1').padStart(2,'0')}`).getTime();};
+    return parse(a.dateDeparture)-parse(b.dateDeparture);
+  });
 
   return (
     <div className="force-scroll" style={{overflowX:"auto",overflowY:"auto",maxHeight:560,paddingBottom:4}}>
@@ -483,7 +488,7 @@ function DeckTable({ data, T }) {
           </tr>
         </thead>
         <tbody>
-          {data.map((row,i)=>(
+          {sortedData.map((row,i)=>(
             <tr key={i} style={{background:hover===i?T.tableHover:i%2===0?T.card:T.tableAlt,borderBottom:`1px solid ${T.border}`,transition:"background 0.1s"}}
               onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(-1)}>
               <td style={{padding:"8px 12px",color:T.accent,fontWeight:700,whiteSpace:"nowrap",borderRight:`2px solid ${T.border}`}}>{fmtDate(row.dateDeparture)}</td>
@@ -896,16 +901,17 @@ export default function App(){
     {label:"START DATE",key:"StartDate",noWrap:true,bold:true,color:(_,T)=>T.accent},
     {label:"END DATE",key:"EndDate",noWrap:true,color:(_,T)=>T.textMuted},
     {label:"OUT TOTAL",key:"Outbound_Total",right:true,bold:true,color:(_,T)=>T.success},
-    {label:"OUT RC",key:"Outbound_Royal",right:true,color:(_,T)=>T.success},
-    {label:"OUT FC",key:"Outbound_First",right:true,color:(_,T)=>T.success},
-    {label:"OUT PRE",key:"Outbound_Premium",right:true,color:(_,T)=>T.success},
+    {label:"OUT RC",key:"ORC",right:true,color:(_,T)=>T.success},
+    {label:"OUT FC",key:"OFC",right:true,color:(_,T)=>T.success},
+    {label:"OUT PRE",key:"OPRE",right:true,color:(_,T)=>T.success},
     {label:"IN TOTAL",key:"Inbound_Total",right:true,bold:true,color:(_,T)=>T.warning},
-    {label:"IN RC",key:"Inbound_Royal",right:true,color:(_,T)=>T.warning},
-    {label:"IN FC",key:"Inbound_First",right:true,color:(_,T)=>T.warning},
-    {label:"IN PRE",key:"Inbound_Premium",right:true,color:(_,T)=>T.warning},
+    {label:"IN RC",key:"RRC",right:true,color:(_,T)=>T.warning},
+    {label:"IN FC",key:"RFC",right:true,color:(_,T)=>T.warning},
+    {label:"IN PRE",key:"RPRE",right:true,color:(_,T)=>T.warning},
     {label:"DIFF RC",key:"Diff_Royal",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.Diff_Royal,T),render:r=>{const v=r.Diff_Royal||0;return v!==0?(v>0?"+":"")+v:"";}},
     {label:"DIFF FC",key:"Diff_First",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.Diff_First,T),render:r=>{const v=r.Diff_First||0;return v!==0?(v>0?"+":"")+v:"";}},
     {label:"DIFF PRE",key:"Diff_Premium",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.Diff_Premium,T),render:r=>{const v=r.Diff_Premium||0;return v!==0?(v>0?"+":"")+v:"";}},
+    {label:"DIFF TOTAL",key:"Diff_Total",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.Diff_Total,T),render:r=>{const v=r.Diff_Total||0;return v!==0?(v>0?"+":"")+v:"";}},
   ];
 
   const feederCols=[
