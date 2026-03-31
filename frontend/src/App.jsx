@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { Eye, EyeOff, ShieldCheck } from "lucide-react";
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
-const BASE = "https://ttp-dashboard-api-dpczbed3bvhchxe9.belgiumcentral-01.azurewebsites.net";
+const RAW_BASE = (import.meta.env.VITE_API_URL || "https://ttp-dashboard-api-dpczbed3bvhchxe9.belgiumcentral-01.azurewebsites.net").trim();
+const BASE = RAW_BASE.replace(/\/+$/, "");
 const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const MONTHS_FULL  = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -368,7 +370,9 @@ function Login({ onLogin }) {
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: "48px 40px", width: 380, boxShadow: "0 25px 60px rgba(0,0,0,0.5)" }}>
         {/* Logo */}
         <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <div style={{ width: 52, height: 52, background: `linear-gradient(135deg, ${C.accent}, ${C.accentHi})`, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 22 }}>✈</div>
+          <div style={{ width: 52, height: 52, background: `linear-gradient(135deg, ${C.accent}, ${C.accentHi})`, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 22 }}>
+            <ShieldCheck size={26} color="#e5f2ff" />
+          </div>
           <div style={{ fontSize: 22, fontWeight: 700, color: C.text, letterSpacing: "-0.02em" }}>TTP Services</div>
           <div style={{ fontSize: 13, color: C.textDim, marginTop: 4 }}>Analytics Dashboard</div>
         </div>
@@ -388,7 +392,13 @@ function Login({ onLogin }) {
           <input value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleLogin()}
             type={showPw ? "text" : "password"} placeholder="••••••••"
             style={{ width: "100%", background: C.bg, border: `1px solid ${C.border2}`, borderRadius: 8, padding: "11px 40px 11px 14px", color: C.text, fontSize: 14, outline: "none", boxSizing: "border-box" }} />
-          <span onClick={() => setShowPw(!showPw)} style={{ position: "absolute", right: 12, top: 36, cursor: "pointer", color: C.textDim, fontSize: 16 }}>{showPw ? "🙈" : "👁"}</span>
+          <button
+            type="button"
+            onClick={() => setShowPw(!showPw)}
+            style={{ position: "absolute", right: 10, top: 34, cursor: "pointer", color: C.textDim, fontSize: 16, background: "transparent", border: "none", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}
+          >
+            {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
         </div>
 
         <button onClick={handleLogin} disabled={loading}
