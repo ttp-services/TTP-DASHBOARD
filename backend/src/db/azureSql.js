@@ -12,6 +12,9 @@ const config = {
   database: process.env.AZURE_SQL_DATABASE,
   user: process.env.AZURE_SQL_USER,
   password: process.env.AZURE_SQL_PASSWORD,
+  // Prevent infinite hangs during startup/login when Azure SQL is slow/unreachable.
+  connectionTimeout: 30000,
+  connectTimeout: 30000,
   options: {
     encrypt:true,
     trustServerCertificate:true,

@@ -9,17 +9,18 @@ const SECRET = process.env.JWT_SECRET;
 // ─── LOGIN ─────────────────────────────────────────────
 router.post('/login', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { username, identifier, password } = req.body;
+    const id = username || identifier;
 
-    if (!username || !password) {
+    if (!id || !password) {
       return res.status(400).json({ error: 'Username and password required' });
     }
 
     const result = await query(
       `SELECT id, name, username, email, password, role 
        FROM users 
-       WHERE username = @username OR email = @username`,
-      { username }
+       WHERE username = @identifier OR email = @identifier`,
+      { identifier: id }
     );
 
     const user = result?.recordset?.[0];

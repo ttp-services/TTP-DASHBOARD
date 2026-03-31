@@ -11,17 +11,14 @@ import dashboardRoutes from './routes/dashboard.js';
 import aiRoutes from './routes/ai.js';
 // 1. New User Management Route Import
 import userRoutes from './routes/users.js';
+import { getPool } from './db/azureSql.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173,https://ttp-services.github.io,https://ttp-services.github.io/TTP-DASHBOARD';
 const allowedOrigins = corsOrigin.split(',').map(o => o.trim()).filter(Boolean);
 
-// ─── SECURITY ─────────────────────────────────────────
-app.use(helmet());
-app.use(express.json());
-
-// CORS – explicitly allow GitHub Pages + local dev and handle preflight.
+// CORS – must be first middleware so proxies respect it
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -38,6 +35,10 @@ app.use(
 
 // Explicitly respond to OPTIONS preflight on all routes.
 app.options('*', cors());
+
+// Basic security & JSON parsing after CORS
+app.use(helmet());
+app.use(express.json());
 
 // ─── RATE LIMIT ───────────────────────────────────────
 app.use('/api', rateLimit({
@@ -56,9 +57,19 @@ app.use('/api/ai', requireAuth, aiRoutes);
 app.use('/api/users', requireAuth, userRoutes);
 
 // ─── HEALTH ───────────────────────────────────────────
-app.get('/health', (_, res) => {
-  res.json({ status: 'ok' });
-});
+app.get('/api/health', (_, res) => res.json({ status: 'ok' }));
+// Backwards-compatible health check
+app.get('/health', (_, res) => res.json({ status: 'ok' }));
+
+// ─── Resilient DB init (non-blocking) ────────────────
+async function initDb() {
+  try {
+    // Trigger pool creation once; failures must never prevent the API from starting.
+    await getPool();
+  } catch (e) {
+    console.warn('DB not ready yet; continuing without blocking:', e?.message || e);
+  }
+}
 
 // ─── GLOBAL ERROR ─────────────────────────────────────
 app.use((err, req, res, next) => {
@@ -68,4 +79,6 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, () => {
   console.log(`Server running on ${PORT}`);
+  // Do not block the server from listening on DB startup delay/failure.
+  initDb();
 });
