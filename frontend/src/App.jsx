@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { Eye, EyeOff, ShieldCheck, LayoutDashboard, Hotel, Bus, Settings, Bot } from "lucide-react";
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 const RAW_BASE = (import.meta.env.VITE_API_URL || "https://ttp-dashboard-api-dpczbed3bvhchxe9.belgiumcentral-01.azurewebsites.net").trim();
@@ -357,7 +357,14 @@ function Login({ onLogin }) {
         body: JSON.stringify({ username: email, password }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error || "Login failed"); return; }
+      if (!res.ok) {
+        if (res.status === 401) {
+          setError("Invalid username or password");
+        } else {
+          setError(data.error || "Login failed");
+        }
+        return;
+      }
       saveToken(data.token, { ...data.user, token: data.token });
       onLogin({ ...data.user, token: data.token });
     } catch (e) {
@@ -1208,14 +1215,14 @@ export default function App() {
 
   // ── Nav items ─────────────────────────────────────────────────────────────
   const navItems = [
-    { id: "overview", icon: "📈", label: "Overview" },
-    { id: "bus", icon: "", label: "Bus Occupancy" },
-    { id: "hotels", icon: "", label: "Hotel Reviews" },
-    { id: "data", icon: "", label: "Data Table" },
-    { id: "ai", icon: "", label: "TTP AI" },
+    { id: "overview", icon: <LayoutDashboard size={16} />, label: "Overview" },
+    { id: "bus", icon: <Bus size={16} />, label: "Bus Occupancy" },
+    { id: "hotels", icon: <Hotel size={16} />, label: "Hotel Reviews" },
+    { id: "data", icon: <LayoutDashboard size={16} />, label: "Data Table" },
+    { id: "ai", icon: <Bot size={16} />, label: "TTP AI" },
   ];
   const mgmtItems = user.role === "admin" ? [
-    { id: "settings", icon: "⚙", label: "Settings" },
+    { id: "settings", icon: <Settings size={16} />, label: "Settings" },
   ] : [];
 
   const inp = { background: C.bg, border: `1px solid ${C.border2}`, borderRadius: 6, padding: "6px 10px", color: C.text, fontSize: 12, outline: "none" };
@@ -1227,7 +1234,9 @@ export default function App() {
         {/* Logo */}
         <div style={{ padding: "24px 20px 20px", borderBottom: `1px solid ${C.border}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 34, height: 34, background: `linear-gradient(135deg, ${C.accent}, ${C.accentHi})`, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>✈</div>
+            <div style={{ width: 34, height: 34, background: `linear-gradient(135deg, ${C.accent}, ${C.accentHi})`, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <ShieldCheck size={20} color="#e5f2ff" />
+            </div>
             <div>
               <div style={{ fontSize: 14, fontWeight: 700, color: C.text, lineHeight: 1 }}>TTP Services</div>
               <div style={{ fontSize: 10, color: C.textDim, marginTop: 2 }}>Analytics</div>
