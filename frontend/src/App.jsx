@@ -31,15 +31,17 @@ const C = {
   tealSoft:  "#0a3330",
 };
 
-// Distinct line colors per year — 2022 and 2026 must be DIFFERENT
-const YEAR_COLORS = {
-  2022: "#f59e0b",   // amber
-  2023: "#10b981",   // emerald
-  2024: "#8b5cf6",   // purple
-  2025: "#06b6d4",   // cyan
-  2026: "#ef4444",   // red
-  2027: "#f97316",   // orange
-};
+// Distinct line colors per year (at least 2022 and 2026 must be different)
+const YEAR_COLORS = [
+  "#3b82f6", // blue
+  "#f59e0b", // amber
+  "#10b981", // emerald
+  "#ef4444", // red
+  "#a855f7", // purple
+  "#f97316", // orange
+  "#06b6d4", // cyan
+  "#ec4899", // pink
+];
 
 // ─── TOKEN MANAGEMENT ─────────────────────────────────────────────────────────
 function saveToken(token, user) {
@@ -59,22 +61,55 @@ function clearToken() {
   try { localStorage.removeItem("ttp_token"); localStorage.removeItem("ttp_user"); } catch(_) {}
   try { sessionStorage.removeItem("ttp_token"); } catch(_) {}
 }
-function isTokenExpired(token) {
+
+function decodeJwtPayload(token) {
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    return payload.exp && Date.now() / 1000 > payload.exp;
-  } catch(_) { return false; }
+    const parts = String(token || "").split(".");
+    if (parts.length !== 3) return null;
+    // base64url -> base64
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padLen = (4 - (base64.length % 4)) % 4;
+    const padded = base64 + "=".repeat(padLen);
+    return JSON.parse(atob(padded));
+  } catch (_) {
+    return null;
+  }
+}
+
+function isTokenValid(token) {
+  try {
+    const payload = decodeJwtPayload(token);
+    if (!payload || !payload.exp) return false;
+    return Number(payload.exp) > Date.now() / 1000;
+  } catch (_) { return false; }
 }
 
 // ─── API HELPER ───────────────────────────────────────────────────────────────
+let logoutFn = () => {};
+
 async function apiFetch(path, params = {}, token) {
   const qs = new URLSearchParams(
     Object.fromEntries(Object.entries(params).filter(([,v]) => v !== "" && v !== null && v !== undefined))
   ).toString();
   const url = `${BASE}${path}${qs ? "?" + qs : ""}`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) {
+    const err = new Error(`HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
   return res.json();
+}
+
+async function safeApiFetch(path, params = {}, token) {
+  try {
+    return await apiFetch(path, params, token);
+  } catch (e) {
+    if (e?.status === 401) {
+      try { logoutFn(); } catch (_) {}
+    }
+    throw e;
+  }
 }
 
 // ─── MINI CHART (SVG bar) ─────────────────────────────────────────────────────
@@ -93,27 +128,115 @@ function SparkBar({ data, color = C.accent, height = 40 }) {
   );
 }
 
+// ─── BAR CHART (chronological year-month slots) ───────────────────────────
+function BarChart({ data, title, metric = "revenue" }) {
+  if (!data?.length) return null;
+
+  // Sort by chronological year-month so cross-year ranges render correctly.
+  const sortedData = [...data].sort((a, b) => (a.year * 100 + a.month) - (b.year * 100 + b.month));
+
+  // Build ordered unique {yr, mo} slots for the X-axis.
+  const slotKeys = [];
+  const seen = new Set();
+  sortedData.forEach(d => {
+    const k = d.year * 100 + d.month;
+    if (seen.has(k)) return;
+    seen.add(k);
+    slotKeys.push(k);
+  });
+  const slots = slotKeys.map(k => ({ yr: Math.floor(k / 100), mo: k % 100 }));
+
+  const yearsInSlots = new Set(slots.map(s => s.yr));
+  const multiYear = yearsInSlots.size > 1;
+  const byYearMonth = new Map(sortedData.map(d => [`${d.year}-${d.month}`, d]));
+
+  const values = slots.map(s => {
+    const row = byYearMonth.get(`${s.yr}-${s.mo}`);
+    const v = row ? (row[metric] ?? 0) : 0;
+    return typeof v === "number" ? v : 0;
+  });
+  const maxVal = Math.max(...values, 1);
+
+  const W = 700, H = 220, PAD = { t: 20, r: 20, b: 45, l: 70 };
+  const cW = W - PAD.l - PAD.r, cH = H - PAD.t - PAD.b;
+
+  const xStep = slots.length ? cW / slots.length : cW;
+  const bw = Math.max(6, xStep * 0.6);
+  const toY = v => PAD.t + cH - (v / maxVal) * cH;
+  const toX = i => PAD.l + i * xStep + (xStep - bw) / 2;
+
+  const fmtVal = v => {
+    if (metric === "revenue") return v >= 1e6 ? `€${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `€${(v / 1e3).toFixed(0)}K` : `€${v}`;
+    return v >= 1e3 ? `${(v / 1e3).toFixed(1)}K` : String(v);
+  };
+
+  return (
+    <div>
+      {title && <div style={{ fontSize: 13, color: C.textMid, marginBottom: 8, fontWeight: 600 }}>{title}</div>}
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ overflow: "visible" }}>
+        {/* Grid */}
+        {[0, 1, 2, 3, 4].map(i => {
+          const v = (maxVal / 4) * i;
+          const y = toY(v);
+          return (
+            <g key={i}>
+              <line x1={PAD.l} x2={W - PAD.r} y1={y} y2={y} stroke={C.border2} strokeWidth={0.5} />
+              <text x={PAD.l - 8} y={y + 4} textAnchor="end" fill={C.textDim} fontSize={10}>
+                {fmtVal(v)}
+              </text>
+            </g>
+          );
+        })}
+        {/* Bars */}
+        {slots.map((s, i) => {
+          const v = values[i] || 0;
+          const bh = Math.max(2, (v / maxVal) * cH);
+          return (
+            <g key={`${s.yr}-${s.mo}`}>
+              <rect x={toX(i)} y={PAD.t + cH - bh} width={bw} height={bh} fill={C.accent} opacity={0.8} rx={2} />
+              <text
+                x={toX(i) + bw / 2}
+                y={H - 14}
+                textAnchor="middle"
+                fill={C.textDim}
+                fontSize={10}
+              >
+                {MONTHS_SHORT[s.mo - 1]}
+                {multiYear ? "'" + String(s.yr).slice(-2) : ""}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
 // ─── LINE CHART (multi-year) ──────────────────────────────────────────────────
 function LineChart({ data, dateFrom, metric = "revenue", title }) {
   // data = [{year, month, revenue, bookings, pax}]
-  // Sort by the fiscal calendar starting from dateFrom's month (or Jan if no filter)
-  const startMonth = dateFrom ? parseInt(dateFrom.split("-")[1]) || 1 : 1;
+  // Sort by chronological year-month before building year->month lookup.
+  const sortedData = [...data].sort((a, b) => (a.year * 100 + a.month) - (b.year * 100 + b.month));
 
-  const years = [...new Set(data.map(d => d.year))].sort();
+  // Fiscal calendar ordering (12 labels) anchored to dateFrom, or derived from first row.
+  const startMonth = dateFrom ? (parseInt(dateFrom.split("-")[1]) || 1) : (sortedData[0]?.month || 1);
+  const years = [...new Set(sortedData.map(d => d.year))].sort((a, b) => a - b);
 
-  // Build ordered months: start from startMonth, wrap around
+  // Build ordered months: start from startMonth, wrap around.
   const orderedMonths = [];
   for (let i = 0; i < 12; i++) {
     orderedMonths.push(((startMonth - 1 + i) % 12) + 1);
   }
 
-  // Build series per year
-  const series = years.map(yr => ({
+  const byYearMonth = new Map(sortedData.map(d => [`${d.year}-${d.month}`, d]));
+
+  // Build series per year.
+  const series = years.map((yr, i) => ({
     year: yr,
-    color: YEAR_COLORS[yr] || "#94a3b8",
+    color: YEAR_COLORS[i % YEAR_COLORS.length],
     points: orderedMonths.map(mo => {
-      const row = data.find(d => d.year === yr && d.month === mo);
-      return row ? (row[metric] || 0) : null;
+      const row = byYearMonth.get(`${yr}-${mo}`);
+      return row ? (row[metric] ?? null) : null;
     }),
   }));
 
@@ -506,7 +629,7 @@ function DataTable({ token }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await apiFetch("/api/dashboard/bookings-table", { ...applied, page, limit: 50 }, token);
+      const data = await safeApiFetch("/api/dashboard/bookings-table", { ...applied, page, limit: 50 }, token);
       setRows(data.rows || []);
       setTotal(data.total || 0);
     } catch (_) {} finally { setLoading(false); }
@@ -632,14 +755,17 @@ function HotelTab({ token }) {
 
   useEffect(() => {
     Promise.all([
-      apiFetch("/api/dashboard/hotel-ratings", {}, token),
-      apiFetch("/api/dashboard/hotel-stats", {}, token),
+      safeApiFetch("/api/dashboard/hotel-ratings", {}, token),
+      safeApiFetch("/api/dashboard/hotel-stats", {}, token),
     ]).then(([r, s]) => { setRatings(r || []); setStats(s || {}); }).finally(() => setLoading(false));
   }, [token]);
 
   const loadReviews = useCallback(async (code, page) => {
-    const data = await apiFetch("/api/dashboard/hotel-reviews", { code, page, limit: 10 }, token);
-    setReviews(data.rows || []); setRevTotal(data.total || 0);
+    try {
+      const data = await safeApiFetch("/api/dashboard/hotel-reviews", { code, page, limit: 10 }, token);
+      setReviews(data?.rows || []);
+      setRevTotal(data?.total || 0);
+    } catch (_) {}
   }, [token]);
 
   useEffect(() => { if (selected) loadReviews(selected.accommodation_code, revPage); }, [selected, revPage, loadReviews]);
@@ -771,6 +897,10 @@ function AiChat({ token }) {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ message: msg, history }),
       });
+      if (res.status === 401) {
+        try { logoutFn(); } catch (_) {}
+        return;
+      }
       const data = await res.json();
       setMessages(prev => [...prev, { role: "assistant", content: data.reply || data.error || "No response" }]);
     } catch (_) {
@@ -830,7 +960,7 @@ function BusOccupancy({ token }) {
   const [showFilter, setShowFilter] = useState(false);
 
   useEffect(() => {
-    apiFetch("/api/dashboard/bus-slicers", {}, token).then(d => { if (d && !d.error) setSlicers(d); }).catch(() => {});
+    safeApiFetch("/api/dashboard/bus-slicers", {}, token).then(d => { if (d && !d.error) setSlicers(d); }).catch(() => {});
   }, [token]);
 
   const load = useCallback((f) => {
@@ -846,10 +976,10 @@ function BusOccupancy({ token }) {
     if (f.feederLine) feederP.feederLine = f.feederLine;
     if (f.feederLabel) feederP.label = f.feederLabel;
     Promise.all([
-      apiFetch("/api/dashboard/bus-kpis", p, token).catch(() => ({})),
-      apiFetch("/api/dashboard/pendel-overview", p, token).catch(() => []),
-      apiFetch("/api/dashboard/feeder-overview", feederP, token).catch(() => []),
-      apiFetch("/api/dashboard/deck-class", p, token).catch(() => []),
+      safeApiFetch("/api/dashboard/bus-kpis", p, token).catch(() => ({})),
+      safeApiFetch("/api/dashboard/pendel-overview", p, token).catch(() => []),
+      safeApiFetch("/api/dashboard/feeder-overview", feederP, token).catch(() => []),
+      safeApiFetch("/api/dashboard/deck-class", p, token).catch(() => []),
     ]).then(([k, pe, fe, de]) => {
       if (k && !k.error) setKpis(k);
       if (Array.isArray(pe)) setPendel(pe);
@@ -975,13 +1105,16 @@ export default function App() {
   // ── Auth state — check localStorage on startup ───────────────────────────
   const [user, setUser] = useState(() => {
     const token = loadToken();
-    const saved = loadUser();
-    if (token && saved && !isTokenExpired(token)) {
-      return { ...saved, token };
+    if (!token || !isTokenValid(token)) {
+      clearToken();
+      return null;
     }
-    // Clear stale data
-    clearToken();
-    return null;
+    const saved = loadUser();
+    if (!saved) {
+      clearToken();
+      return null;
+    }
+    return { ...saved, token };
   });
 
   const [tab, setTab] = useState("overview");
@@ -1009,9 +1142,9 @@ export default function App() {
     if (f.status?.length)    p.status  = f.status;
     try {
       const [kp, rv, ym] = await Promise.all([
-        apiFetch("/api/dashboard/kpis", p, token).catch(() => null),
-        apiFetch("/api/dashboard/revenue-by-year", p, token).catch(() => []),
-        apiFetch("/api/dashboard/year-month-comparison", p, token).catch(() => []),
+        safeApiFetch("/api/dashboard/kpis", p, token).catch(() => null),
+        safeApiFetch("/api/dashboard/revenue-by-year", p, token).catch(() => []),
+        safeApiFetch("/api/dashboard/year-month-comparison", p, token).catch(() => []),
       ]);
       if (kp) setKpis(kp);
       if (Array.isArray(rv)) setRevByYear(rv);
@@ -1022,14 +1155,24 @@ export default function App() {
   useEffect(() => { if (token && tab === "overview") loadOverview(applied); }, [token, tab]);
 
   // ── Login / logout ────────────────────────────────────────────────────────
-  const handleLogin = (u) => {
+  const handleLogin = useCallback((u) => {
     saveToken(u.token, u);
     setUser(u);
-  };
-  const handleLogout = () => {
+  }, []);
+  const handleLogout = useCallback(() => {
     clearToken();
     setUser(null);
-  };
+  }, []);
+
+  // Ensure safeApiFetch can call logout immediately (before effects run).
+  logoutFn = handleLogout;
+
+  useEffect(() => {
+    // Extra guard for browser reopen with an expired/malformed token.
+    if (user?.token && !isTokenValid(user.token)) {
+      handleLogout();
+    }
+  }, [user?.token, handleLogout]);
 
   // ── If not logged in → show Login ─────────────────────────────────────────
   if (!user) return <Login onLogin={handleLogin} />;
@@ -1055,11 +1198,11 @@ export default function App() {
 
   // ── Nav items ─────────────────────────────────────────────────────────────
   const navItems = [
-    { id: "overview", icon: "📊", label: "Overview" },
-    { id: "bus", icon: "🚌", label: "Bus Occupancy" },
-    { id: "hotels", icon: "🏛", label: "Hotel Reviews" },
-    { id: "data", icon: "🗃", label: "Data Table" },
-    { id: "ai", icon: "🤖", label: "TTP AI" },
+    { id: "overview", icon: "📈", label: "Overview" },
+    { id: "bus", icon: "", label: "Bus Occupancy" },
+    { id: "hotels", icon: "", label: "Hotel Reviews" },
+    { id: "data", icon: "", label: "Data Table" },
+    { id: "ai", icon: "", label: "TTP AI" },
   ];
   const mgmtItems = user.role === "admin" ? [
     { id: "settings", icon: "⚙", label: "Settings" },
@@ -1193,6 +1336,12 @@ export default function App() {
               {/* Revenue Line Chart */}
               {revByYear.length > 0 && (
                 <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 24, marginBottom: 22 }}>
+                  <BarChart
+                    data={revByYear}
+                    metric="revenue"
+                    title="Monthly Revenue by Month"
+                  />
+                  <div style={{ height: 16 }} />
                   <LineChart
                     data={revByYear}
                     dateFrom={applied.departureDateFrom}
@@ -1243,14 +1392,14 @@ export default function App() {
                               {MONTHS_SHORT[r.month - 1]} {r.year}
                             </td>
                             <td style={{ padding: "9px 14px", textAlign: "right", color: C.text }}>{r.currentBookings?.toLocaleString("nl-BE") ?? "—"}</td>
-                            <td style={{ padding: "9px 14px", textAlign: "right", color: C.textMid }}>{r.previousBookings > 0 ? r.previousBookings?.toLocaleString("nl-BE") : "—"}</td>
+                            <td style={{ padding: "9px 14px", textAlign: "right", color: C.textMid }}>{r.previousBookings != null ? r.previousBookings?.toLocaleString("nl-BE") : "—"}</td>
                             <td style={{ padding: "9px 14px", textAlign: "right", color: r.diffBookings > 0 ? C.success : r.diffBookings < 0 ? C.danger : C.textMid }}>{r.diffBookings != null ? (r.diffBookings > 0 ? "+" : "") + r.diffBookings : "—"}</td>
                             <td style={{ padding: "9px 14px", textAlign: "right", color: r.diffPctBookings > 0 ? C.success : r.diffPctBookings < 0 ? C.danger : C.textMid, fontWeight: 700 }}>{fmtPct(r.diffPctBookings)}</td>
                             <td style={{ padding: "9px 14px", textAlign: "right", color: C.text }}>{r.currentPax?.toLocaleString("nl-BE") ?? "—"}</td>
-                            <td style={{ padding: "9px 14px", textAlign: "right", color: C.textMid }}>{r.previousPax > 0 ? r.previousPax?.toLocaleString("nl-BE") : "—"}</td>
+                            <td style={{ padding: "9px 14px", textAlign: "right", color: C.textMid }}>{r.previousPax != null ? r.previousPax?.toLocaleString("nl-BE") : "—"}</td>
                             <td style={{ padding: "9px 14px", textAlign: "right", color: r.diffPax > 0 ? C.success : r.diffPax < 0 ? C.danger : C.textMid }}>{r.diffPax != null ? (r.diffPax > 0 ? "+" : "") + r.diffPax : "—"}</td>
                             <td style={{ padding: "9px 14px", textAlign: "right", color: C.text }}>{fmtRev(r.currentRevenue)}</td>
-                            <td style={{ padding: "9px 14px", textAlign: "right", color: C.textMid }}>{r.previousRevenue > 0 ? fmtRev(r.previousRevenue) : "—"}</td>
+                            <td style={{ padding: "9px 14px", textAlign: "right", color: C.textMid }}>{r.previousRevenue != null ? fmtRev(r.previousRevenue) : "—"}</td>
                             <td style={{ padding: "9px 14px", textAlign: "right", color: r.diffRevenue > 0 ? C.success : r.diffRevenue < 0 ? C.danger : C.textMid }}>{r.diffRevenue != null ? (r.diffRevenue > 0 ? "+" : "") + (r.diffRevenue/1000).toFixed(0) + "K" : "—"}</td>
                             <td style={{ padding: "9px 14px", textAlign: "right", color: r.diffPctRevenue > 0 ? C.success : r.diffPctRevenue < 0 ? C.danger : C.textMid, fontWeight: 700 }}>{fmtPct(r.diffPctRevenue)}</td>
                           </tr>
