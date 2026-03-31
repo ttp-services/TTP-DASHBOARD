@@ -32,7 +32,8 @@ export default function Login({ onLogin }) {
       const r = await fetch(`${API}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier: u.trim(), password: p }),
+        // FIX: backend auth.js expects "username" not "identifier"
+        body: JSON.stringify({ username: u.trim(), password: p }),
       });
       const d = await r.json();
       if (!r.ok) { setErr(d.error || "Invalid credentials"); setLoading(false); return; }
