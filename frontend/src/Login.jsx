@@ -15,9 +15,23 @@ const EyeOffIcon = () => (
 );
 
 const TTPLogo = ({ size = 36 }) => (
-  <svg width={size} height={size} viewBox="0 0 36 36" fill="none">
-    <rect width="36" height="36" rx="8" fill="#1d4ed8"/>
-    <text x="18" y="25" textAnchor="middle" fill="white" fontSize="16" fontWeight="800" fontFamily="Georgia, serif">TTP</text>
+  <svg 
+    width={size} 
+    height={(size * 220) / 500} // Maintains the aspect ratio from the original image
+    viewBox="0 0 500 220" 
+    fill="none" 
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    {/* Main TTP Typography Path */}
+    <path 
+      d="M10 40H185V75H130V180H65V75H10V40ZM200 40H375V75H320V180H255V75H200V40ZM390 40H500V140H390V40ZM390 140C390 180 440 180 500 180V140H390Z" 
+      fill="#0033CC"
+    />
+    {/* The Blue Accent/Quarter-Circle at the bottom right */}
+    <path 
+      d="M420 120C420 170 460 210 510 210V120H420Z" 
+      fill="#0033CC"
+    />
   </svg>
 );
 
