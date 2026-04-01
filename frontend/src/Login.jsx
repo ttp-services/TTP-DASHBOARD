@@ -64,7 +64,7 @@ export default function Login({ onLogin }) {
             {loading ? "Signing in…" : "Sign In"}
           </button>
         </form>
-        <div className="login-footer">TTP Services Belgium · Internal Use Only</div>
+        <div className="login-footer">TTP Services Middle East · Internal Use Only</div>
       </div>
     </div>
   );

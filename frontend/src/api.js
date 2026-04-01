@@ -48,6 +48,13 @@ export const fetchDeckClass           = (f) => get("/api/dashboard/deck-class", 
 export const fetchBookingsTable       = (f) => get("/api/dashboard/bookings-table",       f);
 export const fetchHotelReviews        = (f) => get("/api/dashboard/hotel-reviews",        f);
 
+export const fetchBusPendel   = (f) => get("/api/dashboard/bus-pendel",  f);
+export const fetchBusFeeder   = (f) => get("/api/dashboard/bus-feeder",  f);
+export const fetchBusDeck     = (f) => get("/api/dashboard/bus-deck",    f);
+export const fetchBusKpis     = (f) => get("/api/dashboard/bus-kpis",    f);
+export const fetchHotelStats  = ()  => get("/api/dashboard/hotel-stats");
+export const fetchHotelRatings= (f) => get("/api/dashboard/hotel-ratings", f);
+
 export async function chatWithAI(message, history = []) {
   const res = await fetch(`${BASE}/api/ai/chat`, {
     method: "POST",
