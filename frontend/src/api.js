@@ -12,9 +12,9 @@ export async function login(identifier, password) {
 
 function headers() {
   const h = { "Content-Type": "application/json" };
-  const key = (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_KEY) || "";
-  const token = localStorage.getItem("ttp_token");
-  if (key) h["x-api-key"] = key;
+  const key   = (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_KEY) || "";
+  const token = localStorage.getItem("ttp_token") || sessionStorage.getItem("ttp_token");
+  if (key)   h["x-api-key"]     = key;
   if (token) h["Authorization"] = `Bearer ${token}`;
   return h;
 }
@@ -36,22 +36,23 @@ async function get(url, params) {
   return res.json();
 }
 
-export const fetchKpis                = (f) => get("/api/dashboard/kpis", f);
+export const fetchKpis                = (f) => get("/api/dashboard/kpis",               f);
 export const fetchYearMonthComparison = (f) => get("/api/dashboard/year-month-comparison", f);
-export const fetchRevenueByYear       = (f) => get("/api/dashboard/revenue-by-year", f);
+export const fetchRevenueByYear       = (f) => get("/api/dashboard/revenue-by-year",      f);
 export const fetchSlicers             = ()  => get("/api/dashboard/slicers");
-export const fetchBusOccupancy        = (f) => get("/api/dashboard/bus-occupancy", f);
-export const fetchBusTrips            = (f) => get("/api/dashboard/bustrips", f);
-export const fetchTransportBreakdown  = (f) => get("/api/dashboard/transport-breakdown", f);
-export const fetchDeparturePlaces     = (f) => get("/api/dashboard/departure-places", f);
-export const fetchBusClassSummary     = (f) => get("/api/dashboard/bus-class-summary", f);
-export const fetchExport              = (f) => get("/api/dashboard/export", f);
+export const fetchBusOccupancy        = (f) => get("/api/dashboard/bus-occupancy",        f);
+export const fetchTransportBreakdown  = (f) => get("/api/dashboard/transport-breakdown",  f);
+export const fetchDeparturePlaces     = (f) => get("/api/dashboard/departure-places",     f);
+export const fetchBusKpis             = (f) => get("/api/dashboard/bus-kpis",             f);
+export const fetchDeckClass           = (f) => get("/api/dashboard/deck-class",           f);
+export const fetchBookingsTable       = (f) => get("/api/dashboard/bookings-table",       f);
+export const fetchHotelReviews        = (f) => get("/api/dashboard/hotel-reviews",        f);
 
-export async function chatWithAI(message) {
+export async function chatWithAI(message, history = []) {
   const res = await fetch(`${BASE}/api/ai/chat`, {
     method: "POST",
     headers: headers(),
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, history }),
   });
   if (!res.ok) throw new Error((await res.json()).error || "AI chat failed");
   return res.json();

@@ -316,3 +316,109 @@ router.get('/hotel-reviews', async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+// ─── BUS OCCUPANCY (unified endpoint) ────────────────────────────────────────
+router.get('/bus-occupancy', async (req, res) => {
+  try {
+    const conds = ["Status='DEF'"], p = {};
+    if (req.query.dateFrom) { conds.push('dateDeparture>=@df'); p.df = req.query.dateFrom; }
+    if (req.query.dateTo)   { conds.push('dateDeparture<=@dt'); p.dt = req.query.dateTo; }
+
+    const where = 'WHERE ' + conds.join(' AND ');
+
+    const [kpis, summary, detail] = await Promise.all([
+      // KPI totals
+      query(`
+        SELECT
+          SUM(PAX) AS total_pax,
+          COUNT(DISTINCT Booking_Number) AS total_bookings,
+          SUM(CASE WHEN Outbound_Class='Royal Class'   THEN PAX ELSE 0 END) AS royal_pax,
+          SUM(CASE WHEN Outbound_Class='First Class'   THEN PAX ELSE 0 END) AS first_pax,
+          SUM(CASE WHEN Outbound_Class='Premium Class' THEN PAX ELSE 0 END) AS premium_pax,
+          SUM(CASE WHEN Outbound_Deck LIKE '%Onderdek%' THEN PAX ELSE 0 END) AS lower_pax,
+          SUM(CASE WHEN Outbound_Deck LIKE '%Bovendek%' THEN PAX ELSE 0 END) AS upper_pax
+        FROM solmar_bus_bookings_modified ${where}`, p),
+      // Summary by bus type
+      query(`
+        SELECT
+          Pendel_Outbound AS bus_type,
+          SUM(PAX) AS pax,
+          COUNT(DISTINCT Booking_Number) AS bookings
+        FROM solmar_bus_bookings_modified ${where}
+        GROUP BY Pendel_Outbound
+        ORDER BY pax DESC`, p),
+      // Detail by date
+      query(`
+        SELECT
+          CONVERT(VARCHAR(10), dateDeparture, 103) AS departure_date,
+          CONVERT(VARCHAR(10), dateReturn,    103) AS return_date,
+          Pendel_Outbound AS bus_type,
+          SUM(PAX) AS pax,
+          COUNT(DISTINCT Booking_Number) AS bookings
+        FROM solmar_bus_bookings_modified ${where}
+        GROUP BY dateDeparture, dateReturn, Pendel_Outbound
+        ORDER BY dateDeparture ASC`, p),
+    ]);
+
+    res.json({
+      kpis:    kpis.recordset?.[0]   || {},
+      summary: summary.recordset     || [],
+      detail:  detail.recordset      || [],
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── TRANSPORT BREAKDOWN ─────────────────────────────────────────────────────
+router.get('/transport-breakdown', async (req, res) => {
+  try {
+    const { coWhere, coP, stWhere, stP, hasSolmar, hasSnow } = buildOverviewWhere(req.query);
+
+    const coTransport = `
+      SELECT LOWER(REPLACE(TransportType,'ownTransport','own transport')) AS label,
+        COUNT(*) AS bookings, SUM(PAXCount) AS pax, ROUND(SUM(TotalRevenue),0) AS revenue
+      FROM CustomerOverview ${coWhere}
+      GROUP BY TransportType`;
+
+    const coRegion = `
+      SELECT ISNULL(Region,'Unknown') AS label,
+        COUNT(*) AS bookings, SUM(PAXCount) AS pax, ROUND(SUM(TotalRevenue),0) AS revenue
+      FROM CustomerOverview ${coWhere}
+      GROUP BY Region`;
+
+    const coDest = `
+      SELECT ISNULL(LabelName,'Unknown') AS label,
+        COUNT(*) AS bookings, SUM(PAXCount) AS pax, ROUND(SUM(TotalRevenue),0) AS revenue
+      FROM CustomerOverview ${coWhere}
+      GROUP BY LabelName`;
+
+    const [t, r, d] = hasSolmar
+      ? await Promise.all([
+          query(coTransport, coP),
+          query(coRegion, coP),
+          query(coDest, coP),
+        ])
+      : [{ recordset:[] }, { recordset:[] }, { recordset:[] }];
+
+    res.json({
+      byTransport:   (t.recordset || []).map(x => ({ label: x.label, bookings: x.bookings, pax: x.pax, revenue: x.revenue })),
+      byRegion:      (r.recordset || []).map(x => ({ label: x.label, bookings: x.bookings, pax: x.pax, revenue: x.revenue })),
+      byDestination: (d.recordset || []).map(x => ({ label: x.label, bookings: x.bookings, pax: x.pax, revenue: x.revenue })),
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─── DEPARTURE PLACES (for map) ───────────────────────────────────────────────
+router.get('/departure-places', async (req, res) => {
+  try {
+    const { coWhere, coP } = buildOverviewWhere(req.query);
+    const r = await query(`
+      SELECT
+        ISNULL(LabelName,'Unknown') AS destination,
+        COUNT(*) AS bookings,
+        SUM(PAXCount) AS pax,
+        ROUND(SUM(TotalRevenue),0) AS revenue
+      FROM CustomerOverview ${coWhere}
+      GROUP BY LabelName
+      ORDER BY bookings DESC`, coP);
+    res.json(r.recordset || []);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
