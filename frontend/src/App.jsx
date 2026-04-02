@@ -53,9 +53,11 @@ const I = {
   plus:     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
   trash:    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>,
   warn:     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+  moon:     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>,
+  sun:      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>,
 };
 
-// ─── CANVAS: LINE CHART ───────────────────────────────────────────────────────
+// ─── LINE CHART ───────────────────────────────────────────────────────────────
 function LineChart({ data }) {
   const ref = useRef(null), ptsRef = useRef([]);
   const [tip, setTip] = useState(null);
@@ -74,16 +76,17 @@ function LineChart({ data }) {
     const maxV = Math.max(...data.map(d=>d.revenue||0), 1);
     const sx = m => pad.left + ((m-1)/11)*(W-pad.left-pad.right);
     const sy = v => pad.top + (1-v/maxV)*(H-pad.top-pad.bottom);
-    // Grid
+    const gridColor = getComputedStyle(document.documentElement).getPropertyValue('--border').trim() || 'rgba(30,58,95,.4)';
+    const labelColor = getComputedStyle(document.documentElement).getPropertyValue('--text-dim').trim() || '#3d5a80';
     for (let i=0;i<=4;i++) {
       const y = pad.top+(i/4)*(H-pad.top-pad.bottom);
-      ctx.strokeStyle="rgba(30,58,95,.4)"; ctx.lineWidth=1;
+      ctx.strokeStyle=gridColor; ctx.lineWidth=1;
       ctx.beginPath(); ctx.moveTo(pad.left,y); ctx.lineTo(W-pad.right,y); ctx.stroke();
-      ctx.fillStyle="#3d5a80"; ctx.font="10px system-ui"; ctx.textAlign="right";
+      ctx.fillStyle=labelColor; ctx.font="10px system-ui"; ctx.textAlign="right";
       ctx.fillText(fmtEur(maxV*(1-i/4)), pad.left-6, y+4);
     }
     MONTHS.forEach((m,i) => {
-      ctx.fillStyle="#3d5a80"; ctx.font="10px system-ui"; ctx.textAlign="center";
+      ctx.fillStyle=labelColor; ctx.font="10px system-ui"; ctx.textAlign="center";
       ctx.fillText(m, sx(i+1), H-pad.bottom+14);
     });
     ptsRef.current = [];
@@ -96,10 +99,9 @@ function LineChart({ data }) {
         ctx.fillStyle=color; ctx.beginPath(); ctx.arc(p.x,p.y,3,0,Math.PI*2); ctx.fill();
         ptsRef.current.push({...p,year:yr,month:MONTHS[p.m-1],color});
       });
-      // Legend
       const lx = pad.left + yi*68;
       ctx.fillStyle=color; ctx.fillRect(lx,6,14,3);
-      ctx.fillStyle="#7a9cc8"; ctx.font="10px system-ui"; ctx.textAlign="left";
+      ctx.fillStyle=labelColor; ctx.font="10px system-ui"; ctx.textAlign="left";
       ctx.fillText(String(yr), lx+18, 12);
     });
   }, [data]);
@@ -121,7 +123,7 @@ function LineChart({ data }) {
   );
 }
 
-// ─── CANVAS: BAR CHART ───────────────────────────────────────────────────────
+// ─── BAR CHART ───────────────────────────────────────────────────────────────
 function BarChart({ data, metric="bookings" }) {
   const ref = useRef(null), barsRef = useRef([]);
   const [tip, setTip] = useState(null);
@@ -140,8 +142,10 @@ function BarChart({ data, metric="bookings" }) {
     const allVals=Object.values(byY).flatMap(m=>Object.values(m)); const maxV=Math.max(...allVals,1);
     const slotW=(W-pad.left-pad.right)/12; const bW=Math.max(2,(slotW/years.length)-1);
     const sy=v=>pad.top+(1-v/maxV)*(H-pad.top-pad.bottom);
-    for(let i=0;i<=4;i++){const y=pad.top+(i/4)*(H-pad.top-pad.bottom);ctx.strokeStyle="rgba(30,58,95,.4)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pad.left,y);ctx.lineTo(W-pad.right,y);ctx.stroke();}
-    MONTHS.forEach((m,i)=>{ctx.fillStyle="#3d5a80";ctx.font="10px system-ui";ctx.textAlign="center";ctx.fillText(m,pad.left+(i+.5)*slotW,H-pad.bottom+14);});
+    const gridColor = getComputedStyle(document.documentElement).getPropertyValue('--border').trim() || 'rgba(30,58,95,.4)';
+    const labelColor = getComputedStyle(document.documentElement).getPropertyValue('--text-dim').trim() || '#3d5a80';
+    for(let i=0;i<=4;i++){const y=pad.top+(i/4)*(H-pad.top-pad.bottom);ctx.strokeStyle=gridColor;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pad.left,y);ctx.lineTo(W-pad.right,y);ctx.stroke();}
+    MONTHS.forEach((m,i)=>{ctx.fillStyle=labelColor;ctx.font="10px system-ui";ctx.textAlign="center";ctx.fillText(m,pad.left+(i+.5)*slotW,H-pad.bottom+14);});
     barsRef.current=[];
     [1,2,3,4,5,6,7,8,9,10,11,12].forEach((mo,mi)=>{
       years.forEach((yr,yi)=>{
@@ -151,7 +155,7 @@ function BarChart({ data, metric="bookings" }) {
         barsRef.current.push({x,y:sy(v),w:bW,h:barH,year:yr,month:MONTHS[mi],value:v,color});
       });
     });
-    years.forEach((yr,yi)=>{const color=CHART_COLORS[yi%CHART_COLORS.length];const lx=pad.left+yi*68;ctx.fillStyle=color;ctx.fillRect(lx,6,14,3);ctx.fillStyle="#7a9cc8";ctx.font="10px system-ui";ctx.textAlign="left";ctx.fillText(String(yr),lx+18,12);});
+    years.forEach((yr,yi)=>{const color=CHART_COLORS[yi%CHART_COLORS.length];const lx=pad.left+yi*68;ctx.fillStyle=color;ctx.fillRect(lx,6,14,3);ctx.fillStyle=labelColor;ctx.font="10px system-ui";ctx.textAlign="left";ctx.fillText(String(yr),lx+18,12);});
   },[data,metric]);
 
   const onMove=e=>{const rect=ref.current?.getBoundingClientRect();if(!rect)return;const mx=e.clientX-rect.left,my=e.clientY-rect.top;const hit=barsRef.current.find(b=>mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h);setTip(hit?{...hit,cx:mx,cy:my}:null);};
@@ -190,16 +194,13 @@ function KpiCard({label,curr,prev,diff,pct,fmt,color,prevLabel}) {
 
 // ─── YEAR-MONTH TABLE ─────────────────────────────────────────────────────────
 function YMTable({data,metric,hasFY}) {
-  // Sort: newest first by default; chronological when FY filter
   const rows = [...(data||[])].sort((a,b) => {
     if (hasFY) {
-      // Fiscal year order: Dec=1, Jan=2 ... Nov=12
       const fyMo = m => m===12?1:m+1;
       return a.year!==b.year ? a.year-b.year : fyMo(a.month)-fyMo(b.month);
     }
     return b.year!==a.year ? b.year-a.year : b.month-a.month;
   });
-
   const curr  = r => metric==="pax"?r.currentPax  :metric==="revenue"?r.currentRevenue  :r.currentBookings;
   const prev  = r => metric==="pax"?r.previousPax :metric==="revenue"?r.previousRevenue :r.previousBookings;
   const diff  = r => metric==="pax"?r.diffPax      :metric==="revenue"?r.diffRevenue      :r.diffBookings;
@@ -222,7 +223,7 @@ function YMTable({data,metric,hasFY}) {
               <td style={{padding:"9px 14px",color:"var(--blue)",fontWeight:600,whiteSpace:"nowrap"}}>{MONTHS[(r.month||1)-1]}-{r.year}</td>
               <td style={{padding:"9px 14px",textAlign:"right",color:"var(--text-muted)"}}>{MONTHS[(r.month||1)-1]}-{(r.year||0)-1}</td>
               <td style={{padding:"9px 14px",textAlign:"right",fontWeight:600,color:"var(--text)"}}>{fmt(curr(r))}</td>
-              <td style={{padding:"9px 14px",textAlign:"right",color:"var(--text-muted)"}}>{fmt(prev(r))}</td>
+              <td style={{padding:"9px 14px",textAlign:"right",color:"var(--text-muted)"}}>{prev(r)!=null&&prev(r)>0?fmt(prev(r)):"€0"}</td>
               <td style={{padding:"9px 14px",textAlign:"right",color:diffColor(d),fontWeight:600}}>{d!=null?(up?"+":"")+fmt(d):"—"}</td>
               <td style={{padding:"9px 14px",textAlign:"right",color:diffColor(d)}}>{p!=null?fmtPct(p):"—"}</td>
             </tr>);
@@ -258,7 +259,7 @@ function BusKpis({data}) {
   );
 }
 
-// ─── BUS STATUS FILTER ────────────────────────────────────────────────────────
+// ─── BUS STATUS CHIPS ─────────────────────────────────────────────────────────
 function BusStatusFilter({value,onChange}) {
   const opts=[{v:"all",l:"All"},{v:"confirmed",l:"Confirmed"},{v:"temporary",l:"Temporary"},{v:"lapsed",l:"Lapsed"},{v:"cancelled",l:"Cancelled"}];
   const colors={all:"var(--blue)",confirmed:"var(--green)",temporary:"var(--amber)",lapsed:"var(--red)",cancelled:"var(--text-muted)"};
@@ -268,6 +269,44 @@ function BusStatusFilter({value,onChange}) {
         const active=value===o.v;
         return(<button key={o.v} onClick={()=>onChange(o.v)} style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${active?colors[o.v]:"var(--border)"}`,background:active?`${colors[o.v]}22`:"transparent",color:active?colors[o.v]:"var(--text-muted)",fontSize:12,fontWeight:active?700:400,cursor:"pointer"}}>{o.l}</button>);
       })}
+    </div>
+  );
+}
+
+// ─── MULTI-SELECT DROPDOWN ────────────────────────────────────────────────────
+function MultiSelect({label, options, value, onChange, placeholder="All"}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const h = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
+  const toggle = v => onChange(value.includes(v) ? value.filter(x=>x!==v) : [...value, v]);
+  const display = value.length === 0 ? placeholder : value.length === 1 ? value[0] : `${value.length} selected`;
+
+  return (
+    <div ref={ref} style={{position:"relative"}}>
+      <button onClick={()=>setOpen(o=>!o)} style={{width:"100%",padding:"7px 10px",background:"var(--bg)",border:"1px solid var(--border)",borderRadius:"var(--radius)",color:value.length?"var(--text)":"var(--text-dim)",fontSize:12,textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}>
+        <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{display}</span>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      {open && (
+        <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius)",zIndex:200,maxHeight:220,overflowY:"auto",boxShadow:"var(--shadow-lg)"}}>
+          {options.length===0 && <div style={{padding:"10px 12px",fontSize:12,color:"var(--text-dim)"}}>No options</div>}
+          {value.length>0&&<button onClick={()=>onChange([])} style={{width:"100%",padding:"8px 12px",background:"none",border:"none",borderBottom:"1px solid var(--border)",color:"var(--red)",fontSize:11,textAlign:"left",cursor:"pointer",fontWeight:600}}>Clear all</button>}
+          {options.map(o=>(
+            <button key={o} onClick={()=>toggle(o)} style={{width:"100%",padding:"8px 12px",background:value.includes(o)?"var(--blue-dim)":"none",border:"none",color:value.includes(o)?"var(--blue)":"var(--text)",fontSize:12,textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",gap:8}}>
+              <span style={{width:14,height:14,border:`1.5px solid ${value.includes(o)?"var(--blue)":"var(--border)"}`,borderRadius:3,background:value.includes(o)?"var(--blue)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                {value.includes(o)&&<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polyline points="2 6 5 9 10 3"/></svg>}
+              </span>
+              {o}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -317,7 +356,7 @@ function PendelTable({data}) {
   );
 }
 
-// ─── FEEDER TABLE ─────────────────────────────────────────────────────────────
+// ─── FEEDER TABLE (flat list with grouping) ───────────────────────────────────
 function FeederTable({data}) {
   if (!data?.length) return <Empty msg="No feeder data — adjust filters and apply"/>;
   return(
@@ -400,7 +439,7 @@ function Empty({msg}) {
 
 // ─── BUS OCCUPANCY TAB ────────────────────────────────────────────────────────
 function BusTab() {
-  const [sub,setSub]           = useState("pendel");
+  const [sub,setSub]            = useState("pendel");
   const [busStatus,setBusStatus]= useState("all");
   const [dateFrom,setDateFrom]  = useState(`${new Date().getFullYear()}-01-01`);
   const [dateTo,setDateTo]      = useState(`${new Date().getFullYear()}-12-31`);
@@ -409,18 +448,45 @@ function BusTab() {
   const [feeder,setFeeder]      = useState([]);
   const [deck,setDeck]          = useState([]);
   const [loading,setLoading]    = useState(false);
-  const [slicers,setSlicers]    = useState({regions:[],pendels:[],weekdays:[]});
 
-  useEffect(()=>{apiFetch("/api/dashboard/bus-slicers").then(setSlicers).catch(()=>{});},[]);
+  // Advanced slicer state
+  const [slicers,setSlicers]    = useState({regions:[],pendels:[],weekdays:['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'],feederLines:[],labels:[]});
+  const [pendelFilter,setPendelFilter]  = useState([]);
+  const [regionFilter,setRegionFilter]  = useState([]);
+  const [weekdayFilter,setWeekdayFilter]= useState([]);
+  const [feederLineFilter,setFeederLine]= useState([]);
+  const [labelFilter,setLabelFilter]    = useState([]);
+  const [directionFilter,setDirection]  = useState("");
+
+  useEffect(()=>{
+    apiFetch("/api/dashboard/bus-slicers").then(d=>{
+      setSlicers(s=>({...s,...d}));
+    }).catch(()=>{});
+    // Also fetch feeder lines and labels
+    apiFetch("/api/dashboard/feeder-slicers").then(d=>{
+      setSlicers(s=>({...s,...d}));
+    }).catch(()=>{});
+  },[]);
 
   const load = useCallback(async()=>{
     setLoading(true);
     const base={dateFrom,dateTo,busStatus};
+    const pendParams={dateFrom,dateTo,
+      ...(weekdayFilter.length===1?{weekday:weekdayFilter[0]}:{}),
+      ...(pendelFilter.length>0?{pendel:pendelFilter[0]}:{}),
+      ...(regionFilter.length>0?{region:regionFilter[0]}:{}),
+    };
+    const feedParams={dateFrom,dateTo,
+      ...(feederLineFilter.length===1?{feederLine:feederLineFilter[0]}:{}),
+      ...(labelFilter.length===1?{label:labelFilter[0]}:{}),
+      ...(directionFilter?{direction:directionFilter}:{}),
+      ...(weekdayFilter.length===1?{weekday:weekdayFilter[0]}:{}),
+    };
     try{
       const [k,p,f,d]=await Promise.allSettled([
         apiFetch("/api/dashboard/bus-kpis",base),
-        apiFetch("/api/dashboard/bus-pendel",{dateFrom,dateTo}),
-        apiFetch("/api/dashboard/bus-feeder",{dateFrom,dateTo}),
+        apiFetch("/api/dashboard/bus-pendel",pendParams),
+        apiFetch("/api/dashboard/bus-feeder",feedParams),
         apiFetch("/api/dashboard/bus-deck",base),
       ]);
       if(k.status==="fulfilled") setKpis(k.value);
@@ -428,34 +494,105 @@ function BusTab() {
       if(f.status==="fulfilled") setFeeder(Array.isArray(f.value)?f.value:[]);
       if(d.status==="fulfilled") setDeck(Array.isArray(d.value)?d.value:[]);
     }catch{}finally{setLoading(false);}
-  },[dateFrom,dateTo,busStatus]);
+  },[dateFrom,dateTo,busStatus,pendelFilter,regionFilter,weekdayFilter,feederLineFilter,labelFilter,directionFilter]);
 
   useEffect(()=>{load();},[load]);
 
-  const iS={padding:"6px 10px",background:"var(--bg)",border:"1px solid var(--border)",borderRadius:"var(--radius)",color:"var(--text)",fontSize:12,outline:"none"};
-  const lS={fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".05em",color:"var(--text-dim)"};
+  const iS={padding:"6px 10px",background:"var(--bg)",border:"1px solid var(--border)",borderRadius:"var(--radius)",color:"var(--text)",fontSize:12,outline:"none",width:"100%"};
+  const lS={fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".05em",color:"var(--text-dim)",marginBottom:4,display:"block"};
+
+  // Which filters are relevant per sub-tab
+  const isPendel = sub==="pendel";
+  const isFeeder = sub==="feeder";
+  const isDeck   = sub==="deck";
 
   return(
     <div className="tab-content">
-      {/* Filters */}
-      <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"14px 16px",marginBottom:16,display:"flex",gap:16,alignItems:"flex-end",flexWrap:"wrap"}}>
-        <div style={{display:"flex",flexDirection:"column",gap:5}}><label style={lS}>From</label><input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={iS}/></div>
-        <div style={{display:"flex",flexDirection:"column",gap:5}}><label style={lS}>To</label><input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} style={iS}/></div>
-        <div style={{display:"flex",flexDirection:"column",gap:5}}><label style={lS}>Status</label><BusStatusFilter value={busStatus} onChange={setBusStatus}/></div>
-        <button onClick={load} style={{padding:"7px 18px",borderRadius:"var(--radius)",background:"var(--blue)",border:"none",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",alignSelf:"flex-end"}}>Apply</button>
-        {loading&&<span style={{fontSize:12,color:"var(--text-dim)",alignSelf:"flex-end"}}>Loading…</span>}
+      {/* Top filter bar — always visible */}
+      <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"14px 16px",display:"flex",gap:14,alignItems:"flex-end",flexWrap:"wrap"}}>
+        <div style={{display:"flex",flexDirection:"column",gap:4}}>
+          <label style={lS}>From</label>
+          <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={{...iS,width:"auto"}}/>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:4}}>
+          <label style={lS}>To</label>
+          <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} style={{...iS,width:"auto"}}/>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:4}}>
+          <label style={lS}>Status</label>
+          <BusStatusFilter value={busStatus} onChange={setBusStatus}/>
+        </div>
+        <button onClick={load} disabled={loading} style={{padding:"7px 20px",borderRadius:"var(--radius)",background:"var(--blue)",border:"none",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",alignSelf:"flex-end",opacity:loading?.6:1}}>
+          {loading?"Loading…":"Apply"}
+        </button>
       </div>
 
       {/* KPI Cards */}
       <BusKpis data={kpis}/>
 
-      {/* Sub-tabs */}
+      {/* Sub-tabs + advanced filters + table */}
       <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",overflow:"hidden"}}>
+        {/* Sub-tab nav */}
         <div style={{display:"flex",borderBottom:"1px solid var(--border)"}}>
           {[["pendel","Pendel Overview"],["feeder","Feeder Overview"],["deck","Deck Choice / Class"]].map(([k,l])=>(
             <button key={k} onClick={()=>setSub(k)} style={{padding:"11px 18px",background:"none",border:"none",borderBottom:`2px solid ${sub===k?"var(--blue)":"transparent"}`,color:sub===k?"var(--blue)":"var(--text-muted)",fontSize:13,fontWeight:sub===k?600:400,cursor:"pointer",whiteSpace:"nowrap"}}>{l}</button>
           ))}
         </div>
+
+        {/* Per-tab advanced filters */}
+        {isPendel&&(
+          <div style={{display:"flex",gap:12,padding:"12px 16px",borderBottom:"1px solid var(--border)",flexWrap:"wrap",background:"var(--bg-2)"}}>
+            <div style={{minWidth:140,flex:1}}>
+              <label style={lS}>Pendel</label>
+              <MultiSelect options={slicers.pendels||[]} value={pendelFilter} onChange={setPendelFilter} placeholder="All pendels"/>
+            </div>
+            <div style={{minWidth:140,flex:1}}>
+              <label style={lS}>Region</label>
+              <MultiSelect options={slicers.regions||[]} value={regionFilter} onChange={setRegionFilter} placeholder="All regions"/>
+            </div>
+            <div style={{minWidth:140,flex:1}}>
+              <label style={lS}>Weekday (outbound)</label>
+              <MultiSelect options={slicers.weekdays||[]} value={weekdayFilter} onChange={setWeekdayFilter} placeholder="All days"/>
+            </div>
+          </div>
+        )}
+        {isFeeder&&(
+          <div style={{display:"flex",gap:12,padding:"12px 16px",borderBottom:"1px solid var(--border)",flexWrap:"wrap",background:"var(--bg-2)"}}>
+            <div style={{minWidth:160,flex:1}}>
+              <label style={lS}>Feeder Line</label>
+              <MultiSelect options={slicers.feederLines||[]} value={feederLineFilter} onChange={setFeederLine} placeholder="All feeder lines"/>
+            </div>
+            <div style={{minWidth:140,flex:1}}>
+              <label style={lS}>Label / Dataset</label>
+              <MultiSelect options={slicers.labels||[]} value={labelFilter} onChange={setLabelFilter} placeholder="All labels"/>
+            </div>
+            <div style={{minWidth:120,flex:1}}>
+              <label style={lS}>Direction</label>
+              <select value={directionFilter} onChange={e=>setDirection(e.target.value)} style={iS}>
+                <option value="">Both directions</option>
+                <option value="Outbound">Outbound</option>
+                <option value="Inbound">Inbound</option>
+              </select>
+            </div>
+            <div style={{minWidth:140,flex:1}}>
+              <label style={lS}>Weekday</label>
+              <MultiSelect options={slicers.weekdays||[]} value={weekdayFilter} onChange={setWeekdayFilter} placeholder="All days"/>
+            </div>
+          </div>
+        )}
+        {isDeck&&(
+          <div style={{display:"flex",gap:12,padding:"12px 16px",borderBottom:"1px solid var(--border)",flexWrap:"wrap",background:"var(--bg-2)"}}>
+            <div style={{minWidth:140,flex:1}}>
+              <label style={lS}>Pendel</label>
+              <MultiSelect options={slicers.pendels||[]} value={pendelFilter} onChange={setPendelFilter} placeholder="All pendels"/>
+            </div>
+            <div style={{minWidth:140,flex:1}}>
+              <label style={lS}>Weekday</label>
+              <MultiSelect options={slicers.weekdays||[]} value={weekdayFilter} onChange={setWeekdayFilter} placeholder="All days"/>
+            </div>
+          </div>
+        )}
+
         {sub==="pendel"&&<PendelTable data={pendel}/>}
         {sub==="feeder"&&<FeederTable data={feeder}/>}
         {sub==="deck"  &&<DeckTable   data={deck}/>}
@@ -476,10 +613,9 @@ function HotelTab() {
   const [loading,setLoading]=useState(true);
 
   useEffect(()=>{
-    Promise.all([
-      apiFetch("/api/dashboard/hotel-stats"),
-      apiFetch("/api/dashboard/hotel-ratings"),
-    ]).then(([s,r])=>{setStats(s);setRatings(Array.isArray(r)?r:[]);}).catch(()=>{}).finally(()=>setLoading(false));
+    Promise.all([apiFetch("/api/dashboard/hotel-stats"),apiFetch("/api/dashboard/hotel-ratings")])
+      .then(([s,r])=>{setStats(s);setRatings(Array.isArray(r)?r:[]);})
+      .catch(()=>{}).finally(()=>setLoading(false));
   },[]);
 
   const loadReviews=(code,pg=1)=>{
@@ -494,7 +630,6 @@ function HotelTab() {
 
   return(
     <div className="tab-content">
-      {/* Stats */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:20}}>
         {[{l:"Total Hotels",v:fmtN(stats?.total_hotels)},{l:"Total Reviews",v:fmtN(stats?.total_reviews)},{l:"Avg Score",v:stats?.avg_rating?`${Math.round(stats.avg_rating)}/100`:"—"},{l:"High Rated ≥80",v:fmtN(stats?.high_rated)},{l:"Latest Review",v:stats?.latest_review?.split("T")[0]||"—"}].map(s=>(
           <div key={s.l} style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"14px 16px"}}>
@@ -503,8 +638,6 @@ function HotelTab() {
           </div>
         ))}
       </div>
-
-      {/* Ratings table */}
       <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",overflow:"hidden",marginBottom:selHotel?20:0}}>
         <div style={{padding:"12px 16px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
           <span style={{fontSize:13,fontWeight:700,color:"var(--text)"}}>{filtered.length} hotels</span>
@@ -539,8 +672,6 @@ function HotelTab() {
           </table>
         </div>
       </div>
-
-      {/* Reviews */}
       {selHotel&&(
         <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",overflow:"hidden"}}>
           <div style={{padding:"12px 16px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
@@ -576,32 +707,92 @@ function HotelTab() {
 
 // ─── DATA TABLE TAB ───────────────────────────────────────────────────────────
 function DataTableTab({applied}) {
-  const [rows,setRows]=useState([]);
-  const [total,setTotal]=useState(0);
-  const [page,setPage]=useState(1);
-  const [loading,setLoading]=useState(false);
-  const [search,setSearch]=useState("");
+  const [rows,setRows]      = useState([]);
+  const [total,setTotal]    = useState(0);
+  const [page,setPage]      = useState(1);
+  const [loading,setLoading]= useState(false);
+  const [search,setSearch]  = useState("");
+  // Local filters (independent from overview)
+  const [dsFilter,setDsFilter]       = useState([]);
+  const [statusFilter,setStatusFilter]= useState("");
+  const [bookFrom,setBookFrom]       = useState("");
+  const [bookTo,setBookTo]           = useState("");
+  const [depFrom,setDepFrom]         = useState("");
+  const [depTo,setDepTo]             = useState("");
+
+  const buildTableParams = useCallback((pg=1) => ({
+    ...applied,
+    ...(dsFilter.length?{dataset:dsFilter}:{}),
+    ...(statusFilter?{status:statusFilter}:{}),
+    ...(bookFrom?{bookingDateFrom:bookFrom}:{}),
+    ...(bookTo?{bookingDateTo:bookTo}:{}),
+    ...(depFrom?{departureDateFrom:depFrom}:{}),
+    ...(depTo?{departureDateTo:depTo}:{}),
+    page:pg,limit:50,
+  }),[applied,dsFilter,statusFilter,bookFrom,bookTo,depFrom,depTo]);
 
   const load=useCallback(async(pg=1)=>{
     setLoading(true);
-    try{const d=await apiFetch("/api/dashboard/bookings-table",{...applied,page:pg,limit:50});setRows(d.rows||[]);setTotal(d.total||0);setPage(pg);}
-    catch{}finally{setLoading(false);}
-  },[applied]);
+    try{
+      const d=await apiFetch("/api/dashboard/bookings-table",buildTableParams(pg));
+      setRows(d.rows||[]);setTotal(d.total||0);setPage(pg);
+    }catch{}finally{setLoading(false);}
+  },[buildTableParams]);
 
   useEffect(()=>{load(1);},[load]);
 
-  const exportCSV=()=>{
-    if(!rows.length) return;
-    const keys=Object.keys(rows[0]);
-    const csv=[keys.join(","),...rows.map(r=>keys.map(k=>`"${r[k]??""}""`).join(","))].join("\n");
-    const a=document.createElement("a");a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv);a.download=`ttp-bookings-${new Date().toISOString().split("T")[0]}.csv`;a.click();
+  const exportCSV=async()=>{
+    try{
+      const d=await apiFetch("/api/dashboard/bookings-table",{...buildTableParams(1),limit:10000});
+      const r=d.rows||[];
+      if(!r.length) return;
+      const keys=Object.keys(r[0]);
+      const csv=[keys.join(","),...r.map(row=>keys.map(k=>`"${String(row[k]??"")}"`).join(","))].join("\n");
+      const a=document.createElement("a");a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv);a.download=`ttp-bookings-${new Date().toISOString().split("T")[0]}.csv`;a.click();
+    }catch(e){alert("Export failed: "+e.message);}
   };
 
   const filtered=rows.filter(r=>!search||Object.values(r).some(v=>String(v).toLowerCase().includes(search.toLowerCase())));
   const statusColor=s=>s==="Confirmed"?"var(--green)":"var(--red)";
+  const iS={padding:"6px 10px",background:"var(--bg)",border:"1px solid var(--border)",borderRadius:"var(--radius)",color:"var(--text)",fontSize:12,outline:"none"};
+  const lS={fontSize:10,fontWeight:700,textTransform:"uppercase",color:"var(--text-dim)",marginBottom:3,display:"block"};
 
   return(
     <div className="tab-content">
+      {/* Filters row */}
+      <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"14px 16px",display:"flex",gap:14,flexWrap:"wrap",alignItems:"flex-end"}}>
+        <div style={{minWidth:160,flex:1}}>
+          <label style={lS}>Dataset</label>
+          <MultiSelect options={["Solmar","Interbus","Solmar DE","Snowtravel"]} value={dsFilter} onChange={setDsFilter} placeholder="All datasets"/>
+        </div>
+        <div style={{flex:"0 0 auto"}}>
+          <label style={lS}>Status</label>
+          <div style={{display:"flex",gap:4}}>
+            {[["","All"],["confirmed","Confirmed"],["cancelled","Cancelled"]].map(([v,l])=>(
+              <button key={v} onClick={()=>setStatusFilter(v)} style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${statusFilter===v?"var(--blue)":"var(--border)"}`,background:statusFilter===v?"var(--blue-dim)":"transparent",color:statusFilter===v?"var(--blue)":"var(--text-muted)",fontSize:11,fontWeight:statusFilter===v?700:400,cursor:"pointer"}}>{l}</button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <label style={lS}>Booking Date</label>
+          <div style={{display:"flex",gap:6,alignItems:"center"}}>
+            <input type="date" value={bookFrom} onChange={e=>setBookFrom(e.target.value)} style={iS}/>
+            <span style={{color:"var(--text-dim)",fontSize:11}}>→</span>
+            <input type="date" value={bookTo} onChange={e=>setBookTo(e.target.value)} style={iS}/>
+          </div>
+        </div>
+        <div>
+          <label style={lS}>Departure Date</label>
+          <div style={{display:"flex",gap:6,alignItems:"center"}}>
+            <input type="date" value={depFrom} onChange={e=>setDepFrom(e.target.value)} style={iS}/>
+            <span style={{color:"var(--text-dim)",fontSize:11}}>→</span>
+            <input type="date" value={depTo} onChange={e=>setDepTo(e.target.value)} style={iS}/>
+          </div>
+        </div>
+        <button onClick={()=>load(1)} style={{padding:"7px 18px",borderRadius:"var(--radius)",background:"var(--blue)",border:"none",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",alignSelf:"flex-end"}}>Apply</button>
+        <button onClick={()=>{setDsFilter([]);setStatusFilter("");setBookFrom("");setBookTo("");setDepFrom("");setDepTo("");}} style={{padding:"7px 12px",borderRadius:"var(--radius)",background:"transparent",border:"1px solid var(--border)",color:"var(--text-muted)",fontSize:12,cursor:"pointer",alignSelf:"flex-end"}}>Reset</button>
+      </div>
+
       <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",overflow:"hidden"}}>
         <div style={{padding:"12px 16px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
           <span style={{fontSize:13,fontWeight:700,color:"var(--text)",flex:1}}>Bookings — {fmtN(total)} records</span>
@@ -620,7 +811,7 @@ function DataTableTab({applied}) {
               </tr>
             </thead>
             <tbody>
-              {!filtered.length&&<tr><td colSpan={13} style={{padding:24,textAlign:"center",color:"var(--text-muted)"}}>No data</td></tr>}
+              {!filtered.length&&!loading&&<tr><td colSpan={13} style={{padding:24,textAlign:"center",color:"var(--text-muted)"}}>No data — apply filters and click Apply</td></tr>}
               {filtered.map((r,i)=>(
                 <tr key={i} style={{borderBottom:"1px solid var(--border)",background:i%2?"var(--bg-2)":"transparent"}}>
                   <td style={{padding:"7px 10px",color:"var(--text-muted)",fontFamily:"var(--mono)",fontSize:11,whiteSpace:"nowrap"}}>{r.BookingID}</td>
@@ -678,7 +869,6 @@ function AiTab({user,kpiData}) {
 
   return(
     <div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 108px)",background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-xl)",overflow:"hidden"}}>
-      {/* Context bar */}
       {kpiData&&(
         <div style={{display:"flex",alignItems:"center",gap:20,padding:"9px 20px",background:"var(--bg-2)",borderBottom:"1px solid var(--border)",overflowX:"auto",flexShrink:0}}>
           {[["Live DB","● Connected","var(--green)"],["2026 Bookings",fmtN(kpiData.currentBookings),null],["2026 Revenue",fmtEur(kpiData.currentRevenue),null],["2026 PAX",fmtN(kpiData.currentPax),null]].map(([l,v,c])=>(
@@ -690,8 +880,6 @@ function AiTab({user,kpiData}) {
           <span style={{fontSize:11,color:"var(--text-dim)",marginLeft:"auto",whiteSpace:"nowrap"}}>AI asks one clarifying question if unsure</span>
         </div>
       )}
-
-      {/* Messages */}
       <div style={{flex:1,overflowY:"auto",padding:20,display:"flex",flexDirection:"column",gap:18}}>
         {msgs.map((m,i)=>(
           <div key={i} style={{display:"flex",gap:12,alignItems:"flex-start",flexDirection:m.role==="user"?"row-reverse":"row"}}>
@@ -720,37 +908,33 @@ function AiTab({user,kpiData}) {
         )}
         <div ref={endRef}/>
       </div>
-
-      {/* Suggestions */}
       {msgs.length===1&&(
         <div style={{padding:"0 20px 12px",flexShrink:0}}>
           <p style={{fontSize:11,color:"var(--text-dim)",marginBottom:8}}>Try asking:</p>
           <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-            {SUGGESTED.map((s,i)=><button key={i} onClick={()=>send(s)} style={{padding:"6px 12px",borderRadius:20,background:"var(--surface-2)",border:"1px solid var(--border)",color:"var(--text-muted)",fontSize:12,cursor:"pointer",transition:"all .14s"}}>{s}</button>)}
+            {SUGGESTED.map((s,i)=><button key={i} onClick={()=>send(s)} style={{padding:"6px 12px",borderRadius:20,background:"var(--surface-2)",border:"1px solid var(--border)",color:"var(--text-muted)",fontSize:12,cursor:"pointer"}}>{s}</button>)}
           </div>
         </div>
       )}
-
-      {/* Input */}
       <div style={{padding:"12px 16px",borderTop:"1px solid var(--border)",background:"var(--bg-2)",flexShrink:0}}>
         <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
           <textarea ref={inputRef} value={input} onChange={e=>setInput(e.target.value)}
             onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}
-            placeholder="Ask about bookings, revenue, PAX, trends… (Enter to send, Shift+Enter for newline)"
+            placeholder="Ask about bookings, revenue, PAX, trends… (Enter to send)"
             rows={1} disabled={loading}
             style={{flex:1,minHeight:40,maxHeight:120,resize:"none",padding:"10px 14px",background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",color:"var(--text)",fontSize:13,outline:"none",lineHeight:1.5,overflowY:"auto"}}/>
-          <button onClick={()=>send()} disabled={loading||!input.trim()} style={{width:40,height:40,borderRadius:"var(--radius-lg)",background:"var(--blue)",border:"none",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",opacity:loading||!input.trim()?.45:1,cursor:loading||!input.trim()?"not-allowed":"pointer"}}>
+          <button onClick={()=>send()} disabled={loading||!input.trim()} style={{width:40,height:40,borderRadius:"var(--radius-lg)",background:"var(--blue)",border:"none",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",opacity:loading||!input.trim()?0.45:1,cursor:loading||!input.trim()?"not-allowed":"pointer"}}>
             {I.send}
           </button>
         </div>
-        <p style={{fontSize:11,color:"var(--text-dim)",textAlign:"center",marginTop:6}}>TTP AI uses live Azure SQL data. Validate critical figures in the dashboard before acting.</p>
+        <p style={{fontSize:11,color:"var(--text-dim)",textAlign:"center",marginTop:6}}>TTP AI uses live Azure SQL data. Validate critical figures in the dashboard.</p>
       </div>
     </div>
   );
 }
 
 // ─── SETTINGS TAB ─────────────────────────────────────────────────────────────
-function SettingsTab({user}) {
+function SettingsTab({user,theme,setTheme}) {
   const [stab,setStab]=useState("users");
   const [users,setUsers]=useState([]);
   const [showAdd,setShowAdd]=useState(false);
@@ -783,8 +967,6 @@ function SettingsTab({user}) {
           ))}
         </div>
         <div style={{padding:24}}>
-
-          {/* USER MANAGEMENT */}
           {stab==="users"&&(
             <div>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
@@ -831,12 +1013,24 @@ function SettingsTab({user}) {
               )}
             </div>
           )}
-
-          {/* API INTEGRATIONS */}
+          {stab==="theme"&&(
+            <div>
+              <div style={{fontSize:14,fontWeight:700,color:"var(--text)",marginBottom:12}}>Appearance</div>
+              <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+                {[["dark","Dark (Default)","#0d1117"],["light","Light Silver","#f1f5f9"]].map(([id,label,bg])=>(
+                  <button key={id} onClick={()=>setTheme(id)} style={{padding:"16px 20px",borderRadius:12,border:`2px solid ${theme===id?"var(--blue)":"var(--border)"}`,background:bg,color:id==="dark"?"#e2e8f0":"#1e293b",fontSize:13,fontWeight:theme===id?700:400,cursor:"pointer",display:"flex",flexDirection:"column",gap:6,alignItems:"flex-start",transition:"border-color .15s"}}>
+                    <span style={{fontSize:18}}>{id==="dark"?"🌙":"☀️"}</span>
+                    {label}
+                    {theme===id&&<span style={{fontSize:10,color:"var(--blue)",fontWeight:700}}>Active</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {stab==="api"&&(
             <div>
               <div style={{fontSize:13,color:"var(--text-muted)",marginBottom:16}}>Connected data sources and integrations.</div>
-              {[["Azure SQL","ttpserver.database.windows.net / TTPDatabase","Connected","var(--green)"],["TravelTrustIt API","421 hotels · 9,020 reviews loaded","Connected","var(--green)"],["OpenAI (GPT-4o-mini)","TTP AI assistant","Connected","var(--green)"]].map(([n,d,s,c])=>(
+              {[["Azure SQL","ttpserver.database.windows.net / TTPDatabase","Connected","var(--green)"],["TravelTrustIt API","421 hotels · 9,020 reviews loaded","Connected","var(--green)"],["OpenAI (GPT-4o)","TTP AI assistant","Connected","var(--green)"]].map(([n,d,s,c])=>(
                 <div key={n} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:"var(--bg-2)",border:"1px solid var(--border)",borderRadius:"var(--radius)",marginBottom:8}}>
                   <div style={{width:8,height:8,borderRadius:"50%",background:c,flexShrink:0}}/>
                   <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:"var(--text)"}}>{n}</div><div style={{fontSize:12,color:"var(--text-muted)"}}>{d}</div></div>
@@ -845,40 +1039,20 @@ function SettingsTab({user}) {
               ))}
             </div>
           )}
-
-          {/* THEME */}
-          {stab==="theme"&&<div style={{fontSize:13,color:"var(--text-muted)"}}>Dark mode is the default. Light mode is available via the toggle in the topbar.</div>}
-
-          {/* EMAIL ALERTS */}
           {stab==="alerts"&&(
             <div>
               <div style={{marginBottom:14}}><label style={lS}>Alert Email</label><input type="email" placeholder="datateamttpservices@gmail.com" style={iS}/></div>
               <button style={{padding:"9px 18px",borderRadius:"var(--radius)",background:"var(--blue)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>Save</button>
             </div>
           )}
-
-          {/* AI PROMPTS */}
           {stab==="ai_prompts"&&(
             <div>
               <div style={{fontSize:14,fontWeight:700,color:"var(--text)",marginBottom:6}}>AI System Prompt</div>
               <div style={{fontSize:12,color:"var(--text-muted)",marginBottom:12}}>Controls TTP AI behavior. Changes take effect on next conversation.</div>
-              <textarea defaultValue={"You are TTP AI — analytics assistant for TTP Services (Belgian travel company).\nSOURCES: CustomerOverview (Solmar/Interbus/Solmar DE) + ST_Bookings (Snowtravel)\nRULES: Never guess. Ask ONE clarifying question if ambiguous. Dutch number format."}
-                style={{width:"100%",minHeight:160,padding:"12px 14px",background:"var(--bg)",border:"1px solid var(--border)",borderRadius:"var(--radius)",color:"var(--text)",fontSize:12,fontFamily:"var(--mono)",resize:"vertical",outline:"none",lineHeight:1.6,boxSizing:"border-box"}}/>
+              <textarea defaultValue={"You are TTP AI — analytics assistant for TTP Services (Belgian travel company).\nSOURCES: CustomerOverview (Solmar/Interbus/Solmar DE) + ST_Bookings (Snowtravel)\nRULES: Never guess. Ask ONE clarifying question if ambiguous. Dutch number format."} style={{width:"100%",minHeight:160,padding:"12px 14px",background:"var(--bg)",border:"1px solid var(--border)",borderRadius:"var(--radius)",color:"var(--text)",fontSize:12,fontFamily:"var(--mono)",resize:"vertical",outline:"none",lineHeight:1.6,boxSizing:"border-box"}}/>
               <div style={{marginTop:8,display:"flex",gap:8,alignItems:"center"}}>
                 <button style={{padding:"8px 16px",borderRadius:"var(--radius)",background:"var(--blue)",border:"none",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>Save Prompt</button>
                 <span style={{fontSize:11,color:"var(--text-dim)"}}>Stored in backend environment variables</span>
-              </div>
-              <div style={{marginTop:20,borderTop:"1px solid var(--border)",paddingTop:20}}>
-                <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:12}}>Data Access</div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                  {[["CustomerOverview (Solmar/Interbus/Solmar DE)",true],["ST_Bookings (Snowtravel)",true],["solmar_bus_bookings_modified",true],["BUStrips (Pendel)",false],["FeederOverview",false],["HotelRatings / HotelReviews",false]].map(([l,en])=>(
-                    <div key={l} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:"var(--bg-2)",border:"1px solid var(--border)",borderRadius:"var(--radius)"}}>
-                      <div style={{width:7,height:7,borderRadius:"50%",background:en?"var(--green)":"var(--text-dim)",flexShrink:0}}/>
-                      <span style={{fontSize:11,color:en?"var(--text)":"var(--text-muted)",flex:1}}>{l}</span>
-                      <span style={{fontSize:10,color:en?"var(--green)":"var(--text-dim)",fontWeight:600}}>{en?"Active":"Inactive"}</span>
-                    </div>
-                  ))}
-                </div>
               </div>
             </div>
           )}
@@ -888,7 +1062,7 @@ function SettingsTab({user}) {
   );
 }
 
-// ─── FLOATING AI BUTTON ───────────────────────────────────────────────────────
+// ─── FLOATING AI ──────────────────────────────────────────────────────────────
 function FloatingAI({tab,setTab}) {
   const [open,setOpen]=useState(false);
   if(tab==="ai") return null;
@@ -930,29 +1104,32 @@ function DubaiClock() {
   return <span style={{color:"var(--text-dim)",fontSize:11}}>{t} Dubai</span>;
 }
 
-// ─── MAIN APP ─────────────────────────────────────────────────────────────────
+// ─── TABS / CONSTANTS ─────────────────────────────────────────────────────────
 const TABS=[
-  {id:"overview",label:"Overview",icon:I.overview},
-  {id:"bus",label:"Bus Occupancy",icon:I.bus},
-  {id:"hotel",label:"Hotel Insights",icon:I.hotel},
-  {id:"data",label:"Data Table",icon:I.table},
-  {id:"ai",label:"TTP AI",icon:I.ai},
-  {id:"settings",label:"Settings",icon:I.settings},
+  {id:"overview",label:"Overview",icon:null},
+  {id:"bus",label:"Bus Occupancy",icon:null},
+  {id:"hotel",label:"Hotel Insights",icon:null},
+  {id:"data",label:"Data Table",icon:null},
+  {id:"ai",label:"TTP AI",icon:null},
+  {id:"settings",label:"Settings",icon:null},
 ];
+const TAB_ICONS={overview:null,bus:null,hotel:null,data:null,ai:null,settings:null};
 const DATASETS=["Solmar","Interbus","Solmar DE","Snowtravel"];
 const YEARS=["2022","2023","2024","2025","2026"];
 const emptyF=()=>({datasets:[],year:[],departureDateFrom:"",departureDateTo:"",bookingDateFrom:"",bookingDateTo:"",transportType:"",status:""});
 
+// ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [user,setUser]=useState(()=>{
     try{const t=localStorage.getItem("ttp_token")||sessionStorage.getItem("ttp_token");const u=localStorage.getItem("ttp_user")||sessionStorage.getItem("ttp_user");return t&&u?{...JSON.parse(u),token:t}:null;}catch{return null;}
   });
+  const [theme,setTheme]=useState(()=>localStorage.getItem("ttp_theme")||"dark");
   const [tab,setTab]           = useState("overview");
   const [metric,setMetric]     = useState("bookings");
   const [filtersOpen,setFO]    = useState(false);
   const [filters,setFilters]   = useState(emptyF());
   const [applied,setApplied]   = useState({});
-  const [hasFY,setHasFY]       = useState(false); // fiscal year mode
+  const [hasFY,setHasFY]       = useState(false);
   const [kpiData,setKpiData]   = useState(null);
   const [ymData,setYmData]     = useState([]);
   const [revData,setRevData]   = useState([]);
@@ -961,6 +1138,12 @@ export default function App() {
   const [spinning,setSpinning] = useState(false);
   const [lastSync,setLastSync] = useState(null);
   const [error,setError]       = useState("");
+
+  // Persist theme
+  useEffect(()=>{
+    localStorage.setItem("ttp_theme",theme);
+    document.documentElement.setAttribute("data-theme",theme);
+  },[theme]);
 
   const handleLogin =(token,u)=>setUser({...u,token});
   const handleLogout=()=>{["ttp_token","ttp_user"].forEach(k=>{localStorage.removeItem(k);sessionStorage.removeItem(k);});setUser(null);};
@@ -1005,7 +1188,6 @@ export default function App() {
   const hasFilters=applied.datasets?.length||applied.year?.length||applied.departureDateFrom||applied.status;
   const fmtSync=d=>d?`${d.getHours().toString().padStart(2,"0")}:${d.getMinutes().toString().padStart(2,"0")}`:null;
 
-  // Fiscal year quick presets
   const applyFY=(preset)=>{
     const now=new Date(), y=now.getFullYear();
     if(preset==="solmar"){
@@ -1028,25 +1210,36 @@ export default function App() {
     setFO(false);
   };
 
+  const tabIcons={overview:I.overview,bus:I.bus,hotel:I.hotel,data:I.table,ai:I.ai,settings:I.settings};
+  const tabLabels={overview:"Overview",bus:"Bus Occupancy",hotel:"Hotel Insights",data:"Data Table",ai:"TTP AI",settings:"Settings"};
+
   return(
-    <div className="app-shell">
+    <div className="app-shell" data-theme={theme}>
       {/* SIDEBAR */}
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <div className="brand-icon">TTP</div>
-          <div className="brand-info"><span className="brand-title">Analytics</span><span className="brand-sub">Data Engine v2.0</span></div>
+          <div className="brand-logo">
+            <img src="/assets/logo.png" alt="TTP" style={{width:"100%",height:"100%",objectFit:"contain",padding:4}} onError={e=>{e.target.style.display="none";e.target.parentNode.innerHTML='<span style="color:#fff;font-weight:800;font-size:14px;">TTP</span>';}}/>
+          </div>
+          <div className="brand-info">
+            <span className="brand-title">Analytics</span>
+            <span className="brand-sub">Data Engine v2.1</span>
+          </div>
         </div>
         <nav className="sidebar-nav">
-          {TABS.map(t=>(
-            <button key={t.id} className={`nav-item ${tab===t.id?"active":""}`} onClick={()=>setTab(t.id)}>
-              <span className="nav-icon">{t.icon}</span>{t.label}
+          {Object.entries(tabLabels).map(([id,label])=>(
+            <button key={id} className={`nav-item ${tab===id?"active":""}`} onClick={()=>setTab(id)}>
+              <span className="nav-icon">{tabIcons[id]}</span>{label}
             </button>
           ))}
         </nav>
         <div className="sidebar-footer">
           <div className="user-card">
             <div className="user-avatar">{(user.name||"U")[0].toUpperCase()}</div>
-            <div className="user-info"><span className="user-name">{user.name}</span><span className="user-role">{user.role}</span></div>
+            <div className="user-info">
+              <span className="user-name">{user.name}</span>
+              <span className="user-role">{user.role}</span>
+            </div>
           </div>
           <DubaiClock/>
           {lastSync&&<div className="sync-status"><span className="sync-dot"/>Last sync {fmtSync(lastSync)}</div>}
@@ -1059,7 +1252,7 @@ export default function App() {
         {/* TOPBAR */}
         <header className="topbar">
           <div className="topbar-left">
-            <h1 className="page-title">{TABS.find(t=>t.id===tab)?.label}</h1>
+            <h1 className="page-title">{tabLabels[tab]}</h1>
             {hasFilters&&(
               <div className="active-filters-row">
                 {applied.datasets?.map(d=><span key={d} className="filter-chip dataset">{d}</span>)}
@@ -1078,91 +1271,88 @@ export default function App() {
                 ))}
               </div>
             )}
+            {/* Theme toggle */}
+            <button className="btn-icon" onClick={()=>setTheme(t=>t==="dark"?"light":"dark")} title={`Switch to ${theme==="dark"?"light":"dark"} mode`}>
+              {theme==="dark"?I.sun:I.moon}
+            </button>
             <button className={`btn-icon ${spinning?"spinning":""}`} onClick={()=>loadAll(applied,true)} title="Refresh">{I.refresh}</button>
-            <button className={`btn-filter ${filtersOpen?"active":""} ${hasFilters?"has-active":""}`} onClick={()=>setFO(o=>!o)}>{I.filter} Filters{hasFilters&&<span className="filter-badge"/>}</button>
+            {tab==="overview"&&<button className={`btn-filter ${filtersOpen?"active":""} ${hasFilters?"has-active":""}`} onClick={()=>setFO(o=>!o)}>{I.filter} Filters{hasFilters&&<span className="filter-badge"/>}</button>}
           </div>
         </header>
 
-        {/* FILTER DRAWER */}
-        <div className={`filter-drawer ${filtersOpen?"open":""}`}>
-          <div className="filter-drawer-inner">
-            {/* Quick presets */}
-            <div className="filter-section">
-              <label className="filter-label">Quick Select</label>
-              <div className="chip-group">
-                {[["thisyear","This Year"],["lastyear","Last Year"],["all","All Time"]].map(([v,l])=>(
-                  <button key={v} className="ds-chip" onClick={()=>applyFY(v)}>{l}</button>
-                ))}
+        {/* FILTER DRAWER (Overview only) */}
+        {tab==="overview"&&(
+          <div className={`filter-drawer ${filtersOpen?"open":""}`}>
+            <div className="filter-drawer-inner">
+              <div className="filter-section">
+                <label className="filter-label">Quick Select</label>
+                <div className="chip-group">
+                  {[["thisyear","This Year"],["lastyear","Last Year"],["all","All Time"]].map(([v,l])=>(
+                    <button key={v} className="ds-chip" onClick={()=>applyFY(v)}>{l}</button>
+                  ))}
+                </div>
               </div>
-            </div>
-            {/* Fiscal presets */}
-            <div className="filter-section">
-              <label className="filter-label">Fiscal Year Presets</label>
-              <div className="chip-group">
-                <button className="ds-chip" onClick={()=>applyFY("solmar")}>Solmar FY (Dec–Nov)</button>
-                <button className="ds-chip" onClick={()=>applyFY("snowtravel")}>Snowtravel FY (Jul–Jun)</button>
+              <div className="filter-section">
+                <label className="filter-label">Fiscal Year Presets</label>
+                <div className="chip-group">
+                  <button className="ds-chip" onClick={()=>applyFY("solmar")}>Solmar FY (Dec–Nov)</button>
+                  <button className="ds-chip" onClick={()=>applyFY("snowtravel")}>Snowtravel FY (Jul–Jun)</button>
+                </div>
               </div>
-            </div>
-            {/* Dataset */}
-            <div className="filter-section">
-              <label className="filter-label">Dataset</label>
-              <div className="chip-group">
-                {DATASETS.map(ds=><button key={ds} className={`ds-chip ${filters.datasets?.includes(ds)?"active":""}`} onClick={()=>setFilters(f=>({...f,datasets:f.datasets?.includes(ds)?f.datasets.filter(x=>x!==ds):[...(f.datasets||[]),ds]}))}>{ds}</button>)}
+              <div className="filter-section">
+                <label className="filter-label">Dataset</label>
+                <div className="chip-group">
+                  {DATASETS.map(ds=><button key={ds} className={`ds-chip ${filters.datasets?.includes(ds)?"active":""}`} onClick={()=>setFilters(f=>({...f,datasets:f.datasets?.includes(ds)?f.datasets.filter(x=>x!==ds):[...(f.datasets||[]),ds]}))}>{ds}</button>)}
+                </div>
               </div>
-            </div>
-            {/* Year */}
-            <div className="filter-section">
-              <label className="filter-label">Year</label>
-              <div className="chip-group">
-                {YEARS.map(y=><button key={y} className={`ds-chip ${filters.year?.includes(y)?"active":""}`} onClick={()=>setFilters(f=>({...f,year:f.year?.includes(y)?f.year.filter(x=>x!==y):[...(f.year||[]),y]}))}>{y}</button>)}
+              <div className="filter-section">
+                <label className="filter-label">Year</label>
+                <div className="chip-group">
+                  {YEARS.map(y=><button key={y} className={`ds-chip ${filters.year?.includes(y)?"active":""}`} onClick={()=>setFilters(f=>({...f,year:f.year?.includes(y)?f.year.filter(x=>x!==y):[...(f.year||[]),y]}))}>{y}</button>)}
+                </div>
               </div>
-            </div>
-            {/* Departure date */}
-            <div className="filter-section">
-              <label className="filter-label">Departure Date</label>
-              <div className="date-range">
-                <input type="date" className="date-input" value={filters.departureDateFrom||""} onChange={e=>setFilters(f=>({...f,departureDateFrom:e.target.value}))}/>
-                <span className="date-sep">→</span>
-                <input type="date" className="date-input" value={filters.departureDateTo||""} onChange={e=>setFilters(f=>({...f,departureDateTo:e.target.value}))}/>
+              <div className="filter-section">
+                <label className="filter-label">Departure Date</label>
+                <div className="date-range">
+                  <input type="date" className="date-input" value={filters.departureDateFrom||""} onChange={e=>setFilters(f=>({...f,departureDateFrom:e.target.value}))}/>
+                  <span className="date-sep">→</span>
+                  <input type="date" className="date-input" value={filters.departureDateTo||""} onChange={e=>setFilters(f=>({...f,departureDateTo:e.target.value}))}/>
+                </div>
               </div>
-            </div>
-            {/* Booking date */}
-            <div className="filter-section">
-              <label className="filter-label">Booking Date</label>
-              <div className="date-range">
-                <input type="date" className="date-input" value={filters.bookingDateFrom||""} onChange={e=>setFilters(f=>({...f,bookingDateFrom:e.target.value}))}/>
-                <span className="date-sep">→</span>
-                <input type="date" className="date-input" value={filters.bookingDateTo||""} onChange={e=>setFilters(f=>({...f,bookingDateTo:e.target.value}))}/>
+              <div className="filter-section">
+                <label className="filter-label">Booking Date</label>
+                <div className="date-range">
+                  <input type="date" className="date-input" value={filters.bookingDateFrom||""} onChange={e=>setFilters(f=>({...f,bookingDateFrom:e.target.value}))}/>
+                  <span className="date-sep">→</span>
+                  <input type="date" className="date-input" value={filters.bookingDateTo||""} onChange={e=>setFilters(f=>({...f,bookingDateTo:e.target.value}))}/>
+                </div>
               </div>
-            </div>
-            {/* Transport type */}
-            <div className="filter-section">
-              <label className="filter-label">Transport Type</label>
-              <select value={filters.transportType||""} onChange={e=>setFilters(f=>({...f,transportType:e.target.value}))} style={{width:"100%",padding:"7px 10px",background:"var(--bg)",border:"1px solid var(--border)",borderRadius:"var(--radius)",color:"var(--text)",fontSize:12,outline:"none"}}>
-                <option value="">All types</option>
-                {(slicers.transportTypes||[]).map(t=><option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-            {/* Status */}
-            <div className="filter-section">
-              <label className="filter-label">Status</label>
-              <div className="chip-group">
-                {[{v:"",l:"All"},{v:"confirmed",l:"Confirmed"},{v:"cancelled",l:"Cancelled"}].map(s=><button key={s.v} className={`ds-chip ${(filters.status||"")===s.v?"active":""}`} onClick={()=>setFilters(f=>({...f,status:s.v}))}>{s.l}</button>)}
+              <div className="filter-section">
+                <label className="filter-label">Transport Type</label>
+                <select value={filters.transportType||""} onChange={e=>setFilters(f=>({...f,transportType:e.target.value}))} style={{width:"100%",padding:"7px 10px",background:"var(--bg)",border:"1px solid var(--border)",borderRadius:"var(--radius)",color:"var(--text)",fontSize:12,outline:"none"}}>
+                  <option value="">All types</option>
+                  {(slicers.transportTypes||[]).map(t=><option key={t} value={t}>{t}</option>)}
+                </select>
               </div>
-            </div>
-            <div className="filter-actions">
-              <button className="btn-clear-filters" onClick={()=>{setFilters(emptyF());setHasFY(false);}}>Clear</button>
-              <button className="btn-apply-filters" onClick={()=>{setApplied(buildParams(filters));setFO(false);}}>Apply</button>
+              <div className="filter-section">
+                <label className="filter-label">Status</label>
+                <div className="chip-group">
+                  {[{v:"",l:"All"},{v:"confirmed",l:"Confirmed"},{v:"cancelled",l:"Cancelled"}].map(s=><button key={s.v} className={`ds-chip ${(filters.status||"")===s.v?"active":""}`} onClick={()=>setFilters(f=>({...f,status:s.v}))}>{s.l}</button>)}
+                </div>
+              </div>
+              <div className="filter-actions">
+                <button className="btn-clear-filters" onClick={()=>{setFilters(emptyF());setHasFY(false);}}>Clear</button>
+                <button className="btn-apply-filters" onClick={()=>{setApplied(buildParams(filters));setFO(false);}}>Apply</button>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* PAGE BODY */}
         <main className="page-body">
           {error&&<div className="error-banner">{I.warn} {error}</div>}
           {loading&&<div className="loading-bar"><div className="loading-bar-fill"/></div>}
 
-          {/* OVERVIEW */}
           {tab==="overview"&&(
             <div className="tab-content">
               {kpiData?.periodLabel&&(
@@ -1172,13 +1362,11 @@ export default function App() {
                   {hasFilters&&<button onClick={()=>{setFilters(emptyF());setApplied({});setHasFY(false);}} style={{fontSize:11,color:"var(--amber)",background:"var(--amber-dim)",border:"1px solid rgba(245,158,11,.3)",borderRadius:12,padding:"2px 8px",cursor:"pointer",fontWeight:700}}>✕ Reset</button>}
                 </div>
               )}
-              {/* KPI Cards */}
               <div style={{display:"flex",gap:14,flexWrap:"wrap",marginBottom:16}}>
                 <KpiCard label="Total Bookings" curr={kpiData?.currentBookings} prev={kpiData?.previousBookings} diff={kpiData?.differenceBookings} pct={kpiData?.percentBookings} fmt={fmtN} color="var(--blue)" prevLabel={kpiData?.prevLabel}/>
                 <KpiCard label="Total PAX" curr={kpiData?.currentPax} prev={kpiData?.previousPax} diff={kpiData?.differencePax} pct={kpiData?.percentPax} fmt={fmtN} color="var(--green)" prevLabel={kpiData?.prevLabel}/>
                 <KpiCard label="Gross Revenue" curr={kpiData?.currentRevenue} prev={kpiData?.previousRevenue} diff={kpiData?.differenceRevenue} pct={kpiData?.percentRevenue} fmt={fmtEur} color="var(--amber)" prevLabel={kpiData?.prevLabel}/>
               </div>
-              {/* Charts */}
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:16}}>
                 <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"16px 16px 10px"}}>
                   <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:12}}>Revenue by Year</div>
@@ -1189,7 +1377,6 @@ export default function App() {
                   <BarChart data={revData} metric={metric}/>
                 </div>
               </div>
-              {/* YM Table */}
               <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",overflow:"hidden"}}>
                 <div style={{padding:"12px 16px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                   <span style={{fontSize:13,fontWeight:700,color:"var(--text)",flex:1}}>Year-Month Comparison</span>
@@ -1207,7 +1394,10 @@ export default function App() {
           {tab==="hotel"   &&<HotelTab/>}
           {tab==="data"    &&<DataTableTab applied={applied}/>}
           {tab==="ai"      &&<AiTab user={user} kpiData={kpiData}/>}
-          {tab==="settings"&&(user.role==="admin"?<SettingsTab user={user}/>:<div style={{padding:60,textAlign:"center"}}><div style={{fontSize:32,marginBottom:12}}>🔒</div><div style={{fontSize:16,fontWeight:600,color:"var(--text)"}}>Admin access required</div></div>)}
+          {tab==="settings"&&(user.role==="admin"
+            ?<SettingsTab user={user} theme={theme} setTheme={t=>{setTheme(t);localStorage.setItem("ttp_theme",t);}}/>
+            :<div style={{padding:60,textAlign:"center"}}><div style={{fontSize:32,marginBottom:12}}>🔒</div><div style={{fontSize:16,fontWeight:600,color:"var(--text)"}}>Admin access required</div></div>
+          )}
         </main>
 
         {/* STATUS BAR */}
@@ -1225,21 +1415,215 @@ export default function App() {
       <FloatingAI tab={tab} setTab={setTab}/>
 
       <style>{`
-        @keyframes typingDot{0%,80%,100%{transform:scale(.7);opacity:.4}40%{transform:scale(1);opacity:1}}
-        .tab-content{display:flex;flex-direction:column;gap:16px;}
-        .loading-bar{height:3px;background:var(--surface);}
-        .loading-bar-fill{height:100%;width:40%;background:linear-gradient(90deg,var(--blue),var(--green));animation:slideBar 1.2s ease infinite;}
-        @keyframes slideBar{from{transform:translateX(-100%)}to{transform:translateX(350%)}}
-        .error-banner{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--red-dim);border:1px solid rgba(248,113,113,.3);border-radius:var(--radius);font-size:13px;color:var(--red);margin-bottom:12px;}
-        input[type="date"]::-webkit-calendar-picker-indicator{opacity:.5;cursor:pointer;filter:invert(1);}
-        select option{background:var(--surface);color:var(--text);}
+        /* ═══ DARK THEME (default) ═══ */
+        :root, [data-theme="dark"] {
+          --bg:          #0d1117;
+          --bg-2:        #161b22;
+          --surface:     #1c2333;
+          --surface-2:   #243047;
+          --surface-3:   #2d3a50;
+          --border:      #30363d;
+          --text:        #e6edf3;
+          --text-muted:  #8b949e;
+          --text-dim:    #3d5a80;
+          --blue:        #4d9eff;
+          --blue-dim:    rgba(77,158,255,.12);
+          --green:       #3fb950;
+          --green-dim:   rgba(63,185,80,.12);
+          --red:         #f85149;
+          --red-dim:     rgba(248,81,73,.12);
+          --amber:       #d29922;
+          --amber-dim:   rgba(210,153,34,.12);
+          --purple:      #bc8cff;
+          --mono:        'SF Mono','Fira Code','Cascadia Code',monospace;
+          --font:        'Segoe UI',system-ui,-apple-system,sans-serif;
+          --radius:      8px;
+          --radius-lg:   12px;
+          --radius-xl:   16px;
+          --shadow-lg:   0 20px 60px rgba(0,0,0,.6);
+        }
+
+        /* ═══ LIGHT SILVER THEME ═══ */
+        [data-theme="light"] {
+          --bg:          #f1f5f9;
+          --bg-2:        #e8edf3;
+          --surface:     #ffffff;
+          --surface-2:   #f8fafc;
+          --surface-3:   #f1f5f9;
+          --border:      #cbd5e1;
+          --text:        #0f172a;
+          --text-muted:  #475569;
+          --text-dim:    #94a3b8;
+          --blue:        #1a3a7c;
+          --blue-dim:    rgba(26,58,124,.1);
+          --green:       #16a34a;
+          --green-dim:   rgba(22,163,74,.1);
+          --red:         #dc2626;
+          --red-dim:     rgba(220,38,38,.1);
+          --amber:       #b45309;
+          --amber-dim:   rgba(180,83,9,.1);
+          --purple:      #7c3aed;
+          --shadow-lg:   0 20px 60px rgba(0,0,0,.15);
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+          font-family: var(--font);
+          background: var(--bg);
+          color: var(--text);
+          font-size: 14px;
+          line-height: 1.5;
+          -webkit-font-smoothing: antialiased;
+        }
+
+        /* ── LAYOUT ── */
+        .app-shell { display: flex; height: 100vh; overflow: hidden; }
+
+        .sidebar {
+          width: 176px;
+          flex-shrink: 0;
+          background: var(--bg-2);
+          border-right: 1px solid var(--border);
+          display: flex;
+          flex-direction: column;
+          height: 100vh;
+          overflow: hidden;
+        }
+
+        .sidebar-brand {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 16px 14px;
+          border-bottom: 1px solid var(--border);
+          flex-shrink: 0;
+        }
+        .brand-logo {
+          width: 36px; height: 36px;
+          border-radius: 8px;
+          background: var(--blue);
+          display: flex; align-items: center; justify-content: center;
+          flex-shrink: 0;
+          overflow: hidden;
+        }
+        .brand-info { display: flex; flex-direction: column; min-width: 0; }
+        .brand-title { font-size: 13px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .brand-sub   { font-size: 10px; color: var(--text-dim); }
+
+        .sidebar-nav { flex: 1; padding: 10px 8px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
+
+        .nav-item {
+          display: flex; align-items: center; gap: 8px;
+          padding: 8px 10px;
+          border-radius: var(--radius);
+          background: none; border: none;
+          color: var(--text-muted);
+          font-size: 13px; font-weight: 500;
+          cursor: pointer;
+          text-align: left;
+          width: 100%;
+          transition: background .12s, color .12s;
+          white-space: nowrap;
+        }
+        .nav-item:hover { background: var(--surface); color: var(--text); }
+        .nav-item.active { background: var(--blue-dim); color: var(--blue); font-weight: 600; }
+        .nav-icon { display: flex; align-items: center; flex-shrink: 0; }
+
+        .sidebar-footer {
+          padding: 12px;
+          border-top: 1px solid var(--border);
+          display: flex; flex-direction: column; gap: 8px;
+          flex-shrink: 0;
+        }
+        .user-card { display: flex; align-items: center; gap: 8px; }
+        .user-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--blue); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+        .user-info { display: flex; flex-direction: column; min-width: 0; }
+        .user-name { font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .user-role { font-size: 10px; color: var(--text-dim); }
+        .sync-status { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--text-dim); }
+        .sync-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+        .btn-logout { padding: 6px 10px; border-radius: var(--radius); background: transparent; border: 1px solid var(--border); color: var(--text-muted); font-size: 11px; cursor: pointer; text-align: center; transition: background .12s; }
+        .btn-logout:hover { background: var(--surface); }
+
+        /* ── MAIN ── */
+        .main-area { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+
+        .topbar {
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 0 20px;
+          height: 52px;
+          border-bottom: 1px solid var(--border);
+          background: var(--bg-2);
+          flex-shrink: 0;
+          gap: 12px;
+        }
+        .topbar-left { display: flex; align-items: center; gap: 10px; min-width: 0; overflow: hidden; }
+        .page-title { font-size: 15px; font-weight: 700; color: var(--text); white-space: nowrap; }
+        .topbar-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+        .active-filters-row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; overflow: hidden; }
+        .filter-chip { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted); white-space: nowrap; }
+        .filter-chip.dataset { background: var(--blue-dim); color: var(--blue); border-color: rgba(77,158,255,.25); }
+        .filter-chip.year    { background: var(--amber-dim); color: var(--amber); border-color: rgba(210,153,34,.25); }
+        .filter-chip.date    { background: var(--surface-2); color: var(--text-muted); }
+        .filter-chip.status  { background: var(--green-dim); color: var(--green); border-color: rgba(63,185,80,.25); }
+        .chip-clear { font-size: 10px; font-weight: 700; color: var(--amber); background: var(--amber-dim); border: 1px solid rgba(210,153,34,.3); border-radius: 10px; padding: 2px 8px; cursor: pointer; white-space: nowrap; }
+
+        .metric-tabs { display: flex; gap: 2px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 2px; }
+        .metric-tab { padding: 4px 10px; border-radius: 6px; border: none; background: transparent; color: var(--text-muted); font-size: 11px; font-weight: 500; cursor: pointer; transition: background .12s, color .12s; }
+        .metric-tab.active { background: var(--blue); color: #fff; font-weight: 700; }
+
+        .btn-icon { width: 32px; height: 32px; border-radius: var(--radius); background: transparent; border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background .12s, color .12s; }
+        .btn-icon:hover { background: var(--surface); color: var(--text); }
+        .btn-icon.spinning svg { animation: spin .7s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .btn-filter { display: flex; align-items: center; gap: 5px; padding: 0 12px; height: 32px; border-radius: var(--radius); border: 1px solid var(--border); background: transparent; color: var(--text-muted); font-size: 12px; font-weight: 600; cursor: pointer; position: relative; transition: background .12s, color .12s; }
+        .btn-filter:hover, .btn-filter.active { background: var(--surface); color: var(--text); }
+        .btn-filter.has-active { border-color: var(--blue); color: var(--blue); }
+        .filter-badge { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); flex-shrink: 0; }
+
+        /* ── FILTER DRAWER ── */
+        .filter-drawer { overflow: hidden; max-height: 0; transition: max-height .25s ease; border-bottom: 0 solid var(--border); background: var(--surface); }
+        .filter-drawer.open { max-height: 420px; border-bottom-width: 1px; }
+        .filter-drawer-inner { padding: 14px 20px; display: flex; flex-wrap: wrap; gap: 16px 24px; overflow-y: auto; max-height: 400px; }
+        .filter-section { display: flex; flex-direction: column; gap: 6px; min-width: 160px; }
+        .filter-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); }
+        .chip-group { display: flex; flex-wrap: wrap; gap: 4px; }
+        .ds-chip { padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); font-size: 11px; font-weight: 500; cursor: pointer; transition: all .12s; white-space: nowrap; }
+        .ds-chip:hover { border-color: var(--blue); color: var(--blue); }
+        .ds-chip.active { background: var(--blue-dim); border-color: var(--blue); color: var(--blue); font-weight: 700; }
+        .date-range { display: flex; align-items: center; gap: 6px; }
+        .date-input { padding: 6px 8px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-size: 11px; outline: none; }
+        .date-sep { color: var(--text-dim); font-size: 11px; }
+        .filter-actions { display: flex; gap: 8px; align-items: flex-end; margin-top: 4px; }
+        .btn-clear-filters { padding: 7px 14px; border-radius: var(--radius); background: transparent; border: 1px solid var(--border); color: var(--text-muted); font-size: 12px; cursor: pointer; }
+        .btn-apply-filters { padding: 7px 18px; border-radius: var(--radius); background: var(--blue); border: none; color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; }
+
+        /* ── PAGE BODY ── */
+        .page-body { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 0; }
+        .tab-content { display: flex; flex-direction: column; gap: 16px; }
+
+        /* ── MISC ── */
+        .loading-bar { height: 3px; background: var(--surface); flex-shrink: 0; }
+        .loading-bar-fill { height: 100%; width: 40%; background: linear-gradient(90deg,var(--blue),var(--green)); animation: slideBar 1.2s ease infinite; }
+        @keyframes slideBar { from{transform:translateX(-100%)} to{transform:translateX(350%)} }
+        .error-banner { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: var(--red-dim); border: 1px solid rgba(248,113,113,.3); border-radius: var(--radius); font-size: 13px; color: var(--red); margin-bottom: 12px; }
+
+        input[type="date"]::-webkit-calendar-picker-indicator { opacity: .5; cursor: pointer; }
+        [data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); }
+        select option { background: var(--surface); color: var(--text); }
+
+        @keyframes typingDot { 0%,80%,100%{transform:scale(.7);opacity:.4} 40%{transform:scale(1);opacity:1} }
+
+        /* ── MOBILE ── */
         @media(max-width:768px){
           .sidebar{position:fixed;bottom:0;left:0;width:100%;height:52px;flex-direction:row;z-index:100;border-right:none;border-top:1px solid var(--border);}
           .sidebar-brand,.sidebar-footer{display:none;}
           .sidebar-nav{flex-direction:row;padding:0 8px;overflow-x:auto;align-items:center;}
           .nav-item{flex-direction:column;gap:2px;padding:5px 8px;font-size:10px;}
           .main-area{padding-bottom:52px;}
-          .charts-grid{grid-template-columns:1fr!important;}
         }
       `}</style>
     </div>
