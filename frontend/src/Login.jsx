@@ -23,6 +23,7 @@ export default function Login({ onLogin }) {
       const d = await res.json();
       if (!res.ok) { setError(d.error || "Invalid credentials."); return; }
       localStorage.setItem("ttp_token", d.token);
+      sessionStorage.setItem("ttp_token", d.token);
       localStorage.setItem("ttp_user", JSON.stringify(d.user));
       onLogin(d.token, d.user);
     } catch {
