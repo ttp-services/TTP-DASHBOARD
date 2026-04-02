@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import Login from "./Login.jsx";
 
 const BASE = (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) || "http://localhost:3001";
@@ -59,7 +59,7 @@ const I = {
 };
 
 // ─── LINE CHART ───────────────────────────────────────────────────────────────
-function LineChart({ data }) {
+function LineChart({ data, monthOrder }) {
   const ref = useRef(null), ptsRef = useRef([]);
   const [tip, setTip] = useState(null);
 
@@ -75,7 +75,8 @@ function LineChart({ data }) {
     const byY = {};
     data.forEach(d => { if (!byY[d.year]) byY[d.year]={}; byY[d.year][d.month]=d.revenue||0; });
     const maxV = Math.max(...data.map(d=>d.revenue||0), 1);
-    const sx = m => pad.left + ((m-1)/11)*(W-pad.left-pad.right);
+    const order = Array.isArray(monthOrder) && monthOrder.length === 12 ? monthOrder : [1,2,3,4,5,6,7,8,9,10,11,12];
+    const sx = idx => pad.left + (idx/11)*(W-pad.left-pad.right);
     const sy = v => pad.top + (1-v/maxV)*(H-pad.top-pad.bottom);
     const gridColor = getComputedStyle(document.documentElement).getPropertyValue('--border').trim() || 'rgba(30,58,95,.4)';
     const labelColor = getComputedStyle(document.documentElement).getPropertyValue('--text-dim').trim() || '#3d5a80';
@@ -86,14 +87,14 @@ function LineChart({ data }) {
       ctx.fillStyle=labelColor; ctx.font="10px system-ui"; ctx.textAlign="right";
       ctx.fillText(fmtEur(maxV*(1-i/4)), pad.left-6, y+4);
     }
-    MONTHS.forEach((m,i) => {
+    order.forEach((mNum,i) => {
       ctx.fillStyle=labelColor; ctx.font="10px system-ui"; ctx.textAlign="center";
-      ctx.fillText(m, sx(i+1), H-pad.bottom+14);
+      ctx.fillText(MONTHS[mNum-1], sx(i), H-pad.bottom+14);
     });
     ptsRef.current = [];
     years.forEach((yr,yi) => {
       const color = CHART_COLORS[yi % CHART_COLORS.length];
-      const pts = [1,2,3,4,5,6,7,8,9,10,11,12].map(m => ({ x:sx(m), y:sy(byY[yr]?.[m]||0), val:byY[yr]?.[m]||0, m }));
+      const pts = order.map((mNum,mi) => ({ x:sx(mi), y:sy(byY[yr]?.[mNum]||0), val:byY[yr]?.[mNum]||0, m:mNum }));
       ctx.strokeStyle=color; ctx.lineWidth=2; ctx.lineJoin="round";
       ctx.beginPath(); pts.forEach((p,i) => i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y)); ctx.stroke();
       pts.forEach(p => {
@@ -105,7 +106,7 @@ function LineChart({ data }) {
       ctx.fillStyle=labelColor; ctx.font="10px system-ui"; ctx.textAlign="left";
       ctx.fillText(String(yr), lx+18, 12);
     });
-  }, [data]);
+  }, [data, monthOrder]);
 
   const onMove = e => {
     const rect = ref.current?.getBoundingClientRect(); if (!rect) return;
@@ -125,7 +126,7 @@ function LineChart({ data }) {
 }
 
 // ─── BAR CHART ───────────────────────────────────────────────────────────────
-function BarChart({ data, metric="bookings" }) {
+function BarChart({ data, metric="bookings", monthOrder }) {
   const ref = useRef(null), barsRef = useRef([]);
   const [tip, setTip] = useState(null);
 
@@ -141,23 +142,24 @@ function BarChart({ data, metric="bookings" }) {
     const byY={};
     data.forEach(d=>{ if(!byY[d.year]) byY[d.year]={}; byY[d.year][d.month]=(byY[d.year][d.month]||0)+(metric==="bookings"?d.bookings:metric==="pax"?d.pax:d.revenue)||0; });
     const allVals=Object.values(byY).flatMap(m=>Object.values(m)); const maxV=Math.max(...allVals,1);
+    const order = Array.isArray(monthOrder) && monthOrder.length === 12 ? monthOrder : [1,2,3,4,5,6,7,8,9,10,11,12];
     const slotW=(W-pad.left-pad.right)/12; const bW=Math.max(2,(slotW/years.length)-1);
     const sy=v=>pad.top+(1-v/maxV)*(H-pad.top-pad.bottom);
     const gridColor = getComputedStyle(document.documentElement).getPropertyValue('--border').trim() || 'rgba(30,58,95,.4)';
     const labelColor = getComputedStyle(document.documentElement).getPropertyValue('--text-dim').trim() || '#3d5a80';
     for(let i=0;i<=4;i++){const y=pad.top+(i/4)*(H-pad.top-pad.bottom);ctx.strokeStyle=gridColor;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pad.left,y);ctx.lineTo(W-pad.right,y);ctx.stroke();}
-    MONTHS.forEach((m,i)=>{ctx.fillStyle=labelColor;ctx.font="10px system-ui";ctx.textAlign="center";ctx.fillText(m,pad.left+(i+.5)*slotW,H-pad.bottom+14);});
+    order.forEach((mNum,i)=>{ctx.fillStyle=labelColor;ctx.font="10px system-ui";ctx.textAlign="center";ctx.fillText(MONTHS[mNum-1],pad.left+(i+.5)*slotW,H-pad.bottom+14);});
     barsRef.current=[];
-    [1,2,3,4,5,6,7,8,9,10,11,12].forEach((mo,mi)=>{
+    order.forEach((mo,mi)=>{
       years.forEach((yr,yi)=>{
         const v=byY[yr]?.[mo]||0; const color=CHART_COLORS[yi%CHART_COLORS.length];
         const x=pad.left+mi*slotW+yi*(bW+1); const barH=Math.max(1,(H-pad.top-pad.bottom)*v/maxV);
         ctx.fillStyle=color+"cc"; ctx.fillRect(x,sy(v),bW,barH);
-        barsRef.current.push({x,y:sy(v),w:bW,h:barH,year:yr,month:MONTHS[mi],value:v,color});
+        barsRef.current.push({x,y:sy(v),w:bW,h:barH,year:yr,month:MONTHS[mo-1],value:v,color});
       });
     });
     years.forEach((yr,yi)=>{const color=CHART_COLORS[yi%CHART_COLORS.length];const lx=pad.left+yi*68;ctx.fillStyle=color;ctx.fillRect(lx,6,14,3);ctx.fillStyle=labelColor;ctx.font="10px system-ui";ctx.textAlign="left";ctx.fillText(String(yr),lx+18,12);});
-  },[data,metric]);
+  },[data,metric,monthOrder]);
 
   const onMove=e=>{const rect=ref.current?.getBoundingClientRect();if(!rect)return;const mx=e.clientX-rect.left,my=e.clientY-rect.top;const hit=barsRef.current.find(b=>mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h);setTip(hit?{...hit,cx:mx,cy:my}:null);};
   const fmt=v=>metric==="revenue"?fmtEur(v):fmtN(v);
@@ -220,11 +222,12 @@ function YMTable({data,metric,hasFY}) {
           {!rows.length&&<tr><td colSpan={6} style={{padding:24,textAlign:"center",color:"var(--text-muted)"}}>No data — apply filters and refresh</td></tr>}
           {rows.map((r,i)=>{
             const d=diff(r), p=pct(r), up=d>0, dn=d<0;
+            const pv = prev(r);
             return(<tr key={i} style={{borderBottom:"1px solid var(--border)",background:i%2?"var(--bg-2)":"transparent"}}>
               <td style={{padding:"9px 14px",color:"var(--blue)",fontWeight:600,whiteSpace:"nowrap"}}>{MONTHS[(r.month||1)-1]}-{r.year}</td>
               <td style={{padding:"9px 14px",textAlign:"right",color:"var(--text-muted)"}}>{MONTHS[(r.month||1)-1]}-{(r.year||0)-1}</td>
               <td style={{padding:"9px 14px",textAlign:"right",fontWeight:600,color:"var(--text)"}}>{fmt(curr(r))}</td>
-              <td style={{padding:"9px 14px",textAlign:"right",color:"var(--text-muted)"}}>{prev(r)!=null&&prev(r)>0?fmt(prev(r)):"€0"}</td>
+              <td style={{padding:"9px 14px",textAlign:"right",color:"var(--text-muted)"}}>{pv==null||pv===0?"—":fmt(pv)}</td>
               <td style={{padding:"9px 14px",textAlign:"right",color:diffColor(d),fontWeight:600}}>{d!=null?(up?"+":"")+fmt(d):"—"}</td>
               <td style={{padding:"9px 14px",textAlign:"right",color:diffColor(d)}}>{p!=null?fmtPct(p):"—"}</td>
             </tr>);
@@ -357,32 +360,144 @@ function PendelTable({data}) {
   );
 }
 
-// ─── FEEDER TABLE (flat list with grouping) ───────────────────────────────────
+// ─── FEEDER TABLE (pivot) ───────────────────────────────────────────────────
 function FeederTable({data}) {
   if (!data?.length) return <Empty msg="No feeder data — adjust filters and apply"/>;
-  return(
+
+  const parseDMY = s => {
+    if (!s) return null;
+    const [dd,mm,yyyy] = String(s).split("-");
+    const y = parseInt(yyyy,10), m = parseInt(mm,10)-1, d = parseInt(dd,10);
+    if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
+    return Date.UTC(y,m,d);
+  };
+
+  const dates = [...new Set(data.map(r => r.DepartureDate))].filter(Boolean)
+    .sort((a,b) => (parseDMY(a)||0) - (parseDMY(b)||0));
+
+  const fmtV = v => (v==null ? "—" : fmtN(v));
+  const firstColW = 240;
+  const secondColW = 120;
+  const dateColW = 110;
+  const minWidth = firstColW + secondColW + dates.length * dateColW;
+
+  let grandTotal = 0;
+  const grandByDate = {};
+  const routesMap = new Map();
+
+  data.forEach(r => {
+    const routeNoRaw = r.RouteNo;
+    const routeNo = Number.isFinite(parseInt(routeNoRaw,10)) ? parseInt(routeNoRaw,10) : null;
+    const routeLabel = r.RouteLabel || "—";
+    const stopName = r.StopName || "—";
+    const date = r.DepartureDate;
+    const v = Number(r.TotalPax) || 0;
+
+    grandTotal += v;
+    grandByDate[date] = (grandByDate[date] || 0) + v;
+
+    const routeKey = `${routeNoRaw ?? ""}||${routeLabel}`;
+    if (!routesMap.has(routeKey)) {
+      routesMap.set(routeKey, {
+          routeKey,
+        routeNo,
+        routeLabel,
+        total: 0,
+        byDate: {},
+        stops: new Map(), // stopName -> { total, byDate }
+      });
+    }
+    const route = routesMap.get(routeKey);
+    route.total += v;
+    route.byDate[date] = (route.byDate[date] || 0) + v;
+
+    if (!route.stops.has(stopName)) route.stops.set(stopName, { total: 0, byDate: {} });
+    const stop = route.stops.get(stopName);
+    stop.total += v;
+    stop.byDate[date] = (stop.byDate[date] || 0) + v;
+  });
+
+  const routes = [...routesMap.values()].sort((a,b) => {
+    if (a.routeNo != null && b.routeNo != null && a.routeNo !== b.routeNo) return a.routeNo - b.routeNo;
+    return a.routeLabel.localeCompare(b.routeLabel);
+  });
+
+  return (
     <div style={{overflowX:"auto",maxHeight:540}}>
-      <table style={{borderCollapse:"collapse",fontSize:12,minWidth:700}}>
-        <thead style={{position:"sticky",top:0,zIndex:2}}>
+      <table style={{borderCollapse:"collapse",fontSize:12,minWidth}}>
+        <thead>
           <tr style={{background:"var(--bg-2)"}}>
-            {["Date","Label","Line","Route","Stop","Type","PAX","Bookings"].map(h=>(
-              <th key={h} style={{padding:"9px 12px",textAlign:h==="PAX"||h==="Bookings"?"right":"left",fontSize:10,fontWeight:700,color:"var(--text-dim)",textTransform:"uppercase",borderBottom:"1px solid var(--border)",whiteSpace:"nowrap"}}>{h}</th>
+            <th style={{padding:"9px 14px",textAlign:"left",fontSize:10,fontWeight:700,color:"var(--text-dim)",textTransform:"uppercase",borderBottom:"1px solid var(--border)",whiteSpace:"nowrap",position:"sticky",left:0,zIndex:4,background:"var(--bg-2)",minWidth:firstColW}}>Pick-up point</th>
+            <th style={{padding:"9px 14px",textAlign:"right",fontSize:10,fontWeight:700,color:"var(--text-dim)",textTransform:"uppercase",borderBottom:"1px solid var(--border)",whiteSpace:"nowrap",position:"sticky",left:firstColW,zIndex:4,background:"var(--bg-2)",minWidth:secondColW}}>Pax total</th>
+            {dates.map(d => (
+              <th key={d} style={{padding:"9px 10px",textAlign:"right",fontSize:10,fontWeight:700,color:"var(--text-dim)",textTransform:"uppercase",borderBottom:"1px solid var(--border)",whiteSpace:"nowrap",minWidth:dateColW}}>
+                {d}
+              </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {data.map((r,i)=>(
-            <tr key={i} style={{borderBottom:"1px solid var(--border)",background:i%2?"var(--bg-2)":"transparent"}}>
-              <td style={{padding:"8px 12px",color:"var(--blue)",fontWeight:600,whiteSpace:"nowrap",fontFamily:"var(--mono)"}}>{r.DepartureDate}</td>
-              <td style={{padding:"8px 12px",color:"var(--text)",whiteSpace:"nowrap"}}>{r.LabelName}</td>
-              <td style={{padding:"8px 12px",color:"var(--text-muted)",fontSize:11,whiteSpace:"nowrap"}}>{r.FeederLine}</td>
-              <td style={{padding:"8px 12px",color:"var(--text-muted)"}}>{r.RouteNo} {r.RouteLabel}</td>
-              <td style={{padding:"8px 12px",color:"var(--text)",fontWeight:500}}>{r.StopName}</td>
-              <td style={{padding:"8px 12px",color:"var(--text-dim)",fontSize:11}}>{r.StopType}</td>
-              <td style={{padding:"8px 12px",textAlign:"right",color:"var(--green)",fontWeight:700,fontFamily:"var(--mono)"}}>{fmtN(r.TotalPax)}</td>
-              <td style={{padding:"8px 12px",textAlign:"right",color:"var(--text-muted)",fontFamily:"var(--mono)"}}>{fmtN(r.BookingCount)}</td>
-            </tr>
-          ))}
+          <tr style={{borderBottom:"1px solid var(--border)",background:"var(--bg-2)"}}>
+            <td style={{padding:"8px 14px",position:"sticky",left:0,zIndex:2,background:"var(--bg-2)",color:"var(--text)",fontWeight:900}}>
+              Totaal vertrek
+            </td>
+            <td style={{padding:"8px 14px",textAlign:"right",position:"sticky",left:firstColW,zIndex:2,background:"var(--bg-2)",color:"var(--text)",fontWeight:900,fontFamily:"var(--mono)"}}>
+              {fmtV(grandTotal)}
+            </td>
+            {dates.map(d => {
+              const v = grandByDate[d] || 0;
+              return (
+                <td key={d} style={{padding:"8px 10px",textAlign:"right",fontFamily:"var(--mono)",color:v>0?"var(--text)":"var(--text-muted)",fontWeight:800}}>
+                  {v>0?fmtN(v):"—"}
+                </td>
+              );
+            })}
+          </tr>
+
+          {routes.map(route => {
+            const stopNames = [...route.stops.keys()].sort((a,b) => a.localeCompare(b));
+            return (
+              <Fragment key={route.routeKey}>
+                <tr style={{borderBottom:"1px solid var(--border)",background:"transparent"}}>
+                  <td style={{padding:"9px 14px",position:"sticky",left:0,zIndex:1,background:"var(--surface-2)",color:"var(--text)",fontWeight:900}}>
+                    {route.routeLabel}
+                  </td>
+                  <td style={{padding:"9px 14px",textAlign:"right",position:"sticky",left:firstColW,zIndex:1,background:"var(--surface-2)",color:"var(--text)",fontWeight:900,fontFamily:"var(--mono)"}}>
+                    {fmtV(route.total)}
+                  </td>
+                  {dates.map(d => {
+                    const v = route.byDate[d] || 0;
+                    return (
+                      <td key={d} style={{padding:"8px 10px",textAlign:"right",fontFamily:"var(--mono)",fontWeight:800,color:v>0?"var(--text)":"var(--text-muted)"}}>
+                        {v>0?fmtN(v):"—"}
+                      </td>
+                    );
+                  })}
+                </tr>
+                {stopNames.map(stopName => {
+                  const stop = route.stops.get(stopName);
+                  return (
+                    <tr key={stopName} style={{borderBottom:"1px solid var(--border)",background:"transparent"}}>
+                      <td style={{padding:"8px 14px",position:"sticky",left:0,zIndex:1,background:"var(--surface)",color:"var(--text)",fontWeight:600,paddingLeft:28}}>
+                        {stopName}
+                      </td>
+                      <td style={{padding:"8px 14px",textAlign:"right",position:"sticky",left:firstColW,zIndex:1,background:"var(--surface)",color:"var(--text)",fontFamily:"var(--mono)",fontWeight:600}}>
+                        {fmtV(stop.total)}
+                      </td>
+                      {dates.map(d => {
+                        const v = stop.byDate[d] || 0;
+                        return (
+                          <td key={d} style={{padding:"8px 10px",textAlign:"right",fontFamily:"var(--mono)",color:v>0?"var(--text)":"var(--text-muted)"}}>
+                            {v>0?fmtN(v):""}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </Fragment>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -1209,6 +1324,15 @@ export default function App() {
   if(!user) return <Login onLogin={handleLogin}/>;
 
   const hasFilters=applied.datasets?.length||applied.year?.length||applied.departureDateFrom||applied.status;
+  // For fiscal-year presets: show months in "fiscal order" (Dec→Nov for Solmar FY, Jul→Jun for Snowtravel FY).
+  const monthOrderForCharts = (() => {
+    if (!hasFY || !applied?.departureDateFrom) return null;
+    const parts = String(applied.departureDateFrom).split("-");
+    const m = parseInt(parts[1], 10);
+    if (m === 12) return [12,1,2,3,4,5,6,7,8,9,10,11];
+    if (m === 7)  return [7,8,9,10,11,12,1,2,3,4,5,6];
+    return null;
+  })();
   const fmtSync=d=>d?`${d.getHours().toString().padStart(2,"0")}:${d.getMinutes().toString().padStart(2,"0")}`:null;
 
   const applyFY=(preset)=>{
@@ -1393,11 +1517,11 @@ export default function App() {
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:16}}>
                 <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"16px 16px 10px"}}>
                   <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:12}}>Revenue by Year</div>
-                  <LineChart data={revData}/>
+                  <LineChart data={revData} monthOrder={monthOrderForCharts}/>
                 </div>
                 <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"16px 16px 10px"}}>
                   <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:12}}>Bookings / PAX by Year</div>
-                  <BarChart data={revData} metric={metric}/>
+                  <BarChart data={revData} metric={metric} monthOrder={monthOrderForCharts}/>
                 </div>
               </div>
               <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",overflow:"hidden"}}>
@@ -1438,6 +1562,7 @@ export default function App() {
       <FloatingAI tab={tab} setTab={setTab}/>
 
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         /* ═══ DARK THEME (default) ═══ */
         :root, [data-theme="dark"] {
           --bg:          #0d1117;
@@ -1459,7 +1584,7 @@ export default function App() {
           --amber-dim:   rgba(210,153,34,.12);
           --purple:      #bc8cff;
           --mono:        'SF Mono','Fira Code','Cascadia Code',monospace;
-          --font:        'Segoe UI',system-ui,-apple-system,sans-serif;
+          --font:        'Inter','Segoe UI',system-ui,-apple-system,sans-serif;
           --radius:      8px;
           --radius-lg:   12px;
           --radius-xl:   16px;
