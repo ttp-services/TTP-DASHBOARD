@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import Login from "./Login.jsx";
 
@@ -598,12 +599,17 @@ function BusTab() {
       ...(directionFilter?{direction:directionFilter}:{}),
       ...(weekdayFilter.length===1?{weekday:weekdayFilter[0]}:{}),
     };
+    const deckParams={dateFrom,dateTo,busStatus,
+      ...(pendelFilter.length>0?{pendel:pendelFilter[0]}:{}),
+      ...(weekdayFilter.length===1?{weekday:weekdayFilter[0]}:{}),
+      ...(regionFilter.length>0?{region:regionFilter[0]}:{}),
+    };
     try{
       const [k,p,f,d]=await Promise.allSettled([
         apiFetch("/api/dashboard/bus-kpis",base),
         apiFetch("/api/dashboard/bus-pendel",pendParams),
         apiFetch("/api/dashboard/bus-feeder",feedParams),
-        apiFetch("/api/dashboard/bus-deck",base),
+        apiFetch("/api/dashboard/bus-deck",deckParams),
       ]);
       if(k.status==="fulfilled") setKpis(k.value);
       if(p.status==="fulfilled") setPendel(Array.isArray(p.value)?p.value:[]);
@@ -1777,3 +1783,6 @@ export default function App() {
     </div>
   );
 }
+
+
+
