@@ -22,9 +22,11 @@ export default function Login({ onLogin }) {
       });
       const d = await res.json();
       if (!res.ok) { setError(d.error || "Invalid credentials."); return; }
-      localStorage.setItem("ttp_token", d.token);
+      // sessionStorage only — clears when browser/tab closes (security requirement)
       sessionStorage.setItem("ttp_token", d.token);
-      localStorage.setItem("ttp_user", JSON.stringify(d.user));
+      sessionStorage.setItem("ttp_user", JSON.stringify(d.user));
+      localStorage.removeItem("ttp_token");
+      localStorage.removeItem("ttp_user");
       onLogin(d.token, d.user);
     } catch {
       setError("Connection error. Check your network and try again.");

@@ -1,1985 +1,1653 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Login from "./Login.jsx";
 
-// ─── THEMES ───────────────────────────────────────────────────────────────────
-const LIGHT = {
-  bg:"#f0f2f5", sidebar:"#ffffff", card:"#ffffff", cardHover:"#f8f9fb",
-  border:"#e2e8f0", borderMid:"#cbd5e1",
-  accent:"#1d4ed8", accentLight:"#eff6ff", accentHover:"#1e40af",
-  text:"#0f172a", textMuted:"#64748b", textDim:"#94a3b8",
-  success:"#16a34a", successBg:"#f0fdf4",
-  danger:"#dc2626",  dangerBg:"#fef2f2",
-  warning:"#d97706", warningBg:"#fffbeb",
-  headerBg:"#ffffff", tableAlt:"#f8fafc", tableHover:"#eff6ff",
-  inputBg:"#f8fafc", inputBorder:"#e2e8f0",
-  shadow:"0 1px 3px rgba(0,0,0,0.08)", cardShadow:"0 2px 12px rgba(0,0,0,0.06)",
-  scrollbar:"#cbd5e1", navActive:"#eff6ff", navHover:"#f1f5f9",
-};
-const DARK = {
-  bg:"#0f1115", sidebar:"#13161b", card:"#1a1d23", cardHover:"#1f2229",
-  border:"#2d333d", borderMid:"#363d4a",
-  accent:"#60a5fa", accentLight:"#1e3a5f", accentHover:"#3b82f6",
-  text:"#f1f5f9", textMuted:"#cbd5e1", textDim:"#94a3b8",
-  success:"#4ade80", successBg:"#14532d",
-  danger:"#f87171",  dangerBg:"#450a0a",
-  warning:"#fbbf24", warningBg:"#451a03",
-  headerBg:"#13161b", tableAlt:"#0d1117", tableHover:"#1e3a5f",
-  inputBg:"#0f1115", inputBorder:"#374151",
-  shadow:"0 1px 3px rgba(0,0,0,0.3)", cardShadow:"0 2px 12px rgba(0,0,0,0.4)",
-  scrollbar:"#374151", navActive:"#1e3a5f", navHover:"#1a1d23",
-};
-
-const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const YEAR_COLORS = ["#8b5cf6","#f59e0b","#22c55e","#3b82f6","#ef4444","#06b6d4"];
-const DS_COLORS = { Solmar:"#22c55e", Interbus:"#f59e0b", Snowtravel:"#3b82f6", "Solmar DE":"#ef4444" };
 const BASE = (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) || "http://localhost:3001";
-const PENDELS = ["BEN","CBR","SAL","SSE","LLO","COB","CSE","PEN"];
+const CHART_COLORS = ["#3b82f6","#f59e0b","#10b981","#ef4444","#a855f7","#f97316","#06b6d4","#ec4899"];
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
-const dubaiTime = () => new Date().toLocaleTimeString("en-GB",{timeZone:"Asia/Dubai",hour:"2-digit",minute:"2-digit"});
-const fmtEur = n => { if(n==null) return "—"; const v=Number(n); if(Math.abs(v)>=1e6) return "€"+(v/1e6).toFixed(2)+"M"; if(Math.abs(v)>=1e3) return "€"+(v/1e3).toFixed(0)+"K"; return "€"+v.toLocaleString("nl-BE"); };
-const fmtN   = n => { if(n==null) return "—"; return Number(n).toLocaleString("nl-BE"); };
-const diffClr = (v,T) => v>0?T.success:v<0?T.danger:T.textMuted;
-const diffBg  = (v,T) => v>0?T.successBg:v<0?T.dangerBg:"transparent";
+// Session-only: token lives only in sessionStorage — cleared on tab/browser close
+const getToken = () => sessionStorage.getItem("ttp_token") || "";
+const fmtN   = n => n == null ? "—" : Number(n).toLocaleString("nl-BE");
+const fmtEur = n => {
+  if (n == null) return "—";
+  const v = Number(n);
+  if (Math.abs(v) >= 1e6) return `€${(v/1e6).toFixed(2)}M`;
+  if (Math.abs(v) >= 1e3) return `€${(v/1e3).toFixed(1)}K`;
+  return `€${v.toLocaleString("nl-BE")}`;
+};
+const fmtPct = (n, plus = true) => n == null ? "—" : `${n > 0 && plus ? "+" : ""}${Number(n).toFixed(1)}%`;
+const diffColor = v => v > 0 ? "var(--green)" : v < 0 ? "var(--red)" : "var(--text-muted)";
 
-async function apiFetch(path, params={}) {
-  const t = localStorage.getItem("ttp_token") || sessionStorage.getItem("ttp_token") || "";
-  const qs = Object.entries(params).filter(([,v])=>v!=null&&v!=="")
-    .flatMap(([k,v])=>Array.isArray(v)?v.map(x=>`${k}=${encodeURIComponent(x)}`):[[`${k}=${encodeURIComponent(v)}`]])
-    .join("&");
-  const r = await fetch(`${BASE}${path}${qs?"?"+qs:""}`,{headers:{"Authorization":`Bearer ${t}`}});
-  if(r.status===401) throw Object.assign(new Error("Unauthorized"),{status:401});
+async function apiFetch(path, params = {}) {
+  const qs = new URLSearchParams();
+  Object.entries(params).forEach(([k,v]) => {
+    if (v == null || v === "") return;
+    if (Array.isArray(v)) v.forEach(x => qs.append(k, x));
+    else qs.set(k, v);
+  });
+  const url = `${BASE}${path}${qs.toString() ? "?"+qs.toString() : ""}`;
+  const r = await fetch(url, { headers: { Authorization: `Bearer ${getToken()}` } });
+  if (r.status === 401) throw new Error("Unauthorized");
+  if (!r.ok) throw new Error(await r.text());
   return r.json();
 }
 
 // ─── SVG ICONS ────────────────────────────────────────────────────────────────
-const Ic = {
-  overview:  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>,
-  bus:       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 6v6"/><path d="M15 6v6"/><path d="M2 12h19.6"/><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/></svg>,
-  table:     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>,
-  ai:        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"/><circle cx="9" cy="14" r="1" fill="currentColor"/><circle cx="15" cy="14" r="1" fill="currentColor"/></svg>,
-  settings:  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
-  logout:    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
-  refresh:   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.04-5.44"/></svg>,
-  filter:    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>,
-  download:  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
-  send:      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>,
-  plus:      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
-  edit:      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
-  trash:     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>,
-  search:    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
-  close:     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
-  chevDown:  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 9 12 15 18 9"/></svg>,
-  arrowUp:   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>,
-  arrowDown: <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>,
-  sun:       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>,
-  moon:      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>,
-  key:       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>,
-  database:  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>,
-  user:      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
-  bell:      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>,
+const I = {
+  overview: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>,
+  bus:      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 6v6M15 6v6M2 12h19.6M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><circle cx="16" cy="18" r="2"/></svg>,
+  hotel:    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 22V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v15M2 22h20M15 22v-4a3 3 0 0 0-6 0v4"/><rect x="9" y="7" width="2" height="3"/><rect x="13" y="7" width="2" height="3"/></svg>,
+  table:    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>,
+  ai:       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"/><circle cx="9" cy="14" r="1" fill="currentColor"/><circle cx="15" cy="14" r="1" fill="currentColor"/></svg>,
+  settings: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
+  refresh:  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.04-5.44"/></svg>,
+  filter:   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>,
+  close:    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+  up:       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>,
+  down:     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>,
+  send:     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>,
+  eye:      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
+  eyeOff:   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>,
+  search:   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
+  download: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+  plus:     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+  trash:    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>,
+  warn:     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+  moon:     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>,
+  sun:      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>,
 };
 
-// ─── CANVAS: LINE CHART ───────────────────────────────────────────────────────
-function LineChart({ data, T, dateFrom }) {
-  const ref = useRef(null); const ptsRef = useRef([]); const [tip, setTip] = useState(null);
-  useEffect(()=>{
-    const c=ref.current; if(!c) return;
+// ─── LINE CHART ───────────────────────────────────────────────────────────────
+function LineChart({ data }) {
+  const ref = useRef(null), ptsRef = useRef([]);
+  const [tip, setTip] = useState(null);
+
+  useEffect(() => {
+    const c = ref.current; if (!c) return;
+    const dpr = window.devicePixelRatio||1, rect = c.getBoundingClientRect();
+    c.width = rect.width*dpr; c.height = rect.height*dpr;
+    const ctx = c.getContext("2d"); ctx.scale(dpr,dpr);
+    const W=rect.width, H=rect.height, pad={top:28,right:16,bottom:36,left:60};
+    ctx.clearRect(0,0,W,H);
+    if (!data?.length) return;
+    const years = [...new Set(data.map(d=>d.year))].sort();
+    const byY = {};
+    data.forEach(d => { if (!byY[d.year]) byY[d.year]={}; byY[d.year][d.month]=d.revenue||0; });
+    const maxV = Math.max(...data.map(d=>d.revenue||0), 1);
+    const sx = m => pad.left + ((m-1)/11)*(W-pad.left-pad.right);
+    const sy = v => pad.top + (1-v/maxV)*(H-pad.top-pad.bottom);
+    const gridColor = getComputedStyle(document.documentElement).getPropertyValue('--border').trim() || 'rgba(30,58,95,.4)';
+    const labelColor = getComputedStyle(document.documentElement).getPropertyValue('--text-dim').trim() || '#3d5a80';
+    for (let i=0;i<=4;i++) {
+      const y = pad.top+(i/4)*(H-pad.top-pad.bottom);
+      ctx.strokeStyle=gridColor; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(pad.left,y); ctx.lineTo(W-pad.right,y); ctx.stroke();
+      ctx.fillStyle=labelColor; ctx.font="10px system-ui"; ctx.textAlign="right";
+      ctx.fillText(fmtEur(maxV*(1-i/4)), pad.left-6, y+4);
+    }
+    MONTHS.forEach((m,i) => {
+      ctx.fillStyle=labelColor; ctx.font="10px system-ui"; ctx.textAlign="center";
+      ctx.fillText(m, sx(i+1), H-pad.bottom+14);
+    });
+    ptsRef.current = [];
+    years.forEach((yr,yi) => {
+      const color = CHART_COLORS[yi % CHART_COLORS.length];
+      const pts = [1,2,3,4,5,6,7,8,9,10,11,12].map(m => ({ x:sx(m), y:sy(byY[yr]?.[m]||0), val:byY[yr]?.[m]||0, m }));
+      ctx.strokeStyle=color; ctx.lineWidth=2; ctx.lineJoin="round";
+      ctx.beginPath(); pts.forEach((p,i) => i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y)); ctx.stroke();
+      pts.forEach(p => {
+        ctx.fillStyle=color; ctx.beginPath(); ctx.arc(p.x,p.y,3,0,Math.PI*2); ctx.fill();
+        ptsRef.current.push({...p,year:yr,month:MONTHS[p.m-1],color});
+      });
+      const lx = pad.left + yi*68;
+      ctx.fillStyle=color; ctx.fillRect(lx,6,14,3);
+      ctx.fillStyle=labelColor; ctx.font="10px system-ui"; ctx.textAlign="left";
+      ctx.fillText(String(yr), lx+18, 12);
+    });
+  }, [data]);
+
+  const onMove = e => {
+    const rect = ref.current?.getBoundingClientRect(); if (!rect) return;
+    const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+    const hit = ptsRef.current.find(p => Math.hypot(p.x-mx,p.y-my)<12);
+    setTip(hit ? {...hit,cx:mx,cy:my} : null);
+  };
+
+  return (
+    <div style={{position:"relative"}}>
+      <canvas ref={ref} style={{width:"100%",height:220,display:"block",cursor:"crosshair"}} onMouseMove={onMove} onMouseLeave={()=>setTip(null)}/>
+      {tip && <div style={{position:"absolute",left:tip.cx+10,top:tip.cy-10,background:"var(--surface-2)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 12px",fontSize:12,pointerEvents:"none",zIndex:10}}>
+        <b style={{color:tip.color}}>{tip.year}</b> · {tip.month}<br/><span style={{color:"var(--text)"}}>{fmtEur(tip.val)}</span>
+      </div>}
+    </div>
+  );
+}
+
+// ─── BAR CHART ───────────────────────────────────────────────────────────────
+function BarChart({ data, metric="bookings" }) {
+  const ref = useRef(null), barsRef = useRef([]);
+  const [tip, setTip] = useState(null);
+
+  useEffect(() => {
+    const c = ref.current; if (!c) return;
     const dpr=window.devicePixelRatio||1, rect=c.getBoundingClientRect();
     c.width=rect.width*dpr; c.height=rect.height*dpr;
     const ctx=c.getContext("2d"); ctx.scale(dpr,dpr);
-    const W=rect.width,H=rect.height,pad={top:28,right:20,bottom:38,left:58};
+    const W=rect.width, H=rect.height, pad={top:28,right:16,bottom:36,left:60};
     ctx.clearRect(0,0,W,H);
-    if(!data?.length) return;
-
-    // Determine month order: if fiscal year filter, start from filter start month
-    let startMonth = 1; // default Jan
-    if(dateFrom){
-      const m=parseInt((dateFrom||"").split("-")[1]);
-      if(m&&m>=1&&m<=12) startMonth=m;
-    }
-    // Build ordered month array: e.g. [12,1,2,3,...,11] for Dec start
-    const monthOrder=[];
-    for(let i=0;i<12;i++) monthOrder.push(((startMonth-1+i)%12)+1);
-
-    const byY={}; data.forEach(d=>{if(!byY[d.year])byY[d.year]={};byY[d.year][d.month]=d.revenue||0;});
-    // For fiscal year view: group consecutive Dec-Nov into one "year" label
-    const years=Object.keys(byY).sort((a,b)=>parseInt(a)-parseInt(b));
-    const maxV=Math.max(...data.map(d=>d.revenue||0),1);
-    const scX=(idx)=>pad.left+idx*(W-pad.left-pad.right)/11;
-    const scY=v=>H-pad.bottom-(v/maxV)*(H-pad.top-pad.bottom);
-    for(let i=0;i<=4;i++){
-      const y=H-pad.bottom-(i/4)*(H-pad.top-pad.bottom);
-      ctx.strokeStyle=T.border;ctx.lineWidth=0.8;ctx.setLineDash([3,3]);
-      ctx.beginPath();ctx.moveTo(pad.left,y);ctx.lineTo(W-pad.right,y);ctx.stroke();ctx.setLineDash([]);
-      const v=maxV*i/4;ctx.fillStyle=T.textDim;ctx.font="10px 'Segoe UI',sans-serif";ctx.textAlign="right";
-      ctx.fillText(v>=1e6?(v/1e6).toFixed(1)+"M":v>=1e3?(v/1e3).toFixed(0)+"K":Math.round(v),pad.left-4,y+3);
-    }
-    ctx.fillStyle=T.textDim;ctx.font="10px 'Segoe UI',sans-serif";ctx.textAlign="center";
-    monthOrder.forEach((m,idx)=>ctx.fillText(MONTHS[m-1],scX(idx),H-pad.bottom+14));
-    ptsRef.current=[];
-    years.forEach((y,i)=>{
-      const color=YEAR_COLORS[i%YEAR_COLORS.length];
-      ctx.strokeStyle=color;ctx.lineWidth=2.5;ctx.beginPath();let started=false;
-      monthOrder.forEach((m,idx)=>{
-        const v=byY[y]?.[m];if(!v)return;
-        const[x,yy]=[scX(idx),scY(v)];if(!started){ctx.moveTo(x,yy);started=true;}else ctx.lineTo(x,yy);
-        ptsRef.current.push({x,y:yy,year:y,month:MONTHS[m-1],value:v,color});
-      });
-      ctx.stroke();
-      ptsRef.current.filter(p=>p.year===y).forEach(p=>{
-        ctx.fillStyle=T.card;ctx.strokeStyle=color;ctx.lineWidth=2;
-        ctx.beginPath();ctx.arc(p.x,p.y,4,0,Math.PI*2);ctx.fill();ctx.stroke();
-      });
-    });
-    let lx=pad.left;
-    years.forEach((y,i)=>{ctx.fillStyle=YEAR_COLORS[i%YEAR_COLORS.length];ctx.fillRect(lx,7,12,3);ctx.fillStyle=T.textDim;ctx.font="10px 'Segoe UI',sans-serif";ctx.textAlign="left";ctx.fillText(y,lx+15,13);lx+=48;});
-  },[data,T,dateFrom]);
-  const onMove=useCallback(e=>{
-    const c=ref.current;if(!c)return;
-    const rect=c.getBoundingClientRect();
-    const mx=(e.clientX-rect.left)*(c.width/rect.width/(window.devicePixelRatio||1));
-    const my=(e.clientY-rect.top)*(c.height/rect.height/(window.devicePixelRatio||1));
-    let n=null,d=28; ptsRef.current.forEach(p=>{const dd=Math.sqrt((p.x-mx)**2+(p.y-my)**2);if(dd<d){d=dd;n=p;}});
-    setTip(n?{...n,cx:e.clientX,cy:e.clientY}:null);
-  },[]);
-  return(<div style={{position:"relative"}}><canvas ref={ref} style={{width:"100%",height:220,display:"block",cursor:"crosshair"}} onMouseMove={onMove} onMouseLeave={()=>setTip(null)}/>
-    {tip&&<div style={{position:"fixed",left:tip.cx+14,top:tip.cy-48,background:tip.color,borderRadius:8,padding:"7px 12px",fontSize:12,color:"#fff",pointerEvents:"none",zIndex:9999,boxShadow:"0 4px 12px rgba(0,0,0,0.3)",whiteSpace:"nowrap"}}>
-      <b>{tip.month} {tip.year}</b><br/>{fmtEur(tip.value)}</div>}</div>);
-}
-
-// ─── CANVAS: BAR CHART ────────────────────────────────────────────────────────
-function BarChart({ data, metric, onMetric, T, dateFrom }) {
-  const ref=useRef(null);const barsRef=useRef([]);const[tip,setTip]=useState(null);
-  useEffect(()=>{
-    const c=ref.current;if(!c)return;
-    const dpr=window.devicePixelRatio||1,rect=c.getBoundingClientRect();
-    c.width=rect.width*dpr;c.height=rect.height*dpr;
-    const ctx=c.getContext("2d");ctx.scale(dpr,dpr);
-    const W=rect.width,H=rect.height,pad={top:28,right:20,bottom:38,left:52};
-    ctx.clearRect(0,0,W,H);if(!data?.length)return;
-    let startMonth=1;
-    if(dateFrom){const m=parseInt((dateFrom||"").split("-")[1]);if(m&&m>=1&&m<=12)startMonth=m;}
-    const monthOrder=[];for(let i=0;i<12;i++)monthOrder.push(((startMonth-1+i)%12)+1);
-    const byY={};data.forEach(d=>{if(!byY[d.year])byY[d.year]={};byY[d.year][d.month]=metric==="bookings"?(d.bookings||0):metric==="pax"?(d.pax||0):(d.revenue||0);});
-    const years=Object.keys(byY).sort();
-    const allV=Object.values(byY).flatMap(y=>Object.values(y));
-    const maxV=Math.max(...allV,1);
-    const slotW=(W-pad.left-pad.right)/12;
-    const bW=Math.max(4,Math.floor(slotW/years.length)-2);
-    const sy=v=>H-pad.bottom-(v/maxV)*(H-pad.top-pad.bottom);
-    for(let i=0;i<=4;i++){
-      const yy=H-pad.bottom-(i/4)*(H-pad.top-pad.bottom);
-      ctx.strokeStyle=T.border;ctx.lineWidth=0.8;ctx.setLineDash([3,3]);
-      ctx.beginPath();ctx.moveTo(pad.left,yy);ctx.lineTo(W-pad.right,yy);ctx.stroke();ctx.setLineDash([]);
-      const v=maxV*i/4;ctx.fillStyle=T.textDim;ctx.font="10px 'Segoe UI',sans-serif";ctx.textAlign="right";
-      ctx.fillText(metric==="revenue"?(v>=1e6?(v/1e6).toFixed(1)+"M":v>=1e3?(v/1e3).toFixed(0)+"K":Math.round(v)):(v>=1e3?(v/1e3).toFixed(0)+"K":Math.round(v)),pad.left-4,yy+3);
-    }
-    ctx.fillStyle=T.textDim;ctx.font="10px 'Segoe UI',sans-serif";ctx.textAlign="center";
-    monthOrder.forEach((m,idx)=>ctx.fillText(MONTHS[m-1],pad.left+idx*slotW+slotW/2,H-pad.bottom+14));
+    if (!data?.length) return;
+    const years=[...new Set(data.map(d=>d.year))].sort();
+    const byY={};
+    data.forEach(d=>{ if(!byY[d.year]) byY[d.year]={}; byY[d.year][d.month]=(byY[d.year][d.month]||0)+(metric==="bookings"?d.bookings:metric==="pax"?d.pax:d.revenue)||0; });
+    const allVals=Object.values(byY).flatMap(m=>Object.values(m)); const maxV=Math.max(...allVals,1);
+    const slotW=(W-pad.left-pad.right)/12; const bW=Math.max(2,(slotW/years.length)-1);
+    const sy=v=>pad.top+(1-v/maxV)*(H-pad.top-pad.bottom);
+    const gridColor = getComputedStyle(document.documentElement).getPropertyValue('--border').trim() || 'rgba(30,58,95,.4)';
+    const labelColor = getComputedStyle(document.documentElement).getPropertyValue('--text-dim').trim() || '#3d5a80';
+    for(let i=0;i<=4;i++){const y=pad.top+(i/4)*(H-pad.top-pad.bottom);ctx.strokeStyle=gridColor;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pad.left,y);ctx.lineTo(W-pad.right,y);ctx.stroke();}
+    MONTHS.forEach((m,i)=>{ctx.fillStyle=labelColor;ctx.font="10px system-ui";ctx.textAlign="center";ctx.fillText(m,pad.left+(i+.5)*slotW,H-pad.bottom+14);});
     barsRef.current=[];
-    years.forEach((y,i)=>{
-      const color=YEAR_COLORS[i%YEAR_COLORS.length];ctx.fillStyle=color+"cc";
-      monthOrder.forEach((m,idx)=>{
-        const v=byY[y]?.[m]||0;if(!v)return;
-        const x=pad.left+idx*slotW+i*(bW+1)+(slotW-years.length*(bW+1))/2;
-        const barH=(v/maxV)*(H-pad.top-pad.bottom);
-        ctx.fillRect(x,sy(v),bW,barH);
-        barsRef.current.push({x,y:sy(v),width:bW,height:barH,year:y,month:MONTHS[m-1],value:v,color});
+    [1,2,3,4,5,6,7,8,9,10,11,12].forEach((mo,mi)=>{
+      years.forEach((yr,yi)=>{
+        const v=byY[yr]?.[mo]||0; const color=CHART_COLORS[yi%CHART_COLORS.length];
+        const x=pad.left+mi*slotW+yi*(bW+1); const barH=Math.max(1,(H-pad.top-pad.bottom)*v/maxV);
+        ctx.fillStyle=color+"cc"; ctx.fillRect(x,sy(v),bW,barH);
+        barsRef.current.push({x,y:sy(v),w:bW,h:barH,year:yr,month:MONTHS[mi],value:v,color});
       });
     });
-    let lx=pad.left;
-    years.forEach((y,i)=>{ctx.fillStyle=YEAR_COLORS[i%YEAR_COLORS.length];ctx.fillRect(lx,7,12,8);ctx.fillStyle=T.textDim;ctx.font="10px 'Segoe UI',sans-serif";ctx.textAlign="left";ctx.fillText(y,lx+15,14);lx+=48;});
-  },[data,metric,T,dateFrom]);
-  const onMove=useCallback(e=>{
-    const c=ref.current;if(!c)return;
-    const rect=c.getBoundingClientRect();
-    const mx=(e.clientX-rect.left)*(c.width/rect.width/(window.devicePixelRatio||1));
-    const my=(e.clientY-rect.top)*(c.height/rect.height/(window.devicePixelRatio||1));
-    const bar=barsRef.current.find(b=>mx>=b.x&&mx<=b.x+b.width&&my>=b.y&&my<=b.y+b.height);
-    setTip(bar?{...bar,cx:e.clientX,cy:e.clientY}:null);
-  },[]);
-  return(<div style={{position:"relative"}}>
-    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-      <span style={{fontSize:11,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.07em"}}>BOOKINGS / PAX BY YEAR</span>
-      <div style={{display:"flex",gap:3}}>
-        {["bookings","pax"].map(m=>(
-          <button key={m} onClick={()=>onMetric(m)} style={{background:metric===m?T.accent:"transparent",color:metric===m?"#fff":T.textMuted,border:`1px solid ${metric===m?T.accent:T.border}`,borderRadius:5,padding:"2px 9px",fontSize:11,fontWeight:600,cursor:"pointer",textTransform:"capitalize"}}>{m==="bookings"?"Bookings":"PAX"}</button>
-        ))}
-      </div>
-    </div>
-    <canvas ref={ref} style={{width:"100%",height:220,display:"block",cursor:"crosshair"}} onMouseMove={onMove} onMouseLeave={()=>setTip(null)}/>
-    {tip&&<div style={{position:"fixed",left:tip.cx+14,top:tip.cy-48,background:tip.color,borderRadius:8,padding:"7px 12px",fontSize:12,color:"#fff",pointerEvents:"none",zIndex:9999,whiteSpace:"nowrap"}}>
-      <b>{tip.month} {tip.year}</b><br/>{metric==="revenue"?fmtEur(tip.value):fmtN(tip.value)+" "+metric}</div>}
-  </div>);
-}
+    years.forEach((yr,yi)=>{const color=CHART_COLORS[yi%CHART_COLORS.length];const lx=pad.left+yi*68;ctx.fillStyle=color;ctx.fillRect(lx,6,14,3);ctx.fillStyle=labelColor;ctx.font="10px system-ui";ctx.textAlign="left";ctx.fillText(String(yr),lx+18,12);});
+  },[data,metric]);
 
-// ─── CANVAS: BUS BAR CHART ────────────────────────────────────────────────────
-function BusBarChart({ data, metric, title, T }) {
-  const ref=useRef(null);const barsRef=useRef([]);const[tip,setTip]=useState(null);
-  useEffect(()=>{
-    const c=ref.current;if(!c)return;
-    const dpr=window.devicePixelRatio||1,rect=c.getBoundingClientRect();
-    c.width=rect.width*dpr;c.height=rect.height*dpr;
-    const ctx=c.getContext("2d");ctx.scale(dpr,dpr);
-    const W=rect.width,H=rect.height,pad={top:24,right:16,bottom:42,left:54};
-    ctx.clearRect(0,0,W,H);
-    if(!data?.length){ctx.fillStyle=T.textMuted;ctx.font="12px sans-serif";ctx.textAlign="center";ctx.fillText("No data",W/2,H/2);return;}
-    const classes=[...new Set(data.map(d=>d.bus_class||""))].filter(Boolean);
-    const datasets=[...new Set(data.map(d=>d.dataset))].filter(Boolean);
-    const maxV=Math.max(...data.map(d=>metric==="revenue"?(d.revenue||0):(d.bookings||0)),1);
-    const slotW=(W-pad.left-pad.right)/Math.max(classes.length,1);
-    const bW=Math.max(8,Math.floor(slotW/Math.max(datasets.length,1))-4);
-    const sy=v=>H-pad.bottom-(v/maxV)*(H-pad.top-pad.bottom);
-    for(let i=0;i<=4;i++){
-      const yy=H-pad.bottom-(i/4)*(H-pad.top-pad.bottom);
-      ctx.strokeStyle=T.border;ctx.lineWidth=0.8;ctx.setLineDash([3,3]);
-      ctx.beginPath();ctx.moveTo(pad.left,yy);ctx.lineTo(W-pad.right,yy);ctx.stroke();ctx.setLineDash([]);
-      const v=maxV*i/4;ctx.fillStyle=T.textDim;ctx.font="10px 'Segoe UI',sans-serif";ctx.textAlign="right";
-      ctx.fillText(v>=1e6?(v/1e6).toFixed(1)+"M":v>=1e3?(v/1e3).toFixed(0)+"K":Math.round(v),pad.left-4,yy+3);
-    }
-    barsRef.current=[];
-    classes.forEach((cls,ci)=>{
-      const slotX=pad.left+ci*slotW;
-      const totalW=datasets.length*(bW+3);
-      datasets.forEach((ds,di)=>{
-        const row=data.find(d=>d.bus_class===cls&&d.dataset===ds);if(!row)return;
-        const v=metric==="revenue"?(row.revenue||0):(row.bookings||0);if(!v)return;
-        const x=slotX+(slotW-totalW)/2+di*(bW+3);
-        const barH=(v/maxV)*(H-pad.top-pad.bottom);
-        const color=DS_COLORS[ds]||"#6b7280";ctx.fillStyle=color;
-        ctx.beginPath();ctx.roundRect(x,sy(v),bW,barH,2);ctx.fill();
-        barsRef.current.push({x,y:sy(v),width:bW,height:barH,ds,cls,value:v,color});
-      });
-      ctx.fillStyle=T.textDim;ctx.font="10px 'Segoe UI',sans-serif";ctx.textAlign="center";
-      ctx.fillText(cls.length>8?cls.slice(0,8)+"..":cls,slotX+slotW/2,H-pad.bottom+13);
-    });
-    let lx=pad.left;
-    datasets.forEach(ds=>{const color=DS_COLORS[ds]||"#6b7280";ctx.fillStyle=color;ctx.fillRect(lx,8,10,8);ctx.fillStyle=T.textDim;ctx.font="10px 'Segoe UI',sans-serif";ctx.textAlign="left";ctx.fillText(ds,lx+13,15);lx+=ds.length*5.5+24;});
-  },[data,metric,T]);
-  const onMove=useCallback(e=>{
-    const c=ref.current;if(!c)return;const rect=c.getBoundingClientRect();
-    const mx=(e.clientX-rect.left)*(c.width/rect.width/(window.devicePixelRatio||1));
-    const my=(e.clientY-rect.top)*(c.height/rect.height/(window.devicePixelRatio||1));
-    const bar=barsRef.current.find(b=>mx>=b.x&&mx<=b.x+b.width&&my>=b.y&&my<=b.y+b.height);
-    setTip(bar?{...bar,cx:e.clientX,cy:e.clientY}:null);
-  },[]);
-  return(<div style={{position:"relative",flex:1}}>
-    <div style={{fontSize:11,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8}}>{title}</div>
-    <canvas ref={ref} style={{width:"100%",height:200,display:"block",cursor:"crosshair"}} onMouseMove={onMove} onMouseLeave={()=>setTip(null)}/>
-    {tip&&<div style={{position:"fixed",left:tip.cx+14,top:tip.cy-48,background:tip.color,borderRadius:8,padding:"7px 12px",fontSize:12,color:"#fff",pointerEvents:"none",zIndex:9999,whiteSpace:"nowrap"}}>
-      <b>{tip.cls} · {tip.ds}</b><br/>{metric==="revenue"?fmtEur(tip.value):fmtN(tip.value)+" bookings"}</div>}
-  </div>);
-}
+  const onMove=e=>{const rect=ref.current?.getBoundingClientRect();if(!rect)return;const mx=e.clientX-rect.left,my=e.clientY-rect.top;const hit=barsRef.current.find(b=>mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h);setTip(hit?{...hit,cx:mx,cy:my}:null);};
+  const fmt=v=>metric==="revenue"?fmtEur(v):fmtN(v);
 
-// ─── SHARED UI ────────────────────────────────────────────────────────────────
-function Card({children,style={},T}){return <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:12,boxShadow:T.cardShadow,...style}}>{children}</div>;}
-function CardHdr({title,right,T}){return <div style={{padding:"13px 18px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-  <span style={{fontSize:11,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.07em"}}>{title}</span>{right}</div>;}
-function Btn({children,variant="primary",size="md",onClick,disabled,style={},T}){
-  const base={border:"none",borderRadius:7,cursor:disabled?"not-allowed":"pointer",fontWeight:600,display:"inline-flex",alignItems:"center",gap:5,transition:"all 0.15s",...style};
-  const sz=size==="sm"?{padding:"4px 10px",fontSize:11}:{padding:"7px 14px",fontSize:13};
-  const v=variant==="primary"?{background:T?.accent||"#1d4ed8",color:"#fff"}:variant==="danger"?{background:"transparent",color:T?.danger||"#dc2626",border:`1px solid ${T?.danger||"#dc2626"}44`}:{background:"transparent",color:T?.textMuted||"#6b7280",border:`1px solid ${T?.border||"#e5e7eb"}`};
-  return <button onClick={onClick} disabled={disabled} style={{...base,...sz,...v,opacity:disabled?0.5:1}}>{children}</button>;}
-function Badge({children,color="accent",T}){
-  const m={accent:{bg:T.accentLight,text:T.accent},success:{bg:T.successBg,text:T.success},danger:{bg:T.dangerBg,text:T.danger},muted:{bg:T.tableAlt,text:T.textMuted}};
-  const s=m[color]||m.muted;
-  return <span style={{background:s.bg,color:s.text,fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:10,whiteSpace:"nowrap"}}>{children}</span>;}
-
-// ─── TABLE COMPONENT ─────────────────────────────────────────────────────────
-function DataTable({columns,rows,emptyMsg="No data",T,maxHeight=460}){
-  const[hover,setHover]=useState(-1);
-  return(<div className="table-scroll" style={{overflowX:"auto",overflowY:"auto",maxHeight}}>
-    <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:columns.length*80}}>
-      <thead><tr style={{background:T.tableAlt,position:"sticky",top:0,zIndex:1}}>
-        {columns.map((c,i)=><th key={i} style={{padding:"9px 12px",textAlign:c.right?"right":"left",fontSize:10,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap"}}>{c.label}</th>)}
-      </tr></thead>
-      <tbody>
-        {!rows?.length&&<tr><td colSpan={columns.length} style={{padding:24,textAlign:"center",color:T.textMuted,fontSize:13}}>{emptyMsg}</td></tr>}
-        {rows?.map((row,i)=>(
-          <tr key={i} style={{background:hover===i?T.tableHover:i%2===0?T.card:T.tableAlt,borderBottom:`1px solid ${T.border}`,transition:"background 0.1s"}}
-            onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(-1)}>
-            {columns.map((c,j)=>{
-              const val=c.render?c.render(row):row[c.key];
-              return <td key={j} style={{padding:"8px 12px",textAlign:c.right?"right":"left",color:c.color?c.color(row,T):T.text,fontWeight:c.bold?"600":"400",whiteSpace:c.noWrap?"nowrap":"normal"}}>{val??""}</td>;
-            })}
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>);
-}
-
-
-// ─── FEEDER PIVOT TABLE ───────────────────────────────────────────────────────
-// Dates as columns with normal horizontal headers (no rotation)
-// Matches Google Sheets exactly: Pick-up point | Pax (total) | date columns...
-function FeederPivotTable({ data, T }) {
-  if (!data?.length) return (
-    <div style={{padding:32,textAlign:"center",color:T.textMuted,fontSize:13}}>
-      No feeder data — select a date range and click Apply
+  return(
+    <div style={{position:"relative"}}>
+      <canvas ref={ref} style={{width:"100%",height:220,display:"block",cursor:"crosshair"}} onMouseMove={onMove} onMouseLeave={()=>setTip(null)}/>
+      {tip&&<div style={{position:"absolute",left:tip.cx+10,top:tip.cy-10,background:"var(--surface-2)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 12px",fontSize:12,pointerEvents:"none",zIndex:10}}>
+        <b style={{color:tip.color}}>{tip.year}</b> · {tip.month}<br/><span style={{color:"var(--text)"}}>{fmt(tip.value)}</span>
+      </div>}
     </div>
   );
+}
 
-  const parseDate = s => {
-    if(!s)return 0;
-    const sep=s.includes('/')?' /':'-';
-    const[d,m,y]=s.split(s.includes('/')?'/':'-');
-    if(!y)return 0;
-    return new Date(`${y}-${(m||'01').padStart(2,'0')}-${(d||'01').padStart(2,'0')}`).getTime();
-  };
+// ─── KPI CARD ─────────────────────────────────────────────────────────────────
+function KpiCard({label,curr,prev,diff,pct,fmt,color,prevLabel}) {
+  const up=diff>0, dn=diff<0;
+  return (
+    <div style={{flex:1,minWidth:180,background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"18px 20px"}}>
+      <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:12}}>
+        <div style={{width:8,height:8,borderRadius:"50%",background:color}}/>
+        <span style={{fontSize:11,fontWeight:700,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:".07em"}}>{label}</span>
+      </div>
+      <div style={{fontSize:28,fontWeight:800,color:"var(--text)",lineHeight:1,marginBottom:6,fontFamily:"var(--mono)"}}>{curr!=null?fmt(curr):"—"}</div>
+      <div style={{fontSize:12,color:"var(--text-muted)",marginBottom:8}}>
+        {prev>0?<>{prevLabel||"prev"}: <b>{fmt(prev)}</b></>:<span style={{color:"var(--text-dim)"}}>no previous data</span>}
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:7}}>
+        {diff!=null&&diff!==0&&<span style={{display:"flex",alignItems:"center",gap:2,color:diffColor(diff),fontSize:12,fontWeight:700}}>{up?I.up:I.down}{fmt(Math.abs(diff))}</span>}
+        {pct!=null&&<span style={{background:up?"var(--green-dim)":dn?"var(--red-dim)":"var(--surface-2)",color:diffColor(diff),fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:10}}>{fmtPct(pct)}</span>}
+      </div>
+    </div>
+  );
+}
 
-  const allDates=[...new Set(data.map(d=>d.DepartureDate||'').filter(Boolean))].sort((a,b)=>parseDate(a)-parseDate(b));
-  const dates=allDates.slice(0,15);
-
-  const lookup={},routeStops={},routeTotals={},routeInfo={};
-  data.forEach(d=>{
-    const rk=String(d.RouteNo??'X'),sk=d.StopName||'—',dk=d.DepartureDate||'';
-    if(!dates.includes(dk))return;
-    routeInfo[rk]=d.RouteLabel||`Route ${rk}`;
-    if(!lookup[rk])lookup[rk]={};
-    if(!lookup[rk][sk])lookup[rk][sk]={};
-    lookup[rk][sk][dk]=(lookup[rk][sk][dk]||0)+(d.TotalPax||0);
-    if(!routeStops[rk])routeStops[rk]=[];
-    if(!routeStops[rk].includes(sk))routeStops[rk].push(sk);
-    if(!routeTotals[rk])routeTotals[rk]={};
-    routeTotals[rk][dk]=(routeTotals[rk][dk]||0)+(d.TotalPax||0);
+// ─── YEAR-MONTH TABLE ─────────────────────────────────────────────────────────
+function YMTable({data,metric,hasFY}) {
+  const rows = [...(data||[])].sort((a,b) => {
+    if (hasFY) {
+      const fyMo = m => m===12?1:m+1;
+      return a.year!==b.year ? a.year-b.year : fyMo(a.month)-fyMo(b.month);
+    }
+    return b.year!==a.year ? b.year-a.year : b.month-a.month;
   });
+  const curr  = r => metric==="pax"?r.currentPax  :metric==="revenue"?r.currentRevenue  :r.currentBookings;
+  const prev  = r => metric==="pax"?r.previousPax :metric==="revenue"?r.previousRevenue :r.previousBookings;
+  const diff  = r => metric==="pax"?r.diffPax      :metric==="revenue"?r.diffRevenue      :r.diffBookings;
+  const pct   = r => metric==="pax"?r.diffPctPax   :metric==="revenue"?r.diffPctRevenue   :r.diffPctBookings;
+  const fmt   = v => v==null?"—":metric==="revenue"?fmtEur(v):fmtN(v);
 
-  const routes=Object.keys(lookup).sort((a,b)=>a==='X'?1:b==='X'?-1:parseInt(a)-parseInt(b));
-  const grandTotals={};
-  dates.forEach(d=>{grandTotals[d]=Object.values(routeTotals).reduce((s,rt)=>s+(rt[d]||0),0);});
-  const grandTotal=Object.values(grandTotals).reduce((a,b)=>a+b,0);
+  return(
+    <div style={{overflowX:"auto"}}>
+      <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:620}}>
+        <thead><tr style={{background:"var(--bg-2)"}}>
+          {["Period","Last Year","Current","Previous","Difference","Diff %"].map(h=>(
+            <th key={h} style={{padding:"9px 14px",textAlign:h==="Period"?"left":"right",fontSize:10,fontWeight:700,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:".05em",borderBottom:"1px solid var(--border)",whiteSpace:"nowrap"}}>{h}</th>
+          ))}
+        </tr></thead>
+        <tbody>
+          {!rows.length&&<tr><td colSpan={6} style={{padding:24,textAlign:"center",color:"var(--text-muted)"}}>No data — apply filters and refresh</td></tr>}
+          {rows.map((r,i)=>{
+            const d=diff(r), p=pct(r), up=d>0, dn=d<0;
+            return(<tr key={i} style={{borderBottom:"1px solid var(--border)",background:i%2?"var(--bg-2)":"transparent"}}>
+              <td style={{padding:"9px 14px",color:"var(--blue)",fontWeight:600,whiteSpace:"nowrap"}}>{MONTHS[(r.month||1)-1]}-{r.year}</td>
+              <td style={{padding:"9px 14px",textAlign:"right",color:"var(--text-muted)"}}>{MONTHS[(r.month||1)-1]}-{(r.year||0)-1}</td>
+              <td style={{padding:"9px 14px",textAlign:"right",fontWeight:600,color:"var(--text)"}}>{fmt(curr(r))}</td>
+              <td style={{padding:"9px 14px",textAlign:"right",color:"var(--text-muted)"}}>{prev(r)!=null&&prev(r)>0?fmt(prev(r)):"€0"}</td>
+              <td style={{padding:"9px 14px",textAlign:"right",color:diffColor(d),fontWeight:600}}>{d!=null?(up?"+":"")+fmt(d):"—"}</td>
+              <td style={{padding:"9px 14px",textAlign:"right",color:diffColor(d)}}>{p!=null?fmtPct(p):"—"}</td>
+            </tr>);
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
-  // Format date for display: dd/mm/yyyy → dd-mm-yyyy
-  const fmtDate=s=>{
-    if(!s)return '';
-    const sep=s.includes('/')?'/':'-';
-    const parts=s.split(sep);
-    if(parts.length>=3)return `${parts[0]}-${parts[1]}-${parts[2]}`;
-    return s;
-  };
+// ─── BUS KPI STRIP ───────────────────────────────────────────────────────────
+function BusKpis({data}) {
+  if (!data) return null;
+  const cards = [
+    {label:"Total PAX",    val:fmtN(data.total_pax),      c:"var(--blue)"},
+    {label:"Total Bookings",val:fmtN(data.total_bookings), c:"var(--text)"},
+    {label:"Royal Class",  val:fmtN(data.royal_pax),       c:"var(--purple)"},
+    {label:"First Class",  val:fmtN(data.first_pax),       c:"var(--green)"},
+    {label:"Premium",      val:fmtN(data.premium_pax),     c:"var(--amber)"},
+    {label:"Confirmed",    val:fmtN(data.confirmed_pax),   c:"var(--green)"},
+    {label:"Temporary",    val:fmtN(data.temp_pax),        c:"var(--amber)"},
+    {label:"Lapsed",       val:fmtN(data.lapsed_pax),      c:"var(--red)"},
+  ];
+  return(
+    <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:16}}>
+      {cards.map(k=>(
+        <div key={k.label} style={{flex:1,minWidth:110,background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"12px 14px"}}>
+          <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:".07em",color:"var(--text-dim)",marginBottom:6}}>{k.label}</div>
+          <div style={{fontSize:20,fontWeight:800,color:k.c,fontFamily:"var(--mono)"}}>{k.val}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
-  const COL_W=90;
+// ─── BUS STATUS CHIPS ─────────────────────────────────────────────────────────
+function BusStatusFilter({value,onChange}) {
+  const opts=[{v:"all",l:"All"},{v:"confirmed",l:"Confirmed"},{v:"temporary",l:"Temporary"},{v:"lapsed",l:"Lapsed"},{v:"cancelled",l:"Cancelled"}];
+  const colors={all:"var(--blue)",confirmed:"var(--green)",temporary:"var(--amber)",lapsed:"var(--red)",cancelled:"var(--text-muted)"};
+  return(
+    <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+      {opts.map(o=>{
+        const active=value===o.v;
+        return(<button key={o.v} onClick={()=>onChange(o.v)} style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${active?colors[o.v]:"var(--border)"}`,background:active?`${colors[o.v]}22`:"transparent",color:active?colors[o.v]:"var(--text-muted)",fontSize:12,fontWeight:active?700:400,cursor:"pointer"}}>{o.l}</button>);
+      })}
+    </div>
+  );
+}
+
+// ─── MULTI-SELECT DROPDOWN ────────────────────────────────────────────────────
+function MultiSelect({label, options, value, onChange, placeholder="All"}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const h = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
+  const toggle = v => onChange(value.includes(v) ? value.filter(x=>x!==v) : [...value, v]);
+  const display = value.length === 0 ? placeholder : value.length === 1 ? value[0] : `${value.length} selected`;
 
   return (
-    <div>
-      {allDates.length>15&&<div style={{padding:"6px 14px",background:T.warningBg,borderBottom:`1px solid ${T.border}`,fontSize:11,color:T.warning}}>
-        Showing first 15 of {allDates.length} dates. Use date filters to narrow the range.
-      </div>}
-      <div style={{overflowX:"auto",overflowY:"visible",width:"100%",paddingBottom:16,cursor:"default"}}>
-      <div style={{overflowY:"auto",maxHeight:520}}>
-        <table style={{borderCollapse:"collapse",fontSize:12,tableLayout:"fixed",width:`${180+80+(dates.length*COL_W)}px`}}>
-          <thead style={{position:"sticky",top:0,zIndex:3}}>
-            <tr style={{background:T.tableAlt}}>
-              <th style={{width:180,padding:"10px 12px",textAlign:"left",fontSize:11,fontWeight:700,color:T.textMuted,textTransform:"uppercase",borderBottom:`2px solid ${T.border}`,borderRight:`2px solid ${T.border}`,position:"sticky",left:0,background:T.tableAlt,zIndex:4}}>
-                Pick-up point
-              </th>
-              <th style={{width:80,padding:"10px 10px",textAlign:"right",fontSize:11,fontWeight:700,color:T.textMuted,textTransform:"uppercase",borderBottom:`2px solid ${T.border}`,borderRight:`2px solid ${T.border}`,background:T.tableAlt}}>
-                Pax (total)
-              </th>
-              {dates.map(d=>(
-                <th key={d} style={{width:COL_W,padding:"10px 6px",textAlign:"right",fontSize:11,fontWeight:600,color:T.accent,borderBottom:`2px solid ${T.border}`,borderRight:`1px solid ${T.border}`,background:T.tableAlt,whiteSpace:"nowrap"}}>
-                  {fmtDate(d)}
-                </th>
-              ))}
+    <div ref={ref} style={{position:"relative"}}>
+      <button onClick={()=>setOpen(o=>!o)} style={{width:"100%",padding:"7px 10px",background:"var(--bg)",border:"1px solid var(--border)",borderRadius:"var(--radius)",color:value.length?"var(--text)":"var(--text-dim)",fontSize:12,textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}>
+        <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{display}</span>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      {open && (
+        <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius)",zIndex:200,maxHeight:220,overflowY:"auto",boxShadow:"var(--shadow-lg)"}}>
+          {options.length===0 && <div style={{padding:"10px 12px",fontSize:12,color:"var(--text-dim)"}}>No options</div>}
+          {value.length>0&&<button onClick={()=>onChange([])} style={{width:"100%",padding:"8px 12px",background:"none",border:"none",borderBottom:"1px solid var(--border)",color:"var(--red)",fontSize:11,textAlign:"left",cursor:"pointer",fontWeight:600}}>Clear all</button>}
+          {options.map(o=>(
+            <button key={o} onClick={()=>toggle(o)} style={{width:"100%",padding:"8px 12px",background:value.includes(o)?"var(--blue-dim)":"none",border:"none",color:value.includes(o)?"var(--blue)":"var(--text)",fontSize:12,textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",gap:8}}>
+              <span style={{width:14,height:14,border:`1.5px solid ${value.includes(o)?"var(--blue)":"var(--border)"}`,borderRadius:3,background:value.includes(o)?"var(--blue)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                {value.includes(o)&&<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polyline points="2 6 5 9 10 3"/></svg>}
+              </span>
+              {o}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── PENDEL TABLE ─────────────────────────────────────────────────────────────
+function PendelTable({data}) {
+  if (!data?.length) return <Empty msg="No pendel data — adjust date range and apply"/>;
+  const cols=[
+    {k:"StartDate",l:"Start Date",sticky:true,color:"var(--blue)"},
+    {k:"EndDate",l:"End Date",color:"var(--blue)"},
+    {k:"Outbound_Total",l:"Total OUT",right:true,bold:true,color:"var(--blue)"},
+    {k:"ORC",l:"RC OUT",right:true,color:"var(--purple)"},
+    {k:"OFC",l:"FC OUT",right:true,color:"var(--green)"},
+    {k:"OPRE",l:"PRE OUT",right:true,color:"var(--amber)"},
+    {k:"Inbound_Total",l:"Total IN",right:true,bold:true,color:"var(--green)"},
+    {k:"RRC",l:"RC IN",right:true,color:"var(--purple)"},
+    {k:"RFC",l:"FC IN",right:true,color:"var(--green)"},
+    {k:"RPRE",l:"PRE IN",right:true,color:"var(--amber)"},
+    {k:"Diff_Total",l:"Diff Total",right:true,bold:true},
+    {k:"Diff_Royal",l:"Diff RC",right:true},
+    {k:"Diff_First",l:"Diff FC",right:true},
+    {k:"Diff_Premium",l:"Diff PRE",right:true},
+  ];
+  return(
+    <div style={{overflowX:"auto",maxHeight:540}}>
+      <table style={{borderCollapse:"collapse",fontSize:12,minWidth:1000}}>
+        <thead style={{position:"sticky",top:0,zIndex:2}}>
+          <tr style={{background:"var(--bg-2)"}}>
+            {cols.map(c=><th key={c.k} style={{padding:"9px 12px",textAlign:c.right?"right":"left",fontSize:10,fontWeight:700,color:c.color||"var(--text-dim)",textTransform:"uppercase",letterSpacing:".05em",borderBottom:"1px solid var(--border)",whiteSpace:"nowrap",...(c.sticky?{position:"sticky",left:0,background:"var(--bg-2)",zIndex:3}:{})}}>{c.l}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((row,i)=>(
+            <tr key={i} style={{borderBottom:"1px solid var(--border)",background:i%2?"var(--bg-2)":"transparent"}}>
+              {cols.map(c=>{
+                const v=row[c.k]; const isN=typeof v==="number";
+                const dc=isN&&c.k.startsWith("Diff")?diffColor(v):c.color||"var(--text)";
+                return(<td key={c.k} style={{padding:"8px 12px",textAlign:c.right?"right":"left",color:dc,fontWeight:c.bold?700:400,whiteSpace:"nowrap",fontFamily:isN?"var(--mono)":"var(--font)",...(c.sticky?{position:"sticky",left:0,background:i%2?"var(--bg-2)":"var(--surface)",zIndex:1}:{})}}>
+                  {v!=null?(isN?(v>0&&c.k.startsWith("Diff")?"+":"")+fmtN(v):v):""}
+                </td>);
+              })}
             </tr>
-          </thead>
-          <tbody>
-            {/* Grand total row */}
-            <tr style={{background:`${T.accent}18`}}>
-              <td style={{padding:"9px 12px",fontWeight:700,color:T.accent,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,position:"sticky",left:0,background:`${T.accent}18`,fontSize:12}}>
-                Totaal vertrek
-              </td>
-              <td style={{padding:"9px 10px",textAlign:"right",fontWeight:700,color:T.accent,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
-                {grandTotal.toLocaleString("nl-BE")}
-              </td>
-              {dates.map(d=>(
-                <td key={d} style={{padding:"9px 6px",textAlign:"right",fontWeight:700,color:grandTotals[d]>0?T.accent:T.textDim,borderRight:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
-                  {grandTotals[d]>0?grandTotals[d]:""}
-                </td>
-              ))}
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── FEEDER TABLE (flat list with grouping) ───────────────────────────────────
+function FeederTable({data}) {
+  if (!data?.length) return <Empty msg="No feeder data — adjust filters and apply"/>;
+  return(
+    <div style={{overflowX:"auto",maxHeight:540}}>
+      <table style={{borderCollapse:"collapse",fontSize:12,minWidth:700}}>
+        <thead style={{position:"sticky",top:0,zIndex:2}}>
+          <tr style={{background:"var(--bg-2)"}}>
+            {["Date","Label","Line","Route","Stop","Type","PAX","Bookings"].map(h=>(
+              <th key={h} style={{padding:"9px 12px",textAlign:h==="PAX"||h==="Bookings"?"right":"left",fontSize:10,fontWeight:700,color:"var(--text-dim)",textTransform:"uppercase",borderBottom:"1px solid var(--border)",whiteSpace:"nowrap"}}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((r,i)=>(
+            <tr key={i} style={{borderBottom:"1px solid var(--border)",background:i%2?"var(--bg-2)":"transparent"}}>
+              <td style={{padding:"8px 12px",color:"var(--blue)",fontWeight:600,whiteSpace:"nowrap",fontFamily:"var(--mono)"}}>{r.DepartureDate}</td>
+              <td style={{padding:"8px 12px",color:"var(--text)",whiteSpace:"nowrap"}}>{r.LabelName}</td>
+              <td style={{padding:"8px 12px",color:"var(--text-muted)",fontSize:11,whiteSpace:"nowrap"}}>{r.FeederLine}</td>
+              <td style={{padding:"8px 12px",color:"var(--text-muted)"}}>{r.RouteNo} {r.RouteLabel}</td>
+              <td style={{padding:"8px 12px",color:"var(--text)",fontWeight:500}}>{r.StopName}</td>
+              <td style={{padding:"8px 12px",color:"var(--text-dim)",fontSize:11}}>{r.StopType}</td>
+              <td style={{padding:"8px 12px",textAlign:"right",color:"var(--green)",fontWeight:700,fontFamily:"var(--mono)"}}>{fmtN(r.TotalPax)}</td>
+              <td style={{padding:"8px 12px",textAlign:"right",color:"var(--text-muted)",fontFamily:"var(--mono)"}}>{fmtN(r.BookingCount)}</td>
             </tr>
-            {/* Routes and stops */}
-            {routes.map(rk=>{
-              const stops=routeStops[rk]||[];
-              const routeTotal=stops.reduce((s,sk)=>s+Object.values(lookup[rk]?.[sk]||{}).reduce((a,b)=>a+b,0),0);
-              return [
-                <tr key={`r-${rk}`} style={{background:T.tableAlt,borderTop:`2px solid ${T.border}`}}>
-                  <td style={{padding:"8px 12px",fontWeight:700,color:T.text,fontSize:12,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,position:"sticky",left:0,background:T.tableAlt}}>
-                    {routeInfo[rk]}
-                  </td>
-                  <td style={{padding:"8px 10px",textAlign:"right",fontWeight:700,color:T.text,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
-                    {routeTotal>0?routeTotal.toLocaleString("nl-BE"):""}
-                  </td>
-                  {dates.map(d=>{const v=routeTotals[rk]?.[d]||0;return(
-                    <td key={d} style={{padding:"8px 6px",textAlign:"right",fontWeight:600,color:v>0?T.accent:T.textDim,borderRight:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
-                      {v>0?v:""}
-                    </td>
-                  );})}
-                </tr>,
-                ...stops.map((sk,si)=>(
-                  <tr key={`${rk}-${sk}`} style={{background:si%2===0?T.card:T.tableAlt}}>
-                    <td style={{padding:"7px 12px 7px 22px",color:T.textMuted,fontSize:11,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,position:"sticky",left:0,background:si%2===0?T.card:T.tableAlt,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
-                      {sk}
-                    </td>
-                    <td style={{padding:"7px 10px",textAlign:"right",color:T.textMuted,fontSize:11,borderRight:`2px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
-                      {Object.values(lookup[rk]?.[sk]||{}).reduce((a,b)=>a+b,0)||""}
-                    </td>
-                    {dates.map(d=>{const v=lookup[rk]?.[sk]?.[d]||0;return(
-                      <td key={d} style={{padding:"7px 6px",textAlign:"right",color:v>0?T.text:T.textDim,fontSize:11,borderRight:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
-                        {v>0?v:""}
-                      </td>
-                    );})}
-                  </tr>
-                ))
-              ];
-            })}
-          </tbody>
-        </table>
-      </div>
-      </div>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
 
 // ─── DECK TABLE ───────────────────────────────────────────────────────────────
-// Clean rebuild matching Google Sheets: Datum | Total(Total/Lower/Upper/NoDeck) | RC | FC | PRE
-function DeckTable({ data, T }) {
-  const [hover, setHover] = useState(-1);
-
-  if (!data?.length) return (
-    <div style={{padding:32,textAlign:"center",color:T.textMuted,fontSize:13}}>
-      No deck data — adjust filters and click Apply
-    </div>
-  );
-
-  // Parse and sort by date ASC
-  const parseD = s => {
-    if(!s)return 0;
-    const sep=s.includes('/')?'/':'-';
-    const[d,m,y]=s.split(sep);
-    if(!y)return 0;
-    return new Date(`${y}-${(m||'1').padStart(2,'0')}-${(d||'1').padStart(2,'0')}`).getTime();
-  };
-  const fmtD = s => {
-    if(!s)return s;
-    const sep=s.includes('/')?'/':'-';
-    const[d,m,y]=s.split(sep);
-    if(!y)return s;
-    return `${parseInt(d)}-${parseInt(m)}-${y}`;
-  };
-
-  const sorted=[...data].sort((a,b)=>parseD(a.dateDeparture)-parseD(b.dateDeparture));
-
+function DeckTable({data}) {
+  if (!data?.length) return <Empty msg="No deck data — adjust filters and apply"/>;
+  const allZero = data.every(r => !r.Total_Lower && !r.Total_Upper);
   const sections=[
-    {key:"Total",   label:"Total",       color:"#3b82f6",
-     cols:[{k:"Total",l:"Total",bold:true},{k:"Total_Lower",l:"Lower Deck"},{k:"Total_Upper",l:"Upper Deck"},{k:"Total_NoDeck",l:"No Deck"}]},
-    {key:"Royal",   label:"Royal Class", color:"#8b5cf6",
-     cols:[{k:"Royal_Total",l:"Total",bold:true},{k:"Royal_Lower",l:"Lower Deck"},{k:"Royal_Upper",l:"Upper Deck"},{k:"Royal_NoDeck",l:"No Deck"}]},
-    {key:"First",   label:"First Class", color:"#22c55e",
-     cols:[{k:"First_Total",l:"Total",bold:true},{k:"First_Lower",l:"Lower Deck"},{k:"First_Upper",l:"Upper Deck"},{k:"First_NoDeck",l:"No Deck"}]},
-    {key:"Premium", label:"Premium",     color:"#f59e0b",
-     cols:[{k:"Premium_Total",l:"Total",bold:true},{k:"Premium_Lower",l:"Lower Deck"},{k:"Premium_Upper",l:"Upper Deck"},{k:"Premium_NoDeck",l:"No Deck"}]},
+    {k:"Total",label:"Total",color:"#3b82f6",cols:[{k:"Total",l:"Total",bold:true},{k:"Total_Lower",l:"Lower"},{k:"Total_Upper",l:"Upper"},{k:"Total_NoDeck",l:"No Deck"}]},
+    {k:"Royal",label:"Royal Class",color:"#a855f7",cols:[{k:"Royal_Total",l:"Total",bold:true},{k:"Royal_Lower",l:"Lower"},{k:"Royal_Upper",l:"Upper"},{k:"Royal_NoDeck",l:"No Deck"}]},
+    {k:"First",label:"First Class",color:"#10b981",cols:[{k:"First_Total",l:"Total",bold:true},{k:"First_Lower",l:"Lower"},{k:"First_Upper",l:"Upper"},{k:"First_NoDeck",l:"No Deck"}]},
+    {k:"Premium",label:"Premium",color:"#f59e0b",cols:[{k:"Premium_Total",l:"Total",bold:true},{k:"Premium_Lower",l:"Lower"},{k:"Premium_Upper",l:"Upper"},{k:"Premium_NoDeck",l:"No Deck"}]},
   ];
-
-  const allZeroDeck = sorted.every(r=>!r.Total_Lower&&!r.Total_Upper);
-
-  return (
+  return(
     <div>
-      {allZeroDeck&&(
-        <div style={{padding:"8px 16px",background:T.warningBg,borderBottom:`1px solid ${T.border}`,fontSize:11,color:T.warning,display:"flex",alignItems:"center",gap:6}}>
-          ⚠ Lower / Upper deck assignment not yet available for 2026 — data pending from pipeline
-        </div>
-      )}
-      <div style={{overflowX:"auto",overflowY:"auto",maxHeight:560,paddingBottom:8,WebkitOverflowScrolling:"touch"}}>
+      {allZero&&<div style={{padding:"8px 16px",background:"var(--amber-dim)",borderBottom:"1px solid rgba(245,158,11,.3)",fontSize:11,color:"var(--amber)",display:"flex",alignItems:"center",gap:6}}>{I.warn} Lower / Upper deck not yet assigned for 2026 — pipeline pending (Samir aware)</div>}
+      <div style={{overflowX:"auto",maxHeight:540}}>
         <table style={{borderCollapse:"collapse",fontSize:12,minWidth:900}}>
           <thead style={{position:"sticky",top:0,zIndex:3}}>
-            <tr style={{background:T.tableAlt}}>
-              <th rowSpan={2} style={{padding:"10px 14px",textAlign:"left",fontSize:11,fontWeight:700,color:T.textMuted,textTransform:"uppercase",borderBottom:`1px solid ${T.border}`,borderRight:`2px solid ${T.border}`,minWidth:110,verticalAlign:"bottom",position:"sticky",left:0,background:T.tableAlt,zIndex:4}}>
-                Datum
-              </th>
-              {sections.map(s=>(
-                <th key={s.key} colSpan={4} style={{padding:"8px 16px",textAlign:"center",fontSize:11,fontWeight:700,color:s.color,textTransform:"uppercase",borderBottom:`2px solid ${s.color}`,borderLeft:`2px solid ${s.color}44`,background:`${s.color}11`,letterSpacing:"0.05em"}}>
-                  {s.label}
-                </th>
-              ))}
+            <tr style={{background:"var(--bg-2)"}}>
+              <th rowSpan={2} style={{padding:"9px 14px",textAlign:"left",fontSize:10,fontWeight:700,color:"var(--text-dim)",textTransform:"uppercase",borderBottom:"1px solid var(--border)",whiteSpace:"nowrap",position:"sticky",left:0,background:"var(--bg-2)",zIndex:4}}>Datum</th>
+              {sections.map(s=><th key={s.k} colSpan={4} style={{padding:"7px 14px",textAlign:"center",fontSize:10,fontWeight:700,color:s.color,textTransform:"uppercase",borderBottom:`2px solid ${s.color}`,borderLeft:`2px solid ${s.color}33`,background:`${s.color}11`,letterSpacing:".05em"}}>{s.label}</th>)}
             </tr>
-            <tr style={{background:T.tableAlt,position:"sticky",top:33,zIndex:2}}>
-              {sections.map(s=>s.cols.map((c,ci)=>(
-                <th key={`${s.key}-${c.k}`} style={{padding:"6px 10px",textAlign:"right",fontSize:10,fontWeight:700,color:T.textDim,textTransform:"uppercase",borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap",background:T.tableAlt,...(ci===0?{borderLeft:`2px solid ${s.color}44`}:{})}}>
-                  {c.l}
-                </th>
-              )))}
+            <tr style={{background:"var(--bg-2)",position:"sticky",top:33,zIndex:2}}>
+              {sections.map(s=>s.cols.map((c,ci)=><th key={`${s.k}-${c.k}`} style={{padding:"6px 10px",textAlign:"right",fontSize:10,fontWeight:700,color:"var(--text-dim)",textTransform:"uppercase",borderBottom:"1px solid var(--border)",background:"var(--bg-2)",whiteSpace:"nowrap",...(ci===0?{borderLeft:`2px solid ${s.color}33`}:{})}}>{c.l}</th>))}
             </tr>
           </thead>
           <tbody>
-            {sorted.map((row,i)=>(
-              <tr key={i}
-                style={{background:hover===i?`${T.accent}11`:i%2===0?T.card:T.tableAlt,borderBottom:`1px solid ${T.border}`,transition:"background 0.1s",cursor:"default"}}
-                onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(-1)}>
-                <td style={{padding:"8px 14px",color:T.accent,fontWeight:700,whiteSpace:"nowrap",borderRight:`2px solid ${T.border}`,position:"sticky",left:0,background:hover===i?`${T.accent}11`:i%2===0?T.card:T.tableAlt}}>
-                  {fmtD(row.dateDeparture)}
-                </td>
+            {data.map((row,i)=>(
+              <tr key={i} style={{borderBottom:"1px solid var(--border)",background:i%2?"var(--bg-2)":"transparent"}}>
+                <td style={{padding:"8px 14px",color:"var(--blue)",fontWeight:700,whiteSpace:"nowrap",position:"sticky",left:0,background:i%2?"var(--bg-2)":"var(--surface)",fontFamily:"var(--mono)"}}>{row.dateDeparture}</td>
                 {sections.map(s=>s.cols.map((c,ci)=>{
                   const v=row[c.k]||0;
-                  return(
-                    <td key={`${s.key}-${c.k}`} style={{padding:"8px 10px",textAlign:"right",fontWeight:c.bold?700:400,color:v>0?(c.bold?s.color:T.text):T.textDim,...(ci===0?{borderLeft:`2px solid ${s.color}44`}:{})}}>
-                      {v>0?v.toLocaleString("nl-BE"):""}
-                    </td>
-                  );
+                  return(<td key={`${s.k}-${c.k}`} style={{padding:"8px 10px",textAlign:"right",fontWeight:c.bold?700:400,color:v>0?(c.bold?s.color:"var(--text)"):"var(--text-dim)",fontFamily:"var(--mono)",...(ci===0?{borderLeft:`2px solid ${s.color}33`}:{})}}>
+                    {v>0?fmtN(v):""}
+                  </td>);
                 }))}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <div style={{padding:"8px 16px",borderTop:`1px solid ${T.border}`,fontSize:10,color:T.textDim}}>
-        RC = Royal Class | FC = First Class | PRE = Premium | Lwr = Lower Deck | Upr = Upper Deck | No = No Deck
+      <div style={{padding:"8px 16px",borderTop:"1px solid var(--border)",fontSize:10,color:"var(--text-dim)"}}>RC = Royal Class | FC = First Class | PRE = Premium · Deck: Garantie Onderdek = Lower | Garantie Bovendek = Upper | Geen garantie = No Deck</div>
+    </div>
+  );
+}
+
+// ─── EMPTY STATE ──────────────────────────────────────────────────────────────
+function Empty({msg}) {
+  return <div style={{padding:40,textAlign:"center",color:"var(--text-muted)",fontSize:13}}>{msg||"No data"}</div>;
+}
+
+// ─── BUS OCCUPANCY TAB ────────────────────────────────────────────────────────
+function BusTab() {
+  const [sub,setSub]            = useState("pendel");
+  const [busStatus,setBusStatus]= useState("all");
+  const [dateFrom,setDateFrom]  = useState(`${new Date().getFullYear()}-01-01`);
+  const [dateTo,setDateTo]      = useState(`${new Date().getFullYear()}-12-31`);
+  const [kpis,setKpis]          = useState(null);
+  const [pendel,setPendel]      = useState([]);
+  const [feeder,setFeeder]      = useState([]);
+  const [deck,setDeck]          = useState([]);
+  const [loading,setLoading]    = useState(false);
+
+  // Advanced slicer state
+  const [slicers,setSlicers]    = useState({regions:[],pendels:[],weekdays:['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'],feederLines:[],labels:[]});
+  const [pendelFilter,setPendelFilter]  = useState([]);
+  const [regionFilter,setRegionFilter]  = useState([]);
+  const [weekdayFilter,setWeekdayFilter]= useState([]);
+  const [feederLineFilter,setFeederLine]= useState([]);
+  const [labelFilter,setLabelFilter]    = useState([]);
+  const [directionFilter,setDirection]  = useState("");
+
+  useEffect(()=>{
+    apiFetch("/api/dashboard/bus-slicers").then(d=>{
+      setSlicers(s=>({...s,...d}));
+    }).catch(()=>{});
+    // Also fetch feeder lines and labels
+    apiFetch("/api/dashboard/feeder-slicers").then(d=>{
+      setSlicers(s=>({...s,...d}));
+    }).catch(()=>{});
+  },[]);
+
+  const load = useCallback(async()=>{
+    setLoading(true);
+    const base={dateFrom,dateTo,busStatus};
+    const pendParams={dateFrom,dateTo,
+      ...(weekdayFilter.length===1?{weekday:weekdayFilter[0]}:{}),
+      ...(pendelFilter.length>0?{pendel:pendelFilter[0]}:{}),
+      ...(regionFilter.length>0?{region:regionFilter[0]}:{}),
+    };
+    const feedParams={dateFrom,dateTo,
+      ...(feederLineFilter.length===1?{feederLine:feederLineFilter[0]}:{}),
+      ...(labelFilter.length===1?{label:labelFilter[0]}:{}),
+      ...(directionFilter?{direction:directionFilter}:{}),
+      ...(weekdayFilter.length===1?{weekday:weekdayFilter[0]}:{}),
+    };
+    try{
+      const [k,p,f,d]=await Promise.allSettled([
+        apiFetch("/api/dashboard/bus-kpis",base),
+        apiFetch("/api/dashboard/bus-pendel",pendParams),
+        apiFetch("/api/dashboard/bus-feeder",feedParams),
+        apiFetch("/api/dashboard/bus-deck",base),
+      ]);
+      if(k.status==="fulfilled") setKpis(k.value);
+      if(p.status==="fulfilled") setPendel(Array.isArray(p.value)?p.value:[]);
+      if(f.status==="fulfilled") setFeeder(Array.isArray(f.value)?f.value:[]);
+      if(d.status==="fulfilled") setDeck(Array.isArray(d.value)?d.value:[]);
+    }catch{}finally{setLoading(false);}
+  },[dateFrom,dateTo,busStatus,pendelFilter,regionFilter,weekdayFilter,feederLineFilter,labelFilter,directionFilter]);
+
+  useEffect(()=>{load();},[load]);
+
+  const iS={padding:"6px 10px",background:"var(--bg)",border:"1px solid var(--border)",borderRadius:"var(--radius)",color:"var(--text)",fontSize:12,outline:"none",width:"100%"};
+  const lS={fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".05em",color:"var(--text-dim)",marginBottom:4,display:"block"};
+
+  // Which filters are relevant per sub-tab
+  const isPendel = sub==="pendel";
+  const isFeeder = sub==="feeder";
+  const isDeck   = sub==="deck";
+
+  return(
+    <div className="tab-content">
+      {/* Top filter bar — always visible */}
+      <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"14px 16px",display:"flex",gap:14,alignItems:"flex-end",flexWrap:"wrap"}}>
+        <div style={{display:"flex",flexDirection:"column",gap:4}}>
+          <label style={lS}>From</label>
+          <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={{...iS,width:"auto"}}/>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:4}}>
+          <label style={lS}>To</label>
+          <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} style={{...iS,width:"auto"}}/>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:4}}>
+          <label style={lS}>Status</label>
+          <BusStatusFilter value={busStatus} onChange={setBusStatus}/>
+        </div>
+        <button onClick={load} disabled={loading} style={{padding:"7px 20px",borderRadius:"var(--radius)",background:"var(--blue)",border:"none",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",alignSelf:"flex-end",opacity:loading?.6:1}}>
+          {loading?"Loading…":"Apply"}
+        </button>
+      </div>
+
+      {/* KPI Cards */}
+      <BusKpis data={kpis}/>
+
+      {/* Sub-tabs + advanced filters + table */}
+      <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",overflow:"hidden"}}>
+        {/* Sub-tab nav */}
+        <div style={{display:"flex",borderBottom:"1px solid var(--border)"}}>
+          {[["pendel","Pendel Overview"],["feeder","Feeder Overview"],["deck","Deck Choice / Class"]].map(([k,l])=>(
+            <button key={k} onClick={()=>setSub(k)} style={{padding:"11px 18px",background:"none",border:"none",borderBottom:`2px solid ${sub===k?"var(--blue)":"transparent"}`,color:sub===k?"var(--blue)":"var(--text-muted)",fontSize:13,fontWeight:sub===k?600:400,cursor:"pointer",whiteSpace:"nowrap"}}>{l}</button>
+          ))}
+        </div>
+
+        {/* Per-tab advanced filters */}
+        {isPendel&&(
+          <div style={{display:"flex",gap:12,padding:"12px 16px",borderBottom:"1px solid var(--border)",flexWrap:"wrap",background:"var(--bg-2)"}}>
+            <div style={{minWidth:140,flex:1}}>
+              <label style={lS}>Pendel</label>
+              <MultiSelect options={slicers.pendels||[]} value={pendelFilter} onChange={setPendelFilter} placeholder="All pendels"/>
+            </div>
+            <div style={{minWidth:140,flex:1}}>
+              <label style={lS}>Region</label>
+              <MultiSelect options={slicers.regions||[]} value={regionFilter} onChange={setRegionFilter} placeholder="All regions"/>
+            </div>
+            <div style={{minWidth:140,flex:1}}>
+              <label style={lS}>Weekday (outbound)</label>
+              <MultiSelect options={slicers.weekdays||[]} value={weekdayFilter} onChange={setWeekdayFilter} placeholder="All days"/>
+            </div>
+          </div>
+        )}
+        {isFeeder&&(
+          <div style={{display:"flex",gap:12,padding:"12px 16px",borderBottom:"1px solid var(--border)",flexWrap:"wrap",background:"var(--bg-2)"}}>
+            <div style={{minWidth:160,flex:1}}>
+              <label style={lS}>Feeder Line</label>
+              <MultiSelect options={slicers.feederLines||[]} value={feederLineFilter} onChange={setFeederLine} placeholder="All feeder lines"/>
+            </div>
+            <div style={{minWidth:140,flex:1}}>
+              <label style={lS}>Label / Dataset</label>
+              <MultiSelect options={slicers.labels||[]} value={labelFilter} onChange={setLabelFilter} placeholder="All labels"/>
+            </div>
+            <div style={{minWidth:120,flex:1}}>
+              <label style={lS}>Direction</label>
+              <select value={directionFilter} onChange={e=>setDirection(e.target.value)} style={iS}>
+                <option value="">Both directions</option>
+                <option value="Outbound">Outbound</option>
+                <option value="Inbound">Inbound</option>
+              </select>
+            </div>
+            <div style={{minWidth:140,flex:1}}>
+              <label style={lS}>Weekday</label>
+              <MultiSelect options={slicers.weekdays||[]} value={weekdayFilter} onChange={setWeekdayFilter} placeholder="All days"/>
+            </div>
+          </div>
+        )}
+        {isDeck&&(
+          <div style={{display:"flex",gap:12,padding:"12px 16px",borderBottom:"1px solid var(--border)",flexWrap:"wrap",background:"var(--bg-2)"}}>
+            <div style={{minWidth:140,flex:1}}>
+              <label style={lS}>Pendel</label>
+              <MultiSelect options={slicers.pendels||[]} value={pendelFilter} onChange={setPendelFilter} placeholder="All pendels"/>
+            </div>
+            <div style={{minWidth:140,flex:1}}>
+              <label style={lS}>Weekday</label>
+              <MultiSelect options={slicers.weekdays||[]} value={weekdayFilter} onChange={setWeekdayFilter} placeholder="All days"/>
+            </div>
+          </div>
+        )}
+
+        {sub==="pendel"&&<PendelTable data={pendel}/>}
+        {sub==="feeder"&&<FeederTable data={feeder}/>}
+        {sub==="deck"  &&<DeckTable   data={deck}/>}
       </div>
     </div>
   );
 }
 
-
-
-// ─── HOTEL INSIGHTS TAB ───────────────────────────────────────────────────────
-function HotelTab({token,T,API}) {
-  const [stats,setStats]=useState(null);
+// ─── HOTEL TAB ────────────────────────────────────────────────────────────────
+function HotelTab() {
   const [ratings,setRatings]=useState([]);
+  const [stats,setStats]=useState(null);
   const [reviews,setReviews]=useState([]);
-  const [loading,setLoading]=useState(true);
+  const [revTotal,setRevTotal]=useState(0);
+  const [revPage,setRevPage]=useState(1);
   const [selHotel,setSelHotel]=useState(null);
-  const [search,setSearch]=useState('');
+  const [search,setSearch]=useState("");
+  const [loading,setLoading]=useState(true);
 
   useEffect(()=>{
-    const h={"Authorization":`Bearer ${token}`};
-    Promise.all([
-      fetch(`${API}/api/dashboard/hotel-stats`,{headers:h}).then(r=>r.json()),
-      fetch(`${API}/api/dashboard/hotel-ratings`,{headers:h}).then(r=>r.json()),
-    ]).then(([s,r])=>{
-      setStats(s); setRatings(Array.isArray(r)?r:[]);
-      setLoading(false);
-    }).catch(()=>setLoading(false));
-  },[token,API]);
+    Promise.all([apiFetch("/api/dashboard/hotel-stats"),apiFetch("/api/dashboard/hotel-ratings")])
+      .then(([s,r])=>{setStats(s);setRatings(Array.isArray(r)?r:[]);})
+      .catch(()=>{}).finally(()=>setLoading(false));
+  },[]);
 
-  const loadReviews=(code)=>{
-    setSelHotel(code);
-    const h={"Authorization":`Bearer ${token}`};
-    fetch(`${API}/api/dashboard/hotel-reviews?code=${code}&limit=20`,{headers:h})
-      .then(r=>r.json()).then(d=>setReviews(d.rows||[]));
+  const loadReviews=(code,pg=1)=>{
+    setSelHotel(code); setRevPage(pg);
+    apiFetch("/api/dashboard/hotel-reviews",{code,page:pg,limit:20}).then(d=>{setReviews(d.rows||[]);setRevTotal(d.total||0);}).catch(()=>{});
   };
 
-  const stars=(r)=>{
-    if(!r) return '—';
-    const n=parseFloat(r);
-    const full=Math.floor(n/2);
-    return '★'.repeat(full)+'☆'.repeat(5-full)+` ${n.toFixed(1)}`;
-  };
+  const filtered=ratings.filter(r=>(r.accommodation_name||"").toLowerCase().includes(search.toLowerCase()));
+  const sc=v=>v>=80?"var(--green)":v>=60?"var(--amber)":"var(--red)";
 
-  const filtered=ratings.filter(r=>(r.accommodation_name||r.accommodation_code||'').toLowerCase().includes(search.toLowerCase()));
+  if(loading) return <Empty msg="Loading hotel data…"/>;
 
-  if(loading) return <div style={{padding:40,textAlign:'center',color:T.textMuted}}>Loading hotel data...</div>;
-
-  const noData=!stats?.total_hotels;
-
-  return (
-    <div style={{padding:"20px"}}>
-      {noData ? (
-        <div style={{textAlign:"center",padding:"60px 20px",background:T.card,borderRadius:14,border:`1px solid ${T.border}`}}>
-          <div style={{fontSize:44,marginBottom:16}}>🏨</div>
-          <div style={{fontSize:20,fontWeight:800,color:T.text,marginBottom:8}}>Hotel Insights</div>
-          <div style={{fontSize:13,color:T.textMuted,marginBottom:20,maxWidth:420,margin:"0 auto 20px"}}>
-            TravelTrustIt reviews will appear here. Run the ETL script to load hotel review data.
+  return(
+    <div className="tab-content">
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:20}}>
+        {[{l:"Total Hotels",v:fmtN(stats?.total_hotels)},{l:"Total Reviews",v:fmtN(stats?.total_reviews)},{l:"Avg Score",v:stats?.avg_rating?`${Math.round(stats.avg_rating)}/100`:"—"},{l:"High Rated ≥80",v:fmtN(stats?.high_rated)},{l:"Latest Review",v:stats?.latest_review?.split("T")[0]||"—"}].map(s=>(
+          <div key={s.l} style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"14px 16px"}}>
+            <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:".07em",color:"var(--text-dim)",marginBottom:6}}>{s.l}</div>
+            <div style={{fontSize:20,fontWeight:800,color:"var(--text)",fontFamily:"var(--mono)"}}>{s.v||"—"}</div>
           </div>
-          <code style={{fontSize:11,background:T.tableAlt,padding:"8px 16px",borderRadius:8,color:T.accent,display:"block",maxWidth:500,margin:"0 auto"}}>
-            node src/scripts/loadHotelReviews.js
-          </code>
+        ))}
+      </div>
+      <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",overflow:"hidden",marginBottom:selHotel?20:0}}>
+        <div style={{padding:"12px 16px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+          <span style={{fontSize:13,fontWeight:700,color:"var(--text)"}}>{filtered.length} hotels</span>
+          <div style={{position:"relative"}}>
+            <span style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",color:"var(--text-dim)"}}>{I.search}</span>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search hotel…" style={{padding:"6px 12px 6px 28px",background:"var(--bg)",border:"1px solid var(--border)",borderRadius:"var(--radius)",color:"var(--text)",fontSize:12,outline:"none",width:200}}/>
+          </div>
         </div>
-      ) : (
-        <>
-          {/* Stats */}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:12,marginBottom:20}}>
-            {[
-              {label:"Total Hotels",value:stats?.total_hotels?.toLocaleString('nl-BE')},
-              {label:"Total Reviews",value:stats?.total_reviews?.toLocaleString('nl-BE')},
-              {label:"Avg Rating",value:stats?.avg_rating?`${stats.avg_rating}/10`:'—'},
-              {label:"High Rated",value:stats?.high_rated?.toLocaleString('nl-BE'),sub:"≥8.0"},
-              {label:"Latest Review",value:stats?.latest_review?stats.latest_review.split('T')[0]:'—'},
-            ].map(s=>(
-              <Card key={s.label} style={{padding:"14px 16px"}} T={T}>
-                <div style={{fontSize:10,fontWeight:700,color:T.textMuted,textTransform:"uppercase",marginBottom:6}}>{s.label}</div>
-                <div style={{fontSize:20,fontWeight:800,color:T.text}}>{s.value||'—'}</div>
-                {s.sub&&<div style={{fontSize:10,color:T.textDim}}>{s.sub}</div>}
-              </Card>
-            ))}
-          </div>
-
-          {/* Search + Table */}
-          <div style={{background:T.card,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
-            <div style={{padding:"12px 16px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
-              <span style={{fontSize:13,fontWeight:700,color:T.text}}>Hotel Ratings — {filtered.length} properties</span>
-              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search hotel..."
-                style={{padding:"6px 12px",background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:8,color:T.text,fontSize:12,outline:"none",width:200}}/>
-            </div>
-            <div style={{overflowX:"auto"}}>
-              <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                <thead>
-                  <tr style={{background:T.tableAlt}}>
-                    {["Hotel","Code","Overall","Sleep","Location","Cleanliness","Service","Reviews","Action"].map(h=>(
-                      <th key={h} style={{padding:"8px 12px",textAlign:"left",color:T.textMuted,fontWeight:700,fontSize:11,whiteSpace:"nowrap"}}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.slice(0,50).map((r,i)=>(
-                    <tr key={r.accommodation_code} style={{borderTop:`1px solid ${T.border}`,background:i%2?T.tableAlt:"transparent"}}>
-                      <td style={{padding:"8px 12px",color:T.text,fontWeight:600,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.accommodation_name||'—'}</td>
-                      <td style={{padding:"8px 12px",color:T.textMuted}}>{r.accommodation_code}</td>
-                      <td style={{padding:"8px 12px",color:r.avg_overall>=8?T.success:r.avg_overall>=6?T.warning:T.danger,fontWeight:700}}>{r.avg_overall||'—'}</td>
-                      <td style={{padding:"8px 12px",color:T.textMuted}}>{r.avg_sleep||'—'}</td>
-                      <td style={{padding:"8px 12px",color:T.textMuted}}>{r.avg_location||'—'}</td>
-                      <td style={{padding:"8px 12px",color:T.textMuted}}>{r.avg_cleanliness||'—'}</td>
-                      <td style={{padding:"8px 12px",color:T.textMuted}}>{r.avg_service||'—'}</td>
-                      <td style={{padding:"8px 12px",color:T.textMuted}}>{r.total_reviews||0}</td>
-                      <td style={{padding:"8px 12px"}}>
-                        <button onClick={()=>loadReviews(r.accommodation_code)}
-                          style={{background:T.accent,color:"#fff",border:"none",borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer"}}>Reviews</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Reviews panel */}
-          {selHotel&&reviews.length>0&&(
-            <div style={{marginTop:16,background:T.card,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
-              <div style={{padding:"12px 16px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                <span style={{fontSize:13,fontWeight:700,color:T.text}}>Reviews — {selHotel}</span>
-                <button onClick={()=>{setSelHotel(null);setReviews([]);}} style={{background:"transparent",border:"none",cursor:"pointer",color:T.textMuted,fontSize:16}}>✕</button>
-              </div>
-              <div style={{maxHeight:400,overflowY:"auto"}}>
-                {reviews.map(r=>(
-                  <div key={r.id} style={{padding:"14px 16px",borderTop:`1px solid ${T.border}`}}>
-                    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
-                      <span style={{fontSize:16,color:"#f59e0b",fontWeight:700}}>{r.overall_rating}/10</span>
-                      <span style={{fontSize:13,fontWeight:600,color:T.text}}>{r.review_title||'Review'}</span>
-                      <span style={{fontSize:11,color:T.textDim,marginLeft:"auto"}}>{r.review_date?.split('T')[0]||''}</span>
-                    </div>
-                    <div style={{fontSize:12,color:T.textMuted,marginBottom:6,lineHeight:1.5}}>{r.review_text||'—'}</div>
-                    <div style={{fontSize:11,color:T.textDim}}>{r.reviewer_name} · {r.reviewer_city}, {r.reviewer_country} {r.reviewer_age?`· Age ${r.reviewer_age}`:''}</div>
-                  </div>
+        <div style={{overflowX:"auto",maxHeight:420}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+            <thead style={{position:"sticky",top:0,zIndex:1}}>
+              <tr style={{background:"var(--bg-2)"}}>
+                {["Hotel","Code","Overall","Location","Hygiene","Service","Reviews",""].map(h=>(
+                  <th key={h} style={{padding:"8px 12px",textAlign:"left",fontSize:10,fontWeight:700,color:"var(--text-dim)",textTransform:"uppercase",borderBottom:"1px solid var(--border)",whiteSpace:"nowrap"}}>{h}</th>
                 ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.slice(0,100).map((r,i)=>(
+                <tr key={r.accommodation_code} style={{borderBottom:"1px solid var(--border)",background:i%2?"var(--bg-2)":"transparent"}}>
+                  <td style={{padding:"8px 12px",color:"var(--text)",fontWeight:500,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.accommodation_name||"—"}</td>
+                  <td style={{padding:"8px 12px",color:"var(--text-muted)",fontFamily:"var(--mono)",fontSize:11}}>{r.accommodation_code}</td>
+                  <td style={{padding:"8px 12px",color:sc(r.avg_overall),fontWeight:700,fontFamily:"var(--mono)"}}>{r.avg_overall||"—"}</td>
+                  <td style={{padding:"8px 12px",color:"var(--text-muted)"}}>{r.avg_location||"—"}</td>
+                  <td style={{padding:"8px 12px",color:"var(--text-muted)"}}>{r.avg_cleanliness||"—"}</td>
+                  <td style={{padding:"8px 12px",color:"var(--text-muted)"}}>{r.avg_service||"—"}</td>
+                  <td style={{padding:"8px 12px",color:"var(--text-muted)",fontFamily:"var(--mono)"}}>{fmtN(r.total_reviews)}</td>
+                  <td style={{padding:"8px 12px"}}><button onClick={()=>loadReviews(r.accommodation_code)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid var(--border)",background:"transparent",color:"var(--blue)",fontSize:11,cursor:"pointer"}}>Reviews</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {selHotel&&(
+        <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",overflow:"hidden"}}>
+          <div style={{padding:"12px 16px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <span style={{fontSize:13,fontWeight:700,color:"var(--text)"}}>Reviews — {selHotel} <span style={{color:"var(--text-muted)",fontWeight:400,fontSize:12}}>({fmtN(revTotal)} total)</span></span>
+            <button onClick={()=>setSelHotel(null)} style={{background:"none",border:"none",color:"var(--text-muted)",cursor:"pointer"}}>{I.close}</button>
+          </div>
+          <div style={{padding:16,display:"flex",flexDirection:"column",gap:12,maxHeight:420,overflowY:"auto"}}>
+            {reviews.map((r,i)=>(
+              <div key={i} style={{background:"var(--bg-2)",border:"1px solid var(--border)",borderRadius:"var(--radius)",padding:"12px 14px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                  <span style={{fontSize:15,fontWeight:800,color:sc(r.overall_rating),fontFamily:"var(--mono)"}}>{r.overall_rating||"—"}</span>
+                  <span style={{fontSize:13,fontWeight:600,color:"var(--text)",flex:1}}>{r.review_title||"—"}</span>
+                  <span style={{fontSize:11,color:"var(--text-dim)",whiteSpace:"nowrap"}}>{r.review_date?.split("T")[0]}</span>
+                </div>
+                <p style={{fontSize:13,color:"var(--text-muted)",lineHeight:1.6,marginBottom:8}}>{r.review_text||"No text"}</p>
+                <div style={{fontSize:11,color:"var(--text-dim)"}}>{r.reviewer_name} · {r.reviewer_country} · {r.travel_type}</div>
               </div>
+            ))}
+            {!reviews.length&&<Empty msg="No reviews"/>}
+          </div>
+          {revTotal>20&&(
+            <div style={{padding:"10px 16px",borderTop:"1px solid var(--border)",display:"flex",gap:8,justifyContent:"center"}}>
+              {revPage>1&&<button onClick={()=>loadReviews(selHotel,revPage-1)} style={{padding:"5px 14px",borderRadius:"var(--radius)",border:"1px solid var(--border)",background:"transparent",color:"var(--text-muted)",fontSize:12,cursor:"pointer"}}>Prev</button>}
+              <span style={{fontSize:12,color:"var(--text-muted)",alignSelf:"center"}}>Page {revPage} of {Math.ceil(revTotal/20)}</span>
+              {revPage<Math.ceil(revTotal/20)&&<button onClick={()=>loadReviews(selHotel,revPage+1)} style={{padding:"5px 14px",borderRadius:"var(--radius)",border:"1px solid var(--border)",background:"transparent",color:"var(--text-muted)",fontSize:12,cursor:"pointer"}}>Next</button>}
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );
 }
 
-export default function App(){
-  const[token,setToken]=useState(()=>{
+// ─── DATA TABLE TAB ───────────────────────────────────────────────────────────
+function DataTableTab({applied}) {
+  const [rows,setRows]      = useState([]);
+  const [total,setTotal]    = useState(0);
+  const [page,setPage]      = useState(1);
+  const [loading,setLoading]= useState(false);
+  const [search,setSearch]  = useState("");
+  // Local filters (independent from overview)
+  const [dsFilter,setDsFilter]       = useState([]);
+  const [statusFilter,setStatusFilter]= useState("");
+  const [bookFrom,setBookFrom]       = useState("");
+  const [bookTo,setBookTo]           = useState("");
+  const [depFrom,setDepFrom]         = useState("");
+  const [depTo,setDepTo]             = useState("");
+
+  const buildTableParams = useCallback((pg=1) => ({
+    ...applied,
+    ...(dsFilter.length?{dataset:dsFilter}:{}),
+    ...(statusFilter?{status:statusFilter}:{}),
+    ...(bookFrom?{bookingDateFrom:bookFrom}:{}),
+    ...(bookTo?{bookingDateTo:bookTo}:{}),
+    ...(depFrom?{departureDateFrom:depFrom}:{}),
+    ...(depTo?{departureDateTo:depTo}:{}),
+    page:pg,limit:50,
+  }),[applied,dsFilter,statusFilter,bookFrom,bookTo,depFrom,depTo]);
+
+  const load=useCallback(async(pg=1)=>{
+    setLoading(true);
     try{
-      const t=localStorage.getItem("ttp_token")||sessionStorage.getItem("ttp_token")||"";
-      if(!t||t.length<20)return "";
-      // Only clear if token is definitively expired (has exp claim AND it's in the past)
-      try{
-        const parts=t.split(".");
-        if(parts.length===3){
-          const p=JSON.parse(atob(parts[1]));
-          if(p&&p.exp&&typeof p.exp==="number"&&p.exp*1000<Date.now()-60000){
-            localStorage.removeItem("ttp_token");sessionStorage.removeItem("ttp_token");return "";
-          }
-        }
-      }catch{/* token not a JWT or can't decode — keep it, backend will validate */}
-      return t;
-    }catch{return "";}
-  });
-  const[user,setUser]=useState(null);
-  const[tab,setTab]=useState("overview");
-  const[themeKey,setThemeKey]=useState(()=>localStorage.getItem("ttp_theme")||"light");
-  const T=themeKey==="dark"?DARK:LIGHT;
+      const d=await apiFetch("/api/dashboard/bookings-table",buildTableParams(pg));
+      setRows(d.rows||[]);setTotal(d.total||0);setPage(pg);
+    }catch{}finally{setLoading(false);}
+  },[buildTableParams]);
 
-  // Overview
-  const[kpis,setKpis]=useState(null);
-  const[revData,setRevData]=useState([]);
-  const[ymData,setYmData]=useState([]);
-  const[ymMetric,setYmMetric]=useState("bookings");
-  const[barMetric,setBarMetric]=useState("bookings");
-  const[oLoad,setOLoad]=useState(false);
+  useEffect(()=>{load(1);},[load]);
 
-  // Filters
-  const[filtersOpen,setFiltersOpen]=useState(false);
-  const[filters,setFilters]=useState({depFrom:"",depTo:"",bkFrom:"",bkTo:"",dataset:[],status:[],transport:[],years:[]});
-  const[applied,setApplied]=useState({});
-  const[slicers,setSlicers]=useState({transportTypes:[],datasets:[],labels:[]});
-
-  // Bus
-  const[busLabel,setBusLabel]=useState("Solmar");
-  const[busView,setBusView]=useState("pendel");
-  const[busTrips,setBusTrips]=useState([]);
-  const[busClass,setBusClass]=useState([]);
-  const[stTrips,setStTrips]=useState([]);
-  const[pendelData,setPendelData]=useState([]);
-  const[feederData,setFeederData]=useState([]);
-  const[deckData,setDeckData]=useState([]);
-  const[busFiltersOpen,setBusFiltersOpen]=useState(false);
-  const[busF,setBusF]=useState({dateFrom:`${new Date().getFullYear()}-01-01`,dateTo:`${new Date().getFullYear()}-12-31`,pendel:"",region:"",destination:"",weekday:""});
-  const[busSlicers,setBusSlicers]=useState({pendels:[],regions:[],destinations:[]});
-  const[busStatus,setBusStatus]=useState(""); // "" = all, "confirmed","temp","lapsed","cancelled"
-  const[bLoad,setBLoad]=useState(false);
-
-  // Data table
-  const[tableRows,setTableRows]=useState([]);
-  const[tableTotal,setTableTotal]=useState(0);
-  const[tablePage,setTablePage]=useState(1);
-  const[tableFilters,setTableFilters]=useState({dataset:"",status:"",depFrom:"",depTo:"",bkFrom:"",bkTo:"",search:""});
-  const[tLoad,setTLoad]=useState(false);
-
-  // AI
-  const[msgs,setMsgs]=useState([{role:"assistant",text:"Hello! I'm your TTP Analytics AI. Ask me anything about bookings, PAX, revenue or trends."}]);
-  const[aiInput,setAiInput]=useState("");const[aiLoad,setAiLoad]=useState(false);
-  const chatRef=useRef(null);
-
-  // Settings
-  const[stTab,setStTab]=useState("users");
-  const[users,setUsers]=useState([]);
-  const[usersLoad,setUsersLoad]=useState(false);
-  const[usersError,setUsersError]=useState("");
-  const[showExportModal,setShowExportModal]=useState(false);
-  const[exportOpts,setExportOpts]=useState({datasets:[],status:"",depFrom:"",depTo:"",bkFrom:"",bkTo:""});
-  const[showAddUser,setShowAddUser]=useState(false);
-  const[showNewPw,setShowNewPw]=useState(false);
-  const[editUser,setEditUser]=useState(null);
-  const[newUser,setNewUser]=useState({name:"",username:"",email:"",password:"",role:"viewer"});
-  const[apiKeys,setApiKeys]=useState({openai:"",anthropic:"",emailAlert:""});
-  const[sidebarOpen,setSidebarOpen]=useState(typeof window!=="undefined"?window.innerWidth>768:true);
-  const[clock,setClock]=useState(dubaiTime());
-  const[lastSync,setLastSync]=useState("");
-
-  useEffect(()=>{const iv=setInterval(()=>setClock(dubaiTime()),1000);return()=>clearInterval(iv);},[]);
-  useEffect(()=>{if(!token)return;try{const p=JSON.parse(atob(token.split(".")[1]));setUser(p.user||p);}catch{}},[token]);
-
-  const switchTheme=k=>{setThemeKey(k);localStorage.setItem("ttp_theme",k);};
-  const logout=()=>{localStorage.removeItem("ttp_token");sessionStorage.removeItem("ttp_token");setToken("");setUser(null);};
-  const onLogin=(tok,u)=>{localStorage.setItem("ttp_token",tok);sessionStorage.setItem("ttp_token",tok);setToken(tok);setUser(u);};
-
-  const buildP=useCallback(f=>{
-    const p={};
-    if(f.depFrom)p.departureDateFrom=f.depFrom;if(f.depTo)p.departureDateTo=f.depTo;
-    if(f.bkFrom)p.bookingDateFrom=f.bkFrom;if(f.bkTo)p.bookingDateTo=f.bkTo;
-    if((f.dataset||[]).length)p.dataset=f.dataset;
-    if((f.status||[]).length)p.status=f.status;
-    if((f.transport||[]).length)p.transportType=f.transport;
-    if((f.years||[]).length)p.year=f.years;
-    return p;
-  },[]);
-
-  const loadOverview=useCallback(f=>{
-    if(!token)return;setOLoad(true);
-    const p=buildP(f);
-    Promise.all([
-      apiFetch("/api/dashboard/kpis",p).catch(()=>null),
-      apiFetch("/api/dashboard/revenue-by-year",p).catch(()=>[]),
-      apiFetch("/api/dashboard/year-month-comparison",p).catch(()=>[]),
-    ]).then(([k,r,ym])=>{
-      if(k&&!k.error)setKpis(k);
-      if(Array.isArray(r))setRevData(r);
-      if(Array.isArray(ym))setYmData(ym);
-      setLastSync(dubaiTime());
-    }).catch(console.error).finally(()=>setOLoad(false));
-  },[token,buildP]);
-
-  // Load users from backend
-  const loadUsers = useCallback(async()=>{
-    if(!token||user?.role!=="admin") return;
-    setUsersLoad(true); setUsersError("");
-    try {
-      const t = localStorage.getItem("ttp_token");
-      const r = await fetch(`${BASE}/api/auth/users`,{headers:{"Authorization":`Bearer ${t}`}});
-      if(r.ok){ const d=await r.json(); if(Array.isArray(d)) setUsers(d); }
-      else setUsersError("Failed to load users");
-    } catch { setUsersError("Cannot connect to server"); }
-    finally { setUsersLoad(false); }
-  },[token,user]);
-
-  useEffect(()=>{
-    if(!token)return;
-    apiFetch("/api/dashboard/slicers",{}).then(d=>{if(d&&!d.error)setSlicers(d);}).catch(()=>{});
-    loadOverview({});
-  },[token]);
-
-  useEffect(()=>{ if(token&&user?.role==="admin") loadUsers(); },[token,user]);
-  useEffect(()=>{if(token)loadOverview(applied);},[applied]);
-
-  const loadBus=useCallback(f=>{
-    if(!token)return;setBLoad(true);
-    const p={};
-    if(f.dateFrom)    p.dateFrom=f.dateFrom;
-    if(f.dateTo)      p.dateTo=f.dateTo;
-    if(f.region)      p.region=f.region;
-    if(f.destination) p.destination=f.destination;
-    if(f.weekday)     p.weekday=f.weekday;
-    if(f.feederLabel)  p.label=f.feederLabel;
-    if(f.feederLine)   p.feederLine=f.feederLine;
-    if(f.status)       p.status=f.status;
-    if((f.datasets||[]).length) p.dataset=f.datasets;
-    Promise.all([
-      apiFetch("/api/dashboard/bus-kpis",p).catch(()=>({})),
-      apiFetch("/api/dashboard/pendel-overview",p).catch(()=>[]),
-      apiFetch("/api/dashboard/feeder-overview",p).catch(()=>[]),
-      apiFetch("/api/dashboard/deck-class",p).catch(()=>[]),
-    ]).then(([bk,pd,fd,dc])=>{
-      if(bk&&!bk.error)setBusKpis(bk);
-      if(Array.isArray(pd))setPendelData(pd);
-      if(Array.isArray(fd))setFeederData(fd);
-      if(Array.isArray(dc))setDeckData(dc);
-    }).finally(()=>setBLoad(false));
-  },[token]);
-
-  useEffect(()=>{
-    if(token){
-      const y=new Date().getFullYear();
-      const initF={dateFrom:`${y}-01-01`,dateTo:`${y}-12-31`,pendel:"",region:"",destination:"",weekday:""};
-      setBusF(initF);
-      loadBus(initF);
-      apiFetch("/api/dashboard/bus-slicers",{}).then(d=>{if(d&&!d.error)setBusSlicers(d);}).catch(()=>{});
-    }
-  },[token]);
-
-  const loadTable=useCallback(()=>{
-    if(!token)return;setTLoad(true);
-    const p={...tableFilters,page:tablePage,limit:50};
-    const endpoint=tableFilters.dataset==="Snowtravel"?"/api/dashboard/snowtravel-table":"/api/dashboard/bookings-table";
-    apiFetch(endpoint,p).then(d=>{
-      if(d?.rows){setTableRows(d.rows);setTableTotal(d.total||0);}
-    }).catch(()=>[]).finally(()=>setTLoad(false));
-  },[token,tableFilters,tablePage]);
-
-  useEffect(()=>{if(token&&tab==="table"){setTablePage(1);loadTable();};},[token,tab]);
-  useEffect(()=>{if(token&&tab==="table")loadTable();},[tablePage]);
-
-
-  useEffect(()=>{if(chatRef.current)chatRef.current.scrollTop=chatRef.current.scrollHeight;},[msgs]);
-  const sendAI=async msg=>{
-    if(!msg.trim()||aiLoad)return;
-    setMsgs(m=>[...m,{role:"user",text:msg}]);setAiInput("");setAiLoad(true);
+  const exportCSV=async()=>{
     try{
-      const r=await fetch(`${BASE}/api/ai/chat`,{method:"POST",headers:{"Authorization":`Bearer ${localStorage.getItem("ttp_token")}`,"Content-Type":"application/json"},body:JSON.stringify({message:msg})});
-      if(r.status===401){setMsgs(m=>[...m,{role:"assistant",text:"Session expired. Please refresh the page."}]);setAiLoad(false);return;}
-      const d=await r.json();
-      setMsgs(m=>[...m,{role:"assistant",text:d.reply||"No response."}]);
-    }catch{setMsgs(m=>[...m,{role:"assistant",text:"Connection error. Please try again."}]);}
-    finally{setAiLoad(false);}
+      const d=await apiFetch("/api/dashboard/bookings-table",{...buildTableParams(1),limit:10000});
+      const r=d.rows||[];
+      if(!r.length) return;
+      const keys=Object.keys(r[0]);
+      const csv=[keys.join(","),...r.map(row=>keys.map(k=>`"${String(row[k]??"")}"`).join(","))].join("\n");
+      const a=document.createElement("a");a.href="data:text/csv;charset=utf-8,"+encodeURIComponent(csv);a.download=`ttp-bookings-${new Date().toISOString().split("T")[0]}.csv`;a.click();
+    }catch(e){alert("Export failed: "+e.message);}
   };
-  const doExport=(type)=>{
-    const p={};
-    if(exportOpts.dataset)p.dataset=exportOpts.dataset;
-    if(exportOpts.status&&exportOpts.status!=="all")p.status=exportOpts.status;
-    if(exportOpts.depFrom)p.departureDateFrom=exportOpts.depFrom;
-    if(exportOpts.depTo)p.departureDateTo=exportOpts.depTo;
-    if(exportOpts.bkFrom)p.bookingDateFrom=exportOpts.bkFrom;
-    if(exportOpts.bkTo)p.bookingDateTo=exportOpts.bkTo;
-    const qs=new URLSearchParams({...p,token}).toString();
-    if(type==="excel"){window.open(`${API}/api/dashboard/export-excel?${qs}`,"_blank");setShowExportModal(false);return;}
-    if(type==="csv"){window.open(`${API}/api/dashboard/export?${qs}`,"_blank");setShowExportModal(false);return;}
-    if(type==="print"){setShowExportModal(false);setTimeout(()=>window.print(),100);return;}
-    setShowExportModal(false);
-  };
-  const exportCSV=()=>setShowExportModal(true);
 
-  const QUICK=[
-    {l:"This Year",fn:()=>{const y=new Date().getFullYear();setFilters(f=>({...f,depFrom:`${y}-01-01`,depTo:`${y}-12-31`}));}},
-    {l:"Last Year",fn:()=>{const y=new Date().getFullYear()-1;setFilters(f=>({...f,depFrom:`${y}-01-01`,depTo:`${y}-12-31`}));}},
-    {l:"Last 3M",fn:()=>{const to=new Date(),fr=new Date();fr.setMonth(fr.getMonth()-3);setFilters(f=>({...f,depFrom:fr.toISOString().split("T")[0],depTo:to.toISOString().split("T")[0]}));}},
-    {l:"All",fn:()=>setFilters(f=>({...f,depFrom:"",depTo:"",bkFrom:"",bkTo:""}))},
-    {l:"Solmar FY",fn:()=>{const y=new Date().getFullYear();setFilters(f=>({...f,depFrom:`${y-1}-12-01`,depTo:`${y}-11-30`,dataset:["Solmar"]}));},fiscal:true},
-    {l:"ST FY",fn:()=>{const y=new Date().getFullYear();setFilters(f=>({...f,depFrom:`${y-1}-07-01`,depTo:`${y}-06-30`,dataset:["Snowtravel"]}));},fiscal:true},
-  ];
+  const filtered=rows.filter(r=>!search||Object.values(r).some(v=>String(v).toLowerCase().includes(search.toLowerCase())));
+  const statusColor=s=>s==="Confirmed"?"var(--green)":"var(--red)";
+  const iS={padding:"6px 10px",background:"var(--bg)",border:"1px solid var(--border)",borderRadius:"var(--radius)",color:"var(--text)",fontSize:12,outline:"none"};
+  const lS={fontSize:10,fontWeight:700,textTransform:"uppercase",color:"var(--text-dim)",marginBottom:3,display:"block"};
 
-  const isAdmin=user?.role==="admin";
-  const isSnow=false; // Solmar only — bus data from solmar_bus_bookings_modified
-  const busClassFiltered=busClass; // already filtered DEF only in backend
-  const handleTabClick = (newTab) => {
-    setTab(newTab);
-    if (newTab === "bus") setBusFiltersOpen(true);
-  };
-  const NAV=[
-    {id:"overview",label:"Overview",icon:Ic.overview},
-    {id:"bus",label:"Bus Occupancy",icon:Ic.bus},
-    {id:"table",label:"Data Table",icon:Ic.table},
-    {id:"hotel",label:"Hotel",icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>},
-    {id:"ai",label:"TTP AI",icon:Ic.ai},
-    ...(isAdmin?[{id:"settings",label:"Settings",icon:Ic.settings}]:[]),
-  ];
-
-  if(!token)return <Login onLogin={onLogin} themeKey={themeKey} onTheme={switchTheme}/>;
-
-  const inputStyle={width:"100%",boxSizing:"border-box",background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:7,padding:"7px 10px",fontSize:13,color:T.text,outline:"none"};
-  const labelStyle={fontSize:11,fontWeight:700,color:T.textMuted,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.04em",display:"block"};
-
-  // ─── YoY TABLE COLUMNS ───────────────────────────────────────────────────────
-  // Sort: for fiscal year filters (Dec-Nov), sort chronologically by actual date
-  const ymSorted = (() => {
-    const rows = [...ymData];
-    const hasDateFilter = !!(applied.depFrom || applied.depTo);
-    if (hasDateFilter) {
-      // Sort by actual date ASC so Dec 2025 appears before Jan 2026
-      return rows.sort((a,b) => a.year!==b.year ? a.year-b.year : a.month-b.month);
-    }
-    // Default: newest first (DESC)
-    return rows.sort((a,b) => b.year!==a.year ? b.year-a.year : b.month-a.month);
-  })();
-
-  const ymCols = [
-    {label:"PERIOD",key:"period",noWrap:true,bold:true,color:(_,T)=>T.accent,render:r=>`${MONTHS[(r.month||1)-1]}-${r.year}`},
-    {label:"LAST YEAR",key:"ly",noWrap:true,color:(_,T)=>T.textMuted,render:r=>`${MONTHS[(r.month||1)-1]}-${(r.year||0)-1}`},
-    {label:"CURRENT",key:"curr",right:true,bold:true,render:r=>ymMetric==="bookings"?fmtN(r.currentBookings):ymMetric==="pax"?fmtN(r.currentPax):fmtEur(r.currentRevenue)},
-    {label:"PREVIOUS",key:"prev",right:true,color:(_,T)=>T.textMuted,render:r=>ymMetric==="bookings"?fmtN(r.previousBookings):ymMetric==="pax"?fmtN(r.previousPax):fmtEur(r.previousRevenue)},
-    {label:"DIFFERENCE",key:"diff",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(ymMetric==="bookings"?r.diffBookings:ymMetric==="pax"?r.diffPax:r.diffRevenue,T),render:r=>{const d=ymMetric==="bookings"?r.diffBookings:ymMetric==="pax"?r.diffPax:r.diffRevenue;return(d>0?"+":"")+( ymMetric==="revenue"?fmtEur(d):fmtN(d));}},
-    {label:"DIFF %",key:"pct",right:true,noWrap:true,color:(r,T)=>{const d=ymMetric==="bookings"?r.diffBookings:ymMetric==="pax"?r.diffPax:r.diffRevenue;return diffClr(d,T);},render:r=>{const p=ymMetric==="bookings"?r.diffPctBookings:ymMetric==="pax"?r.diffPctPax:r.diffPctRevenue;return p!=null?(p>0?"+":"")+Number(p).toFixed(1)+"%":"—";}},
-  ];
-
-  // ─── BUS COLUMNS ─────────────────────────────────────────────────────────────
-  const busCols=[
-    {label:"START DATE",key:"StartDate",noWrap:true,bold:true,color:(_,T)=>T.accent},
-    {label:"END DATE",key:"EndDate",noWrap:true,color:(_,T)=>T.textMuted},
-    {label:"RC OUT",key:"ORC",right:true},{label:"FC",key:"OFC",right:true},{label:"PRE",key:"OPRE",right:true},
-    {label:"TOTAL OUT",key:"OTotal",right:true,bold:true},
-    {label:"RC",key:"RRC",right:true},{label:"FC",key:"RFC",right:true},{label:"PRE",key:"RPRE",right:true},
-    {label:"TOTAL RET",key:"RTotal",right:true,bold:true},
-    {label:"RC DIFF",key:"RC_Diff",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.RC_Diff,T),render:r=>(r.RC_Diff>0?"+":"")+r.RC_Diff},
-    {label:"FC DIFF",key:"FC_Diff",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.FC_Diff,T),render:r=>(r.FC_Diff>0?"+":"")+r.FC_Diff},
-    {label:"PRE DIFF",key:"PRE_Diff",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.PRE_Diff,T),render:r=>(r.PRE_Diff>0?"+":"")+r.PRE_Diff},
-    {label:"TOTAL DIFF",key:"Total_Difference",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.Total_Difference,T),render:r=>(r.Total_Difference>0?"+":"")+r.Total_Difference},
-  ];
-
-  const pendelCols=[
-    {label:"START DATE",key:"StartDate",noWrap:true,bold:true,color:(_,T)=>T.accent},
-    {label:"END DATE",key:"EndDate",noWrap:true,color:(_,T)=>T.textMuted},
-    {label:"OUT TOTAL",key:"Outbound_Total",right:true,bold:true,color:(_,T)=>T.success},
-    {label:"OUT RC",key:"ORC",right:true,color:(_,T)=>T.success},
-    {label:"OUT FC",key:"OFC",right:true,color:(_,T)=>T.success},
-    {label:"OUT PRE",key:"OPRE",right:true,color:(_,T)=>T.success},
-    {label:"IN TOTAL",key:"Inbound_Total",right:true,bold:true,color:(_,T)=>T.warning},
-    {label:"IN RC",key:"RRC",right:true,color:(_,T)=>T.warning},
-    {label:"IN FC",key:"RFC",right:true,color:(_,T)=>T.warning},
-    {label:"IN PRE",key:"RPRE",right:true,color:(_,T)=>T.warning},
-    {label:"DIFF RC",key:"Diff_Royal",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.Diff_Royal,T),render:r=>{const v=r.Diff_Royal||0;return v!==0?(v>0?"+":"")+v:"";}},
-    {label:"DIFF FC",key:"Diff_First",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.Diff_First,T),render:r=>{const v=r.Diff_First||0;return v!==0?(v>0?"+":"")+v:"";}},
-    {label:"DIFF PRE",key:"Diff_Premium",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.Diff_Premium,T),render:r=>{const v=r.Diff_Premium||0;return v!==0?(v>0?"+":"")+v:"";}},
-    {label:"DIFF TOTAL",key:"Diff_Total",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.Diff_Total,T),render:r=>{const v=r.Diff_Total||0;return v!==0?(v>0?"+":"")+v:"";}},
-  ];
-
-  const feederCols=[
-    {label:"DEP DATE",key:"DepartureDate",noWrap:true,bold:true,color:(_,T)=>T.accent},
-    {label:"LABEL",key:"LabelName",noWrap:true},
-    {label:"FEEDER LINE",key:"FeederLine",noWrap:true},
-    {label:"DIRECTION",key:"Direction",noWrap:true,render:r=>{const d=r.Direction;return <span style={{color:d==="Outbound"?"#22c55e":"#f59e0b",fontWeight:600,fontSize:11}}>{d}</span>;}},
-    {label:"ROUTE",key:"RouteLabel",noWrap:true},
-    {label:"STOP",key:"StopName",noWrap:true},
-    {label:"STOP TYPE",key:"StopType",noWrap:true,color:(_,T)=>T.textMuted},
-    {label:"PAX",key:"TotalPax",right:true,bold:true},
-    {label:"BOOKINGS",key:"BookingCount",right:true},
-  ];
-
-  const deckCols=[
-    {label:"DEPARTURE",key:"dateDeparture",noWrap:true,bold:true,color:(_,T)=>T.accent},
-    {label:"TOTAL",key:"Total",right:true,bold:true},
-    {label:"RC LOWER",key:"Royal_Lower",right:true},{label:"RC UPPER",key:"Royal_Upper",right:true},{label:"RC NO",key:"Royal_NoDeck",right:true},
-    {label:"FC LOWER",key:"First_Lower",right:true},{label:"FC UPPER",key:"First_Upper",right:true},{label:"FC NO",key:"First_NoDeck",right:true},
-    {label:"PRE LOWER",key:"Premium_Lower",right:true},{label:"PRE UPPER",key:"Premium_Upper",right:true},{label:"PRE NO",key:"Premium_NoDeck",right:true},
-  ];
-
-  const tableCols=[
-    {label:"BOOKING ID",key:"BookingID",noWrap:true,bold:true,color:(_,T)=>T.accent},
-    {label:"DATASET",key:"Dataset",noWrap:true,render:r=><span style={{background:DS_COLORS[r.Dataset]+"22",color:DS_COLORS[r.Dataset]||T.textMuted,fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:10}}>{r.Dataset}</span>},
-    {label:"STATUS",key:"Status",noWrap:true,render:r=><Badge color={r.Status==="ok"?"success":r.Status==="cancelled"?"danger":"muted"} T={T}>{r.Status}</Badge>},
-    {label:"LABEL",key:"Label",noWrap:true,color:(_,T)=>T.textMuted},
-    {label:"BOOKING DATE",key:"BookingDate",noWrap:true,color:(_,T)=>T.textMuted},
-    {label:"DEP DATE",key:"DepartureDate",noWrap:true,bold:true},
-    {label:"RET DATE",key:"ReturnDate",noWrap:true,color:(_,T)=>T.textMuted},
-    {label:"DAYS",key:"Duration",right:true,color:(_,T)=>T.textMuted},
-    {label:"PAX",key:"PAXCount",right:true,bold:true},
-    {label:"REVENUE",key:"TotalRevenue",right:true,bold:true,render:r=>fmtEur(r.TotalRevenue)},
-    {label:"REV/PAX",key:"RevenuePerPax",right:true,color:(_,T)=>T.textMuted,render:r=>fmtEur(r.RevenuePerPax)},
-    {label:"TRANSPORT",key:"TransportType",noWrap:true},
-    {label:"BUS CLASS",key:"BusType",noWrap:true},
-    {label:"DEP PLACE",key:"DeparturePlace",noWrap:true},
-    {label:"CITY",key:"City",noWrap:true},
-    {label:"COUNTRY",key:"Country",noWrap:true},
-    {label:"DESTINATION",key:"Destination",noWrap:true},
-    {label:"YEAR",key:"Year",right:true,color:(_,T)=>T.textMuted},
-    {label:"RESELLER",key:"Reseller",noWrap:true,color:(_,T)=>T.textMuted},
-  ];
-
-  // ─── RENDER ──────────────────────────────────────────────────────────────────
   return(
-    <div style={{display:"flex",minHeight:"100vh",background:T.bg,fontFamily:"'Segoe UI',system-ui,sans-serif",color:T.text}}>
-
-      {/* SIDEBAR */}
-      <aside style={{width:sidebarOpen?240:64,flexShrink:0,background:T.sidebar,borderRight:`1px solid ${T.border}`,display:"flex",flexDirection:"column",position:"fixed",top:0,left:0,height:"100vh",zIndex:100,transition:"width 0.2s",overflow:"hidden",boxShadow:T.cardShadow}}>
-        <div style={{padding:"16px 14px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",gap:10,minHeight:64}}>
-          <div style={{width:32,height:32,background:T.accent,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-            <span style={{color:"#fff",fontWeight:800,fontSize:13,letterSpacing:"-0.5px"}}>TTP</span>
-          </div>
-          {sidebarOpen&&<div><div style={{fontSize:12,fontWeight:800,color:T.text,letterSpacing:"0.03em"}}>TTP ANALYTICS</div><div style={{fontSize:10,color:T.textDim}}>Data Engine v2.0</div></div>}
+    <div className="tab-content">
+      {/* Filters row */}
+      <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"14px 16px",display:"flex",gap:14,flexWrap:"wrap",alignItems:"flex-end"}}>
+        <div style={{minWidth:160,flex:1}}>
+          <label style={lS}>Dataset</label>
+          <MultiSelect options={["Solmar","Interbus","Solmar DE","Snowtravel"]} value={dsFilter} onChange={setDsFilter} placeholder="All datasets"/>
         </div>
-        <nav style={{flex:1,padding:"8px 6px",overflowY:"auto"}}>
-          {NAV.map(n=>(
-            <button key={n.id} onClick={()=>{handleTabClick(n.id);if(window.innerWidth<=768)setSidebarOpen(false);}} title={!sidebarOpen?n.label:undefined} style={{display:"flex",alignItems:"center",gap:10,width:"100%",background:tab===n.id?T.navActive:"transparent",color:tab===n.id?T.accent:T.textMuted,border:"none",borderRadius:8,padding:"9px 11px",fontSize:13,fontWeight:tab===n.id?600:400,cursor:"pointer",textAlign:"left",marginBottom:2,transition:"all 0.15s"}}
-              onMouseEnter={e=>{if(tab!==n.id){e.currentTarget.style.background=T.navHover;e.currentTarget.style.color=T.text;}}}
-              onMouseLeave={e=>{if(tab!==n.id){e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.textMuted;}}}>
-              <span style={{flexShrink:0,opacity:tab===n.id?1:0.7}}>{n.icon}</span>
-              {sidebarOpen&&n.label}
+        <div style={{flex:"0 0 auto"}}>
+          <label style={lS}>Status</label>
+          <div style={{display:"flex",gap:4}}>
+            {[["","All"],["confirmed","Confirmed"],["cancelled","Cancelled"]].map(([v,l])=>(
+              <button key={v} onClick={()=>setStatusFilter(v)} style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${statusFilter===v?"var(--blue)":"var(--border)"}`,background:statusFilter===v?"var(--blue-dim)":"transparent",color:statusFilter===v?"var(--blue)":"var(--text-muted)",fontSize:11,fontWeight:statusFilter===v?700:400,cursor:"pointer"}}>{l}</button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <label style={lS}>Booking Date</label>
+          <div style={{display:"flex",gap:6,alignItems:"center"}}>
+            <input type="date" value={bookFrom} onChange={e=>setBookFrom(e.target.value)} style={iS}/>
+            <span style={{color:"var(--text-dim)",fontSize:11}}>→</span>
+            <input type="date" value={bookTo} onChange={e=>setBookTo(e.target.value)} style={iS}/>
+          </div>
+        </div>
+        <div>
+          <label style={lS}>Departure Date</label>
+          <div style={{display:"flex",gap:6,alignItems:"center"}}>
+            <input type="date" value={depFrom} onChange={e=>setDepFrom(e.target.value)} style={iS}/>
+            <span style={{color:"var(--text-dim)",fontSize:11}}>→</span>
+            <input type="date" value={depTo} onChange={e=>setDepTo(e.target.value)} style={iS}/>
+          </div>
+        </div>
+        <button onClick={()=>load(1)} style={{padding:"7px 18px",borderRadius:"var(--radius)",background:"var(--blue)",border:"none",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",alignSelf:"flex-end"}}>Apply</button>
+        <button onClick={()=>{setDsFilter([]);setStatusFilter("");setBookFrom("");setBookTo("");setDepFrom("");setDepTo("");}} style={{padding:"7px 12px",borderRadius:"var(--radius)",background:"transparent",border:"1px solid var(--border)",color:"var(--text-muted)",fontSize:12,cursor:"pointer",alignSelf:"flex-end"}}>Reset</button>
+      </div>
+
+      <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",overflow:"hidden"}}>
+        <div style={{padding:"12px 16px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+          <span style={{fontSize:13,fontWeight:700,color:"var(--text)",flex:1}}>Bookings — {fmtN(total)} records</span>
+          <div style={{position:"relative"}}><span style={{position:"absolute",left:8,top:"50%",transform:"translateY(-50%)",color:"var(--text-dim)"}}>{I.search}</span><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search…" style={{padding:"6px 12px 6px 28px",background:"var(--bg)",border:"1px solid var(--border)",borderRadius:"var(--radius)",color:"var(--text)",fontSize:12,outline:"none",width:180}}/></div>
+          <button onClick={()=>load(page)} style={{padding:"6px 12px",borderRadius:"var(--radius)",background:"var(--surface-2)",border:"1px solid var(--border)",color:"var(--text-muted)",fontSize:12,cursor:"pointer"}}>Refresh</button>
+          <button onClick={exportCSV} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 12px",borderRadius:"var(--radius)",background:"var(--blue-dim)",border:"1px solid rgba(77,158,255,.3)",color:"var(--blue)",fontSize:12,cursor:"pointer"}}>{I.download} Export CSV</button>
+        </div>
+        {loading&&<div style={{height:3,background:"linear-gradient(90deg,var(--blue),var(--green))"}}/>}
+        <div style={{overflowX:"auto",maxHeight:520}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+            <thead style={{position:"sticky",top:0,zIndex:1}}>
+              <tr style={{background:"var(--bg-2)"}}>
+                {["Booking ID","Dataset","Status","Label","Booking Date","Departure","Return","PAX","Revenue","Transport","Class","City","Country"].map(h=>(
+                  <th key={h} style={{padding:"9px 10px",textAlign:h==="PAX"||h==="Revenue"?"right":"left",fontSize:10,fontWeight:700,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:".05em",borderBottom:"1px solid var(--border)",whiteSpace:"nowrap"}}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {!filtered.length&&!loading&&<tr><td colSpan={13} style={{padding:24,textAlign:"center",color:"var(--text-muted)"}}>No data — apply filters and click Apply</td></tr>}
+              {filtered.map((r,i)=>(
+                <tr key={i} style={{borderBottom:"1px solid var(--border)",background:i%2?"var(--bg-2)":"transparent"}}>
+                  <td style={{padding:"7px 10px",color:"var(--text-muted)",fontFamily:"var(--mono)",fontSize:11,whiteSpace:"nowrap"}}>{r.BookingID}</td>
+                  <td style={{padding:"7px 10px",color:"var(--blue)",fontWeight:500}}>{r.Dataset}</td>
+                  <td style={{padding:"7px 10px"}}><span style={{background:`${statusColor(r.Status)}22`,color:statusColor(r.Status),padding:"2px 7px",borderRadius:10,fontSize:11,fontWeight:600}}>{r.Status}</span></td>
+                  <td style={{padding:"7px 10px",color:"var(--text)",maxWidth:140,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.Label}</td>
+                  <td style={{padding:"7px 10px",color:"var(--text-muted)",whiteSpace:"nowrap",fontFamily:"var(--mono)",fontSize:11}}>{r.BookingDate}</td>
+                  <td style={{padding:"7px 10px",color:"var(--text)",whiteSpace:"nowrap",fontFamily:"var(--mono)",fontWeight:500}}>{r.DepartureDate}</td>
+                  <td style={{padding:"7px 10px",color:"var(--text-muted)",whiteSpace:"nowrap",fontFamily:"var(--mono)",fontSize:11}}>{r.ReturnDate}</td>
+                  <td style={{padding:"7px 10px",textAlign:"right",color:"var(--text)",fontFamily:"var(--mono)"}}>{fmtN(r.PAX)}</td>
+                  <td style={{padding:"7px 10px",textAlign:"right",color:"var(--amber)",fontFamily:"var(--mono)",fontWeight:600}}>{fmtEur(r.Revenue)}</td>
+                  <td style={{padding:"7px 10px",color:"var(--text-muted)",fontSize:11}}>{r.TransportType}</td>
+                  <td style={{padding:"7px 10px",color:"var(--text-muted)",fontSize:11}}>{r.BusClass}</td>
+                  <td style={{padding:"7px 10px",color:"var(--text-muted)",fontSize:11}}>{r.City}</td>
+                  <td style={{padding:"7px 10px",color:"var(--text-muted)",fontSize:11}}>{r.Country}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div style={{padding:"10px 16px",borderTop:"1px solid var(--border)",display:"flex",alignItems:"center",gap:8,fontSize:12,color:"var(--text-muted)"}}>
+          <span>Page {page} · {rows.length} of {fmtN(total)}</span>
+          <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+            {page>1&&<button onClick={()=>load(page-1)} style={{padding:"5px 12px",borderRadius:"var(--radius)",border:"1px solid var(--border)",background:"var(--surface)",color:"var(--text-muted)",fontSize:12,cursor:"pointer"}}>Prev</button>}
+            {rows.length===50&&<button onClick={()=>load(page+1)} style={{padding:"5px 12px",borderRadius:"var(--radius)",border:"1px solid var(--border)",background:"var(--surface)",color:"var(--text-muted)",fontSize:12,cursor:"pointer"}}>Next</button>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── AI TAB ───────────────────────────────────────────────────────────────────
+function AiTab({user,kpiData}) {
+  const [msgs,setMsgs]=useState([{role:"assistant",content:"Hi, I'm TTP AI — your analytics assistant.\n\nI have direct access to the live TTP Azure SQL database. I'll always verify data before answering, and if your question needs clarification I'll ask one focused question rather than guessing.\n\nWhat would you like to know?",ts:new Date()}]);
+  const [input,setInput]=useState("");
+  const [loading,setLoading]=useState(false);
+  const endRef=useRef(null),inputRef=useRef(null);
+
+  useEffect(()=>{endRef.current?.scrollIntoView({behavior:"smooth"});},[msgs]);
+
+  const send=async(text)=>{
+    const msg=(text||input).trim(); if(!msg||loading) return;
+    setInput(""); setMsgs(p=>[...p,{role:"user",content:msg,ts:new Date()}]); setLoading(true);
+    try{
+      const r=await fetch(`${BASE}/api/ai/chat`,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${getToken()}`},body:JSON.stringify({message:msg,history:msgs.slice(-10).map(m=>({role:m.role,content:m.content}))})});
+      const d=await r.json();
+      setMsgs(p=>[...p,{role:"assistant",content:d.reply||"No response.",source:d.source,ts:new Date()}]);
+    }catch{setMsgs(p=>[...p,{role:"assistant",content:"Connection error. Please try again.",isError:true,ts:new Date()}]);}
+    finally{setLoading(false);setTimeout(()=>inputRef.current?.focus(),100);}
+  };
+
+  const fmt=d=>`${d.getHours().toString().padStart(2,"0")}:${d.getMinutes().toString().padStart(2,"0")}`;
+  const SUGGESTED=["Total bookings 2026 vs 2025?","Revenue by dataset all time","Cancellation rate this year","Solmar confirmed PAX this year","Which month had most bookings in 2025?","Compare Solmar vs Snowtravel 2026 revenue"];
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 108px)",background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-xl)",overflow:"hidden"}}>
+      {kpiData&&(
+        <div style={{display:"flex",alignItems:"center",gap:20,padding:"9px 20px",background:"var(--bg-2)",borderBottom:"1px solid var(--border)",overflowX:"auto",flexShrink:0}}>
+          {[["Live DB","● Connected","var(--green)"],["2026 Bookings",fmtN(kpiData.currentBookings),null],["2026 Revenue",fmtEur(kpiData.currentRevenue),null],["2026 PAX",fmtN(kpiData.currentPax),null]].map(([l,v,c])=>(
+            <div key={l} style={{display:"flex",alignItems:"center",gap:6,whiteSpace:"nowrap"}}>
+              <span style={{fontSize:11,color:"var(--text-dim)"}}>{l}</span>
+              <span style={{fontSize:12,fontWeight:600,fontFamily:"var(--mono)",color:c||"var(--text)"}}>{v}</span>
+            </div>
+          ))}
+          <span style={{fontSize:11,color:"var(--text-dim)",marginLeft:"auto",whiteSpace:"nowrap"}}>AI asks one clarifying question if unsure</span>
+        </div>
+      )}
+      <div style={{flex:1,overflowY:"auto",padding:20,display:"flex",flexDirection:"column",gap:18}}>
+        {msgs.map((m,i)=>(
+          <div key={i} style={{display:"flex",gap:12,alignItems:"flex-start",flexDirection:m.role==="user"?"row-reverse":"row"}}>
+            <div style={{width:32,height:32,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:600,flexShrink:0,background:m.role==="assistant"?"var(--blue-dim)":"var(--surface-3)",color:m.role==="assistant"?"var(--blue)":"var(--text-muted)",border:m.role==="assistant"?"1px solid rgba(77,158,255,.25)":"none"}}>
+              {m.role==="assistant"?"✦":(user?.name||"U")[0].toUpperCase()}
+            </div>
+            <div style={{flex:1,maxWidth:680,display:"flex",flexDirection:"column",alignItems:m.role==="user"?"flex-end":"flex-start"}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:5,flexDirection:m.role==="user"?"row-reverse":"row"}}>
+                <span style={{fontSize:12,fontWeight:600,color:"var(--text)"}}>{m.role==="assistant"?"TTP AI":user?.name||"You"}</span>
+                {m.source&&<span style={{fontSize:10,padding:"1px 6px",borderRadius:10,background:m.source==="openai"?"var(--green-dim)":"var(--amber-dim)",color:m.source==="openai"?"var(--green)":"var(--amber)"}}>{m.source==="openai"?"GPT-4o":"fallback"}</span>}
+                <span style={{fontSize:11,color:"var(--text-dim)"}}>{fmt(m.ts)}</span>
+              </div>
+              <div style={{background:m.role==="user"?"var(--blue-dim)":m.isError?"var(--red-dim)":"var(--surface-2)",border:`1px solid ${m.role==="user"?"rgba(77,158,255,.2)":m.isError?"rgba(248,113,113,.2)":"var(--border)"}`,borderRadius:12,borderTopLeftRadius:m.role==="assistant"?3:12,borderTopRightRadius:m.role==="user"?3:12,padding:"11px 14px",fontSize:13,lineHeight:1.6,color:"var(--text)"}}>
+                {m.content.split("\n").map((line,j)=><p key={j} style={{marginBottom:2}}>{line||"\u00A0"}</p>)}
+              </div>
+            </div>
+          </div>
+        ))}
+        {loading&&(
+          <div style={{display:"flex",gap:12}}>
+            <div style={{width:32,height:32,borderRadius:"50%",background:"var(--blue-dim)",color:"var(--blue)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>✦</div>
+            <div style={{background:"var(--surface-2)",border:"1px solid var(--border)",borderRadius:12,borderTopLeftRadius:3,padding:"13px 16px",display:"flex",gap:5,alignItems:"center"}}>
+              {[0,200,400].map(d=><span key={d} style={{width:6,height:6,borderRadius:"50%",background:"var(--text-dim)",animation:`typingDot 1.4s ease ${d}ms infinite`,display:"block"}}/>)}
+            </div>
+          </div>
+        )}
+        <div ref={endRef}/>
+      </div>
+      {msgs.length===1&&(
+        <div style={{padding:"0 20px 12px",flexShrink:0}}>
+          <p style={{fontSize:11,color:"var(--text-dim)",marginBottom:8}}>Try asking:</p>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+            {SUGGESTED.map((s,i)=><button key={i} onClick={()=>send(s)} style={{padding:"6px 12px",borderRadius:20,background:"var(--surface-2)",border:"1px solid var(--border)",color:"var(--text-muted)",fontSize:12,cursor:"pointer"}}>{s}</button>)}
+          </div>
+        </div>
+      )}
+      <div style={{padding:"12px 16px",borderTop:"1px solid var(--border)",background:"var(--bg-2)",flexShrink:0}}>
+        <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
+          <textarea ref={inputRef} value={input} onChange={e=>setInput(e.target.value)}
+            onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}
+            placeholder="Ask about bookings, revenue, PAX, trends… (Enter to send)"
+            rows={1} disabled={loading}
+            style={{flex:1,minHeight:40,maxHeight:120,resize:"none",padding:"10px 14px",background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",color:"var(--text)",fontSize:13,outline:"none",lineHeight:1.5,overflowY:"auto"}}/>
+          <button onClick={()=>send()} disabled={loading||!input.trim()} style={{width:40,height:40,borderRadius:"var(--radius-lg)",background:"var(--blue)",border:"none",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",opacity:loading||!input.trim()?0.45:1,cursor:loading||!input.trim()?"not-allowed":"pointer"}}>
+            {I.send}
+          </button>
+        </div>
+        <p style={{fontSize:11,color:"var(--text-dim)",textAlign:"center",marginTop:6}}>TTP AI uses live Azure SQL data. Validate critical figures in the dashboard.</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── SETTINGS TAB ─────────────────────────────────────────────────────────────
+function SettingsTab({user,theme,setTheme}) {
+  const [stab,setStab]=useState("users");
+  const [users,setUsers]=useState([]);
+  const [showAdd,setShowAdd]=useState(false);
+  const [nu,setNu]=useState({name:"",username:"",email:"",password:"",role:"viewer"});
+  const [showPw,setShowPw]=useState(false);
+  const [uLoad,setULoad]=useState(false);
+
+  useEffect(()=>{
+    if(stab!=="users") return;
+    setULoad(true);
+    apiFetch("/api/auth/users").then(d=>setUsers(Array.isArray(d)?d:[])).catch(()=>{}).finally(()=>setULoad(false));
+  },[stab]);
+
+  const addUser=async()=>{
+    if(!nu.name||!nu.username||!nu.password){alert("Name, username and password required");return;}
+    try{const r=await fetch(`${BASE}/api/auth/users`,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${getToken()}`},body:JSON.stringify(nu)});const d=await r.json();if(r.ok){setUsers(p=>[...p,d]);setNu({name:"",username:"",email:"",password:"",role:"viewer"});setShowAdd(false);}else alert(d.error||"Failed");}
+    catch{alert("Connection error");}
+  };
+  const delUser=async id=>{if(!confirm("Delete this user?"))return;await fetch(`${BASE}/api/auth/users/${id}`,{method:"DELETE",headers:{Authorization:`Bearer ${getToken()}`}});setUsers(p=>p.filter(u=>u.id!==id));};
+
+  const iS={width:"100%",padding:"9px 12px",background:"var(--bg)",border:"1px solid var(--border)",borderRadius:"var(--radius)",color:"var(--text)",fontSize:13,outline:"none",boxSizing:"border-box"};
+  const lS={fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".05em",color:"var(--text-dim)",display:"block",marginBottom:6};
+
+  return(
+    <div className="tab-content">
+      <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",overflow:"hidden"}}>
+        <div style={{display:"flex",borderBottom:"1px solid var(--border)",overflowX:"auto"}}>
+          {[["users","User Management"],["theme","Theme"],["api","API & Integrations"],["alerts","Email Alerts"],["ai_prompts","AI Prompts"]].map(([k,l])=>(
+            <button key={k} onClick={()=>setStab(k)} style={{padding:"12px 16px",background:"none",border:"none",borderBottom:`2px solid ${stab===k?"var(--blue)":"transparent"}`,color:stab===k?"var(--blue)":"var(--text-muted)",fontSize:13,fontWeight:stab===k?600:400,cursor:"pointer",whiteSpace:"nowrap"}}>{l}</button>
+          ))}
+        </div>
+        <div style={{padding:24}}>
+          {stab==="users"&&(
+            <div>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+                <span style={{fontSize:14,fontWeight:700,color:"var(--text)"}}>User Accounts ({users.length})</span>
+                <button onClick={()=>setShowAdd(true)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:"var(--radius)",background:"var(--blue)",border:"none",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>{I.plus} Add User</button>
+              </div>
+              {uLoad?<Empty msg="Loading…"/>:(
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                  <thead><tr style={{background:"var(--bg-2)"}}>
+                    {["Name","Username","Email","Role",""].map(h=><th key={h} style={{padding:"9px 12px",textAlign:"left",fontSize:10,fontWeight:700,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:".05em",borderBottom:"1px solid var(--border)"}}>{h}</th>)}
+                  </tr></thead>
+                  <tbody>
+                    {users.map((u,i)=>(
+                      <tr key={u.id} style={{borderBottom:"1px solid var(--border)",background:i%2?"var(--bg-2)":"transparent"}}>
+                        <td style={{padding:"10px 12px",fontWeight:600,color:"var(--text)"}}>{u.name}</td>
+                        <td style={{padding:"10px 12px",color:"var(--text-muted)",fontFamily:"var(--mono)",fontSize:12}}>{u.username}</td>
+                        <td style={{padding:"10px 12px",color:"var(--text-muted)",fontSize:12}}>{u.email||"—"}</td>
+                        <td style={{padding:"10px 12px"}}><span style={{padding:"2px 8px",borderRadius:10,fontSize:11,fontWeight:600,background:u.role==="admin"?"var(--blue-dim)":"var(--surface-2)",color:u.role==="admin"?"var(--blue)":"var(--text-muted)"}}>{u.role}</span></td>
+                        <td style={{padding:"10px 12px"}}>{u.id!==user?.id&&<button onClick={()=>delUser(u.id)} style={{background:"none",border:"1px solid var(--border)",borderRadius:6,color:"var(--red)",cursor:"pointer",padding:"4px 8px",fontSize:11}}>Delete</button>}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              {showAdd&&(
+                <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowAdd(false)}>
+                  <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:16,padding:28,width:380,boxShadow:"var(--shadow-lg)"}} onClick={e=>e.stopPropagation()}>
+                    <div style={{fontSize:15,fontWeight:700,color:"var(--text)",marginBottom:20}}>Add New User</div>
+                    {[["Full Name","name","text"],["Username","username","text"],["Email","email","email"]].map(([l,k,t])=>(
+                      <div key={k} style={{marginBottom:14}}><label style={lS}>{l}</label><input type={t} value={nu[k]||""} onChange={e=>setNu(u=>({...u,[k]:e.target.value}))} style={iS}/></div>
+                    ))}
+                    <div style={{marginBottom:14}}><label style={lS}>Password</label>
+                      <div style={{position:"relative"}}><input type={showPw?"text":"password"} value={nu.password||""} onChange={e=>setNu(u=>({...u,password:e.target.value}))} style={{...iS,paddingRight:40}}/>
+                        <button type="button" onClick={()=>setShowPw(s=>!s)} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"var(--text-dim)",cursor:"pointer"}}>{showPw?I.eyeOff:I.eye}</button>
+                      </div>
+                    </div>
+                    <div style={{marginBottom:20}}><label style={lS}>Role</label><select value={nu.role} onChange={e=>setNu(u=>({...u,role:e.target.value}))} style={iS}><option value="viewer">Viewer — view only</option><option value="admin">Admin — full access</option></select></div>
+                    <div style={{display:"flex",gap:8}}>
+                      <button onClick={addUser} style={{flex:1,padding:"10px",borderRadius:"var(--radius)",background:"var(--blue)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>Add User</button>
+                      <button onClick={()=>setShowAdd(false)} style={{flex:1,padding:"10px",borderRadius:"var(--radius)",background:"transparent",border:"1px solid var(--border)",color:"var(--text-muted)",fontSize:13,cursor:"pointer"}}>Cancel</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          {stab==="theme"&&(
+            <div>
+              <div style={{fontSize:14,fontWeight:700,color:"var(--text)",marginBottom:12}}>Appearance</div>
+              <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+                {[["dark","Dark (Default)","#0d1117"],["light","Light Silver","#f1f5f9"]].map(([id,label,bg])=>(
+                  <button key={id} onClick={()=>setTheme(id)} style={{padding:"16px 20px",borderRadius:12,border:`2px solid ${theme===id?"var(--blue)":"var(--border)"}`,background:bg,color:id==="dark"?"#e2e8f0":"#1e293b",fontSize:13,fontWeight:theme===id?700:400,cursor:"pointer",display:"flex",flexDirection:"column",gap:6,alignItems:"flex-start",transition:"border-color .15s"}}>
+                    <span style={{fontSize:18}}>{id==="dark"?"🌙":"☀️"}</span>
+                    {label}
+                    {theme===id&&<span style={{fontSize:10,color:"var(--blue)",fontWeight:700}}>Active</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {stab==="api"&&(
+            <div>
+              <div style={{fontSize:13,color:"var(--text-muted)",marginBottom:16}}>Connected data sources and integrations.</div>
+              {[["Azure SQL","ttpserver.database.windows.net / TTPDatabase","Connected","var(--green)"],["TravelTrustIt API","421 hotels · 9,020 reviews loaded","Connected","var(--green)"],["OpenAI (GPT-4o)","TTP AI assistant","Connected","var(--green)"]].map(([n,d,s,c])=>(
+                <div key={n} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:"var(--bg-2)",border:"1px solid var(--border)",borderRadius:"var(--radius)",marginBottom:8}}>
+                  <div style={{width:8,height:8,borderRadius:"50%",background:c,flexShrink:0}}/>
+                  <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:"var(--text)"}}>{n}</div><div style={{fontSize:12,color:"var(--text-muted)"}}>{d}</div></div>
+                  <span style={{fontSize:11,fontWeight:600,color:c,background:`${c}22`,padding:"3px 10px",borderRadius:10}}>{s}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {stab==="alerts"&&(
+            <div>
+              <div style={{marginBottom:14}}><label style={lS}>Alert Email</label><input type="email" placeholder="datateamttpservices@gmail.com" style={iS}/></div>
+              <button style={{padding:"9px 18px",borderRadius:"var(--radius)",background:"var(--blue)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>Save</button>
+            </div>
+          )}
+          {stab==="ai_prompts"&&(
+            <div>
+              <div style={{fontSize:14,fontWeight:700,color:"var(--text)",marginBottom:6}}>AI System Prompt</div>
+              <div style={{fontSize:12,color:"var(--text-muted)",marginBottom:12}}>Controls TTP AI behavior. Changes take effect on next conversation.</div>
+              <textarea defaultValue={"You are TTP AI — analytics assistant for TTP Services (Belgian travel company).\nSOURCES: CustomerOverview (Solmar/Interbus/Solmar DE) + ST_Bookings (Snowtravel)\nRULES: Never guess. Ask ONE clarifying question if ambiguous. Dutch number format."} style={{width:"100%",minHeight:160,padding:"12px 14px",background:"var(--bg)",border:"1px solid var(--border)",borderRadius:"var(--radius)",color:"var(--text)",fontSize:12,fontFamily:"var(--mono)",resize:"vertical",outline:"none",lineHeight:1.6,boxSizing:"border-box"}}/>
+              <div style={{marginTop:8,display:"flex",gap:8,alignItems:"center"}}>
+                <button style={{padding:"8px 16px",borderRadius:"var(--radius)",background:"var(--blue)",border:"none",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>Save Prompt</button>
+                <span style={{fontSize:11,color:"var(--text-dim)"}}>Stored in backend environment variables</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── FLOATING AI ──────────────────────────────────────────────────────────────
+function FloatingAI({tab,setTab}) {
+  const [open,setOpen]=useState(false);
+  if(tab==="ai") return null;
+  return(
+    <div style={{position:"fixed",bottom:24,right:24,zIndex:500,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:10}}>
+      {open&&(
+        <div style={{width:300,background:"var(--surface)",border:"1px solid var(--border)",borderRadius:16,boxShadow:"var(--shadow-lg)",overflow:"hidden"}}>
+          <div style={{padding:"12px 14px",background:"var(--blue)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <span style={{fontSize:13,fontWeight:700,color:"#fff"}}>TTP AI Assistant</span>
+            <button onClick={()=>setOpen(false)} style={{background:"none",border:"none",color:"rgba(255,255,255,.7)",cursor:"pointer"}}>{I.close}</button>
+          </div>
+          <div style={{padding:"10px 12px",fontSize:12,color:"var(--text-muted)"}}>Ask me anything about your data, or open the AI tab for a full conversation.</div>
+          <div style={{padding:"0 12px 12px",display:"flex",gap:6}}>
+            <input placeholder="Quick question…" style={{flex:1,padding:"7px 10px",background:"var(--bg)",border:"1px solid var(--border)",borderRadius:"var(--radius)",color:"var(--text)",fontSize:12,outline:"none"}} onKeyDown={e=>{if(e.key==="Enter"){setTab("ai");setOpen(false);}}}/>
+            <button onClick={()=>{setTab("ai");setOpen(false);}} style={{padding:"7px 12px",background:"var(--blue)",border:"none",borderRadius:"var(--radius)",color:"#fff",fontSize:12,cursor:"pointer",fontWeight:700}}>Open</button>
+          </div>
+        </div>
+      )}
+      <button onClick={()=>setOpen(o=>!o)} title="TTP AI"
+        style={{width:50,height:50,borderRadius:"50%",background:"var(--blue)",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 8px 24px rgba(77,158,255,.4)",transition:"transform .2s"}}
+        onMouseEnter={e=>e.currentTarget.style.transform="scale(1.1)"}
+        onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"/>
+          <circle cx="9" cy="14" r="1" fill="white"/><circle cx="15" cy="14" r="1" fill="white"/>
+        </svg>
+      </button>
+    </div>
+  );
+}
+
+// ─── DUBAI CLOCK ──────────────────────────────────────────────────────────────
+function DubaiClock() {
+  const [t,setT]=useState("");
+  useEffect(()=>{
+    const tick=()=>setT(new Date().toLocaleTimeString("en-GB",{timeZone:"Asia/Dubai",hour:"2-digit",minute:"2-digit"}));
+    tick(); const id=setInterval(tick,60000); return()=>clearInterval(id);
+  },[]);
+  return <span style={{color:"var(--text-dim)",fontSize:11}}>{t} Dubai</span>;
+}
+
+// ─── TABS / CONSTANTS ─────────────────────────────────────────────────────────
+const TABS=[
+  {id:"overview",label:"Overview",icon:null},
+  {id:"bus",label:"Bus Occupancy",icon:null},
+  {id:"hotel",label:"Hotel Insights",icon:null},
+  {id:"data",label:"Data Table",icon:null},
+  {id:"ai",label:"TTP AI",icon:null},
+  {id:"settings",label:"Settings",icon:null},
+];
+const TAB_ICONS={overview:null,bus:null,hotel:null,data:null,ai:null,settings:null};
+const DATASETS=["Solmar","Interbus","Solmar DE","Snowtravel"];
+const YEARS=["2022","2023","2024","2025","2026"];
+const emptyF=()=>({datasets:[],year:[],departureDateFrom:"",departureDateTo:"",bookingDateFrom:"",bookingDateTo:"",transportType:"",status:""});
+
+// ─── MAIN APP ─────────────────────────────────────────────────────────────────
+export default function App() {
+  const [user,setUser]=useState(()=>{
+    try{
+      // Session-only: token only persists within the current browser tab/session
+      const t=sessionStorage.getItem("ttp_token");
+      const u=sessionStorage.getItem("ttp_user");
+      return t&&u?{...JSON.parse(u),token:t}:null;
+    }catch{return null;}
+  });
+  const [theme,setTheme]=useState(()=>localStorage.getItem("ttp_theme")||"dark");
+  const [tab,setTab]           = useState("overview");
+  const [metric,setMetric]     = useState("bookings");
+  const [filtersOpen,setFO]    = useState(false);
+  const [filters,setFilters]   = useState(emptyF());
+  const [applied,setApplied]   = useState({});
+  const [hasFY,setHasFY]       = useState(false);
+  const [kpiData,setKpiData]   = useState(null);
+  const [ymData,setYmData]     = useState([]);
+  const [revData,setRevData]   = useState([]);
+  const [slicers,setSlicers]   = useState({transportTypes:[]});
+  const [loading,setLoading]   = useState(false);
+  const [spinning,setSpinning] = useState(false);
+  const [lastSync,setLastSync] = useState(null);
+  const [error,setError]       = useState("");
+
+  // Persist theme
+  useEffect(()=>{
+    localStorage.setItem("ttp_theme",theme);
+    document.documentElement.setAttribute("data-theme",theme);
+  },[theme]);
+
+  const handleLogin=(token,u)=>{
+    // Store in sessionStorage only — clears when browser/tab is closed (security requirement)
+    sessionStorage.setItem("ttp_token",token);
+    sessionStorage.setItem("ttp_user",JSON.stringify(u));
+    // Remove any old localStorage tokens to prevent stale login
+    localStorage.removeItem("ttp_token");
+    localStorage.removeItem("ttp_user");
+    setUser({...u,token});
+  };
+  const handleLogout=()=>{
+    ["ttp_token","ttp_user"].forEach(k=>{
+      localStorage.removeItem(k);
+      sessionStorage.removeItem(k);
+    });
+    setUser(null);
+  };
+
+  const buildParams=f=>{
+    const p={};
+    if(f.datasets?.length)   p.dataset=f.datasets;
+    if(f.year?.length)       p.year=f.year;
+    if(f.departureDateFrom)  p.departureDateFrom=f.departureDateFrom;
+    if(f.departureDateTo)    p.departureDateTo=f.departureDateTo;
+    if(f.bookingDateFrom)    p.bookingDateFrom=f.bookingDateFrom;
+    if(f.bookingDateTo)      p.bookingDateTo=f.bookingDateTo;
+    if(f.transportType)      p.transportType=f.transportType;
+    if(f.status&&f.status!=="all") p.status=f.status;
+    return p;
+  };
+
+  const loadAll=useCallback(async(f={},quiet=false)=>{
+    if(!user) return;
+    if(!quiet){setLoading(true);} setSpinning(true); setError("");
+    try{
+      const p=buildParams(f);
+      const [kpis,ym,rev]=await Promise.allSettled([
+        apiFetch("/api/dashboard/kpis",p),
+        apiFetch("/api/dashboard/year-month-comparison",p),
+        apiFetch("/api/dashboard/revenue-by-year",p),
+      ]);
+      if(kpis.status==="fulfilled") setKpiData(kpis.value);
+      if(ym.status==="fulfilled")   setYmData(Array.isArray(ym.value)?ym.value:[]);
+      if(rev.status==="fulfilled")  setRevData(Array.isArray(rev.value)?rev.value:[]);
+      setLastSync(new Date());
+    }catch(e){
+      if(e.message==="Unauthorized"){handleLogout();}
+      else setError(e.message);
+    }
+    finally{setLoading(false);setSpinning(false);}
+  },[user]);
+
+  useEffect(()=>{apiFetch("/api/dashboard/slicers").then(setSlicers).catch(()=>{});},[user]);
+  useEffect(()=>{loadAll(applied);},[applied,loadAll]);
+  useEffect(()=>{if(!user)return;const id=setInterval(()=>loadAll(applied,true),5*60*1000);return()=>clearInterval(id);},[user,applied,loadAll]);
+
+  if(!user) return <Login onLogin={handleLogin}/>;
+
+  const hasFilters=applied.datasets?.length||applied.year?.length||applied.departureDateFrom||applied.status;
+  const fmtSync=d=>d?`${d.getHours().toString().padStart(2,"0")}:${d.getMinutes().toString().padStart(2,"0")}`:null;
+
+  const applyFY=(preset)=>{
+    const now=new Date(), y=now.getFullYear();
+    if(preset==="solmar"){
+      const from=`${y-1}-12-01`, to=`${y}-11-30`;
+      const nf={...emptyF(),departureDateFrom:from,departureDateTo:to,datasets:["Solmar"]};
+      setFilters(nf); setApplied(buildParams(nf)); setHasFY(true);
+    } else if(preset==="snowtravel"){
+      const from=`${y-1}-07-01`, to=`${y}-06-30`;
+      const nf={...emptyF(),departureDateFrom:from,departureDateTo:to,datasets:["Snowtravel"]};
+      setFilters(nf); setApplied(buildParams(nf)); setHasFY(true);
+    } else if(preset==="thisyear"){
+      const nf={...emptyF(),year:[String(y)]};
+      setFilters(nf); setApplied(buildParams(nf)); setHasFY(false);
+    } else if(preset==="lastyear"){
+      const nf={...emptyF(),year:[String(y-1)]};
+      setFilters(nf); setApplied(buildParams(nf)); setHasFY(false);
+    } else {
+      setFilters(emptyF()); setApplied({}); setHasFY(false);
+    }
+    setFO(false);
+  };
+
+  const tabIcons={overview:I.overview,bus:I.bus,hotel:I.hotel,data:I.table,ai:I.ai,settings:I.settings};
+  const tabLabels={overview:"Overview",bus:"Bus Occupancy",hotel:"Hotel Insights",data:"Data Table",ai:"TTP AI",settings:"Settings"};
+
+  return(
+    <div className="app-shell" data-theme={theme}>
+      {/* SIDEBAR */}
+      <aside className="sidebar">
+        <div className="sidebar-brand">
+          <div className="brand-logo">
+            <img src="/assets/logo.png" alt="TTP" style={{width:"100%",height:"100%",objectFit:"contain",padding:4}} onError={e=>{e.target.style.display="none";e.target.parentNode.innerHTML='<span style="color:#fff;font-weight:800;font-size:14px;">TTP</span>';}}/>
+          </div>
+          <div className="brand-info">
+            <span className="brand-title">Analytics</span>
+            <span className="brand-sub">Data Engine v2.1</span>
+          </div>
+        </div>
+        <nav className="sidebar-nav">
+          {Object.entries(tabLabels).map(([id,label])=>(
+            <button key={id} className={`nav-item ${tab===id?"active":""}`} onClick={()=>setTab(id)}>
+              <span className="nav-icon">{tabIcons[id]}</span>{label}
             </button>
           ))}
         </nav>
-        <div style={{padding:"10px 10px",borderTop:`1px solid ${T.border}`}}>
-          {sidebarOpen&&<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
-            <div style={{width:28,height:28,background:T.accentLight,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",color:T.accent,flexShrink:0}}>{Ic.user}</div>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:12,fontWeight:600,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user?.name||user?.username||"User"}</div>
-              <div style={{fontSize:10,color:T.textDim,textTransform:"capitalize"}}>{user?.role||"viewer"}</div>
+        <div className="sidebar-footer">
+          <div className="user-card">
+            <div className="user-avatar">{(user.name||"U")[0].toUpperCase()}</div>
+            <div className="user-info">
+              <span className="user-name">{user.name}</span>
+              <span className="user-role">{user.role}</span>
             </div>
-          </div>}
-          {sidebarOpen&&<div className="hide-mobile" style={{fontSize:10,color:T.textDim,fontFamily:"monospace",marginBottom:8,textAlign:"center"}}>{clock} DXB</div>}
-          <button onClick={logout} title="Logout" style={{display:"flex",alignItems:"center",gap:6,width:"100%",background:"transparent",border:`1px solid ${T.border}`,borderRadius:7,padding:"6px 10px",fontSize:12,color:T.textMuted,cursor:"pointer",justifyContent:sidebarOpen?"flex-start":"center"}}>
-            {Ic.logout}{sidebarOpen&&"Logout"}
-          </button>
+          </div>
+          <DubaiClock/>
+          {lastSync&&<div className="sync-status"><span className="sync-dot"/>Last sync {fmtSync(lastSync)}</div>}
+          <button className="btn-logout" onClick={handleLogout}>Sign out</button>
         </div>
       </aside>
 
       {/* MAIN */}
-      <main style={{marginLeft:sidebarOpen?240:64,flex:1,display:"flex",flexDirection:"column",minHeight:"100vh",transition:"margin-left 0.2s"}} className="main-content">
-
-        {/* HEADER */}
-        <header style={{background:T.headerBg,borderBottom:`1px solid ${T.border}`,padding:"0 20px",height:52,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:90,boxShadow:T.shadow}}>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <button onClick={()=>setSidebarOpen(o=>!o)} style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:6,padding:"4px 7px",cursor:"pointer",color:T.textMuted,display:"flex",alignItems:"center",fontSize:16,lineHeight:1}}>☰</button>
-            <span style={{fontSize:14,fontWeight:700,color:T.text}}>{NAV.find(n=>n.id===tab)?.label}</span>
+      <div className="main-area">
+        {/* TOPBAR */}
+        <header className="topbar">
+          <div className="topbar-left">
+            <h1 className="page-title">{tabLabels[tab]}</h1>
+            {hasFilters&&(
+              <div className="active-filters-row">
+                {applied.datasets?.map(d=><span key={d} className="filter-chip dataset">{d}</span>)}
+                {applied.year?.map(y=><span key={y} className="filter-chip year">{y}</span>)}
+                {applied.departureDateFrom&&<span className="filter-chip date">{applied.departureDateFrom.split("-").reverse().join("-")} → {applied.departureDateTo?.split("-").reverse().join("-")}</span>}
+                {applied.status&&<span className="filter-chip status">{applied.status}</span>}
+                <button className="chip-clear" onClick={()=>{setFilters(emptyF());setApplied({});setHasFY(false);}}>✕ Clear</button>
+              </div>
+            )}
           </div>
-          <div className="header-btns" style={{display:"flex",alignItems:"center",gap:8}}>
-            {lastSync&&<span style={{fontSize:11,color:T.textDim,display:"none"}}>Last sync: {lastSync}</span>}
-            <button onClick={()=>switchTheme(themeKey==="dark"?"light":"dark")} style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:7,padding:"5px 8px",cursor:"pointer",color:T.textMuted,display:"flex",alignItems:"center",gap:4,fontSize:11}}>
-              {themeKey==="dark"?Ic.sun:Ic.moon} {themeKey==="dark"?"Light":"Dark"}
+          <div className="topbar-actions">
+            {tab==="overview"&&(
+              <div className="metric-tabs">
+                {[["bookings","Bookings"],["pax","PAX"],["revenue","Revenue"]].map(([id,l])=>(
+                  <button key={id} className={`metric-tab ${metric===id?"active":""}`} onClick={()=>setMetric(id)}>{l}</button>
+                ))}
+              </div>
+            )}
+            {/* Theme toggle */}
+            <button className="btn-icon" onClick={()=>setTheme(t=>t==="dark"?"light":"dark")} title={`Switch to ${theme==="dark"?"light":"dark"} mode`}>
+              {theme==="dark"?I.sun:I.moon}
             </button>
-            <button onClick={()=>loadOverview(applied)} style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:7,padding:"5px 8px",cursor:"pointer",color:T.textMuted,display:"flex"}}>{Ic.refresh}</button>
-            {tab!=="bus"&&tab!=="overview"&&<button onClick={()=>setFiltersOpen(o=>!o)} style={{background:filtersOpen?T.accent:"transparent",color:filtersOpen?"#fff":T.textMuted,border:`1px solid ${filtersOpen?T.accent:T.border}`,borderRadius:7,padding:"5px 11px",fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
-              {Ic.filter} Filters
-            </button>}
-            {tab==="overview"&&<button onClick={()=>setFiltersOpen(o=>!o)} style={{background:filtersOpen?T.accent:"transparent",color:filtersOpen?"#fff":T.textMuted,border:`1px solid ${filtersOpen?T.accent:T.border}`,borderRadius:7,padding:"5px 11px",fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
-              {Ic.filter} Filters
-            </button>}
-            {tab==="table"&&<button onClick={exportCSV} style={{background:T.accent,color:"#fff",border:"none",borderRadius:7,padding:"6px 13px",fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>{Ic.download} Export</button>}
+            <button className={`btn-icon ${spinning?"spinning":""}`} onClick={()=>loadAll(applied,true)} title="Refresh">{I.refresh}</button>
+            {tab==="overview"&&<button className={`btn-filter ${filtersOpen?"active":""} ${hasFilters?"has-active":""}`} onClick={()=>setFO(o=>!o)}>{I.filter} Filters{hasFilters&&<span className="filter-badge"/>}</button>}
           </div>
         </header>
 
-        {/* FILTER PANEL */}
-        {filtersOpen&&tab!=="bus"&&(
-          <div style={{background:T.headerBg,borderBottom:`1px solid ${T.border}`,padding:"13px 20px",boxShadow:T.shadow}}>
-            <div style={{display:"flex",gap:6,marginBottom:10,alignItems:"center",flexWrap:"wrap"}}>
-              <span style={{fontSize:11,color:T.textMuted,fontWeight:600}}>Quick:</span>
-              {QUICK.filter(q=>!q.fiscal).map(q=><button key={q.l} onClick={()=>{q.fn();}} style={{background:T.tableAlt,border:`1px solid ${T.border}`,borderRadius:16,color:T.textMuted,padding:"3px 11px",fontSize:11,cursor:"pointer"}}>{q.l}</button>)}
-              <span style={{color:T.textDim,fontSize:10}}>FY:</span>
-              {QUICK.filter(q=>q.fiscal).map(q=><button key={q.l} onClick={()=>{q.fn();}} style={{background:T.accentLight,border:`1px solid ${T.accent}44`,borderRadius:16,color:T.accent,padding:"3px 11px",fontSize:11,cursor:"pointer",fontWeight:600}}>{q.l}</button>)}
-              {Object.values(applied).some(v=>v&&(Array.isArray(v)?v.length:true))&&(
-                <span style={{marginLeft:4,fontSize:11,color:T.warning,fontWeight:600,display:"flex",alignItems:"center",gap:5}}>
-                  ⚠ Filters active —
-                  <button onClick={()=>{setFilters({depFrom:"",depTo:"",bkFrom:"",bkTo:"",dataset:[],status:[],transport:[],years:[]});setApplied({});}} style={{background:T.warningBg,border:`1px solid ${T.warning}`,borderRadius:10,color:T.warning,padding:"2px 9px",fontSize:11,cursor:"pointer",fontWeight:700}}>Reset All</button>
-                </span>
-              )}
-            </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:10,alignItems:"end"}}>
-              {[["Departure From","depFrom"],["Departure To","depTo"],["Booking From","bkFrom"],["Booking To","bkTo"]].map(([l,k])=>(
-                <div key={k}><label style={labelStyle}>{l}</label><input type="date" value={filters[k]||""} onChange={e=>setFilters(f=>({...f,[k]:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/></div>
-              ))}
-              <div><label style={labelStyle}>Dataset</label>
-                <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                  {["Solmar","Interbus","Solmar DE","Snowtravel"].map(d=>{
-                    const sel=(filters.dataset||[]).includes(d);
-                    const col=DS_COLORS[d]||T.textMuted;
-                    return <button key={d} onClick={()=>setFilters(f=>({...f,dataset:sel?(f.dataset||[]).filter(x=>x!==d):[...(f.dataset||[]),d]}))}
-                      style={{background:sel?`${col}22`:"transparent",border:`1px solid ${sel?col:T.border}`,borderRadius:20,color:sel?col:T.textMuted,padding:"4px 10px",fontSize:11,fontWeight:sel?700:400,cursor:"pointer"}}>
-                      {d}
-                    </button>;
-                  })}
+        {/* FILTER DRAWER (Overview only) */}
+        {tab==="overview"&&(
+          <div className={`filter-drawer ${filtersOpen?"open":""}`}>
+            <div className="filter-drawer-inner">
+              <div className="filter-section">
+                <label className="filter-label">Quick Select</label>
+                <div className="chip-group">
+                  {[["thisyear","This Year"],["lastyear","Last Year"],["all","All Time"]].map(([v,l])=>(
+                    <button key={v} className="ds-chip" onClick={()=>applyFY(v)}>{l}</button>
+                  ))}
                 </div>
-                {(filters.dataset||[]).length>0&&<div style={{fontSize:10,color:T.accent,marginTop:2}}>{filters.dataset.join(' + ')}</div>}
               </div>
-              <div><label style={labelStyle}>Transport</label>
-                <select value={(filters.transport||[])[0]||""} onChange={e=>setFilters(f=>({...f,transport:e.target.value?[e.target.value]:[]}))} style={inputStyle}>
-                  <option value="">All</option>
-                  {[...new Set((slicers.transportTypes||[]).map(t=>(t||"").toLowerCase().replace("owntransport","own transport").trim()))].filter(Boolean).map(t=><option key={t} value={t}>{t}</option>)}
+              <div className="filter-section">
+                <label className="filter-label">Fiscal Year Presets</label>
+                <div className="chip-group">
+                  <button className="ds-chip" onClick={()=>applyFY("solmar")}>Solmar FY (Dec–Nov)</button>
+                  <button className="ds-chip" onClick={()=>applyFY("snowtravel")}>Snowtravel FY (Jul–Jun)</button>
+                </div>
+              </div>
+              <div className="filter-section">
+                <label className="filter-label">Dataset</label>
+                <div className="chip-group">
+                  {DATASETS.map(ds=><button key={ds} className={`ds-chip ${filters.datasets?.includes(ds)?"active":""}`} onClick={()=>setFilters(f=>({...f,datasets:f.datasets?.includes(ds)?f.datasets.filter(x=>x!==ds):[...(f.datasets||[]),ds]}))}>{ds}</button>)}
+                </div>
+              </div>
+              <div className="filter-section">
+                <label className="filter-label">Year</label>
+                <div className="chip-group">
+                  {YEARS.map(y=><button key={y} className={`ds-chip ${filters.year?.includes(y)?"active":""}`} onClick={()=>setFilters(f=>({...f,year:f.year?.includes(y)?f.year.filter(x=>x!==y):[...(f.year||[]),y]}))}>{y}</button>)}
+                </div>
+              </div>
+              <div className="filter-section">
+                <label className="filter-label">Departure Date</label>
+                <div className="date-range">
+                  <input type="date" className="date-input" value={filters.departureDateFrom||""} onChange={e=>setFilters(f=>({...f,departureDateFrom:e.target.value}))}/>
+                  <span className="date-sep">→</span>
+                  <input type="date" className="date-input" value={filters.departureDateTo||""} onChange={e=>setFilters(f=>({...f,departureDateTo:e.target.value}))}/>
+                </div>
+              </div>
+              <div className="filter-section">
+                <label className="filter-label">Booking Date</label>
+                <div className="date-range">
+                  <input type="date" className="date-input" value={filters.bookingDateFrom||""} onChange={e=>setFilters(f=>({...f,bookingDateFrom:e.target.value}))}/>
+                  <span className="date-sep">→</span>
+                  <input type="date" className="date-input" value={filters.bookingDateTo||""} onChange={e=>setFilters(f=>({...f,bookingDateTo:e.target.value}))}/>
+                </div>
+              </div>
+              <div className="filter-section">
+                <label className="filter-label">Transport Type</label>
+                <select value={filters.transportType||""} onChange={e=>setFilters(f=>({...f,transportType:e.target.value}))} style={{width:"100%",padding:"7px 10px",background:"var(--bg)",border:"1px solid var(--border)",borderRadius:"var(--radius)",color:"var(--text)",fontSize:12,outline:"none"}}>
+                  <option value="">All types</option>
+                  {(slicers.transportTypes||[]).map(t=><option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
-              <div>
-                <label style={labelStyle}>Year</label>
-                <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-                  {[2023,2024,2025,2026].map(y=>{
-                    const sel=(filters.years||[]).includes(y);
-                    return <button key={y} onClick={()=>setFilters(f=>({...f,years:sel?(f.years||[]).filter(x=>x!==y):[...(f.years||[]),y]}))}
-                      style={{background:sel?T.accent:"transparent",color:sel?"#fff":T.textMuted,border:`1px solid ${sel?T.accent:T.border}`,borderRadius:6,padding:"4px 10px",fontSize:12,fontWeight:sel?700:400,cursor:"pointer",flex:1}}>
-                      {y}
-                    </button>;
-                  })}
-                </div>
-                {(filters.years||[]).length>0&&<div style={{fontSize:10,color:T.accent,marginTop:3}}>Selected: {filters.years.join(", ")}</div>}
-              </div>
-              <div><label style={labelStyle}>Status</label>
-                <div style={{display:"flex",gap:5}}>
-                  {[["","All"],["ok","OK"],["cancelled","Cancelled"]].map(([v,l])=>{
-                    const active=v===""?(filters.status||[]).length===0:(filters.status||[]).includes(v);
-                    const col=v==="ok"?T.success:v==="cancelled"?T.danger:T.textMuted;
-                    return <button key={v} onClick={()=>setFilters(f=>({...f,status:v?[v]:[]}))} style={{flex:1,background:active?`${col}22`:"transparent",border:`1px solid ${active?col:T.border}`,borderRadius:6,color:active?col:T.textMuted,padding:"6px 4px",fontSize:11,cursor:"pointer",fontWeight:active?700:400,textAlign:"center"}}>{l}</button>;
-                  })}
+              <div className="filter-section">
+                <label className="filter-label">Status</label>
+                <div className="chip-group">
+                  {[{v:"",l:"All"},{v:"confirmed",l:"Confirmed"},{v:"cancelled",l:"Cancelled"}].map(s=><button key={s.v} className={`ds-chip ${(filters.status||"")===s.v?"active":""}`} onClick={()=>setFilters(f=>({...f,status:s.v}))}>{s.l}</button>)}
                 </div>
               </div>
-              <div style={{display:"flex",gap:8,paddingTop:18}}>
-                <Btn onClick={()=>{setApplied({...filters});setFiltersOpen(false);}} T={T} style={{flex:1,justifyContent:"center"}}>Apply</Btn>
-                <Btn variant="ghost" onClick={()=>{setFilters({depFrom:"",depTo:"",bkFrom:"",bkTo:"",dataset:[],status:[],transport:[],years:[]});setApplied({});}} T={T} style={{flex:1,justifyContent:"center"}}>Reset</Btn>
+              <div className="filter-actions">
+                <button className="btn-clear-filters" onClick={()=>{setFilters(emptyF());setHasFY(false);}}>Clear</button>
+                <button className="btn-apply-filters" onClick={()=>{setApplied(buildParams(filters));setFO(false);}}>Apply</button>
               </div>
             </div>
           </div>
         )}
 
-        {/* PAGE CONTENT */}
-        <div id="dashboard-content" style={{flex:1,padding:"18px 20px 50px",overflowY:"auto",overflowX:"hidden"}}>
+        {/* PAGE BODY */}
+        <main className="page-body">
+          {error&&<div className="error-banner">{I.warn} {error}</div>}
+          {loading&&<div className="loading-bar"><div className="loading-bar-fill"/></div>}
 
-          {/* ══ OVERVIEW ═══════════════════════════════════════════════════════ */}
           {tab==="overview"&&(
-            <div>
-              {oLoad&&<div style={{textAlign:"center",padding:16,color:T.textMuted,fontSize:13}}>Loading...</div>}
-              {/* KPI Cards */}
-              <div className="kpi-grid" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:16}}>
-                {/* Period badge above cards */}
-              {kpis?.periodLabel&&(
-                <div style={{gridColumn:"1/-1",display:"flex",alignItems:"center",gap:6,marginBottom:-6}}>
-                  <span style={{fontSize:11,color:T.textDim}}>Showing:</span>
-                  <span style={{fontSize:11,fontWeight:700,color:T.accent,background:T.accentLight,padding:"3px 10px",borderRadius:20,border:`1px solid ${T.accent}33`}}>{kpis.periodLabel}</span>
-                  {Object.values(applied).some(v=>v&&(Array.isArray(v)?v.length:true))&&(
-                    <button onClick={()=>{setFilters({depFrom:"",depTo:"",bkFrom:"",bkTo:"",dataset:[],status:[],transport:[],years:[]});setApplied({});loadOverview({});}}
-                      style={{fontSize:11,color:T.warning,background:T.warningBg,border:`1px solid ${T.warning}44`,borderRadius:12,padding:"2px 8px",cursor:"pointer",fontWeight:600}}>✕ Reset filters</button>
-                  )}
+            <div className="tab-content">
+              {kpiData?.periodLabel&&(
+                <div style={{marginBottom:16,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                  <span style={{fontSize:11,color:"var(--text-dim)"}}>Showing:</span>
+                  <span style={{fontSize:11,fontWeight:700,color:"var(--blue)",background:"var(--blue-dim)",padding:"3px 10px",borderRadius:20,border:"1px solid rgba(77,158,255,.3)"}}>{kpiData.periodLabel}</span>
+                  {hasFilters&&<button onClick={()=>{setFilters(emptyF());setApplied({});setHasFY(false);}} style={{fontSize:11,color:"var(--amber)",background:"var(--amber-dim)",border:"1px solid rgba(245,158,11,.3)",borderRadius:12,padding:"2px 8px",cursor:"pointer",fontWeight:700}}>✕ Reset</button>}
                 </div>
               )}
-              {[
-                {label:"Total Bookings",curr:kpis?.currentBookings,prev:kpis?.previousBookings,diff:kpis?.differenceBookings,pct:kpis?.percentBookings,f:fmtN,c:"#3b82f6"},
-                {label:"Total PAX",curr:kpis?.currentPax,prev:kpis?.previousPax,diff:kpis?.differencePax,pct:kpis?.percentPax,f:fmtN,c:"#22c55e"},
-                {label:"Gross Revenue",curr:kpis?.currentRevenue,prev:kpis?.previousRevenue,diff:kpis?.differenceRevenue,pct:kpis?.percentRevenue,f:fmtEur,c:"#f59e0b"},
-              ].map(({label,curr,prev,diff,pct,f,c})=>(
-                <Card key={label} style={{padding:"18px 20px"}} T={T}>
-                  <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:12}}>
-                    <div style={{width:8,height:8,borderRadius:"50%",background:c,flexShrink:0}}/>
-                    <span style={{fontSize:11,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.07em"}}>{label}</span>
-                  </div>
-                  <div className="kpi-value" style={{fontSize:28,fontWeight:800,color:T.text,lineHeight:1,marginBottom:5}}>{curr!=null?f(curr):"—"}</div>
-                  <div style={{fontSize:12,color:T.textMuted,marginBottom:8}}>
-                    {prev!=null&&prev>0
-                      ? <>{kpis?.prevLabel||"prev"}: <span style={{fontWeight:600}}>{f(prev)}</span></>
-                      : <span style={{color:T.textDim}}>no previous data</span>
-                    }
-                  </div>
-                  <div style={{display:"flex",alignItems:"center",gap:7}}>
-                    {diff!=null&&diff!==0&&<span style={{display:"flex",alignItems:"center",gap:2,color:diffClr(diff,T),fontSize:12,fontWeight:700}}>{diff>=0?Ic.arrowUp:Ic.arrowDown}{f(Math.abs(diff))}</span>}
-                    {pct!=null&&<span style={{background:diffBg(diff,T),color:diffClr(diff,T),fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:10,border:`1px solid ${diffClr(diff,T)}33`}}>{diff>=0?"+":""}{Number(pct).toFixed(1)}%</span>}
-                  </div>
-                </Card>
-              ))}
+              <div style={{display:"flex",gap:14,flexWrap:"wrap",marginBottom:16}}>
+                <KpiCard label="Total Bookings" curr={kpiData?.currentBookings} prev={kpiData?.previousBookings} diff={kpiData?.differenceBookings} pct={kpiData?.percentBookings} fmt={fmtN} color="var(--blue)" prevLabel={kpiData?.prevLabel}/>
+                <KpiCard label="Total PAX" curr={kpiData?.currentPax} prev={kpiData?.previousPax} diff={kpiData?.differencePax} pct={kpiData?.percentPax} fmt={fmtN} color="var(--green)" prevLabel={kpiData?.prevLabel}/>
+                <KpiCard label="Gross Revenue" curr={kpiData?.currentRevenue} prev={kpiData?.previousRevenue} diff={kpiData?.differenceRevenue} pct={kpiData?.percentRevenue} fmt={fmtEur} color="var(--amber)" prevLabel={kpiData?.prevLabel}/>
               </div>
-              {/* Charts */}
-              <div className="chart-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:16}}>
-                <Card T={T}><CardHdr title="Revenue by Year" T={T}/><div style={{padding:"14px 16px 12px"}}><LineChart data={revData} T={T} dateFrom={applied.depFrom||""}/></div></Card>
-                <Card T={T}><div style={{padding:"14px 16px 0"}}><BarChart data={revData} metric={barMetric} onMetric={setBarMetric} T={T} dateFrom={applied.depFrom||""}/></div><div style={{height:12}}/></Card>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:16}}>
+                <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"16px 16px 10px"}}>
+                  <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:12}}>Revenue by Year</div>
+                  <LineChart data={revData}/>
+                </div>
+                <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"16px 16px 10px"}}>
+                  <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:12}}>Bookings / PAX by Year</div>
+                  <BarChart data={revData} metric={metric}/>
+                </div>
               </div>
-              {/* YoY Table */}
-              <Card T={T}>
-                <CardHdr title={`Year-Month Comparison ${Object.values(applied).some(v=>v&&(Array.isArray(v)?v.length:true))?"(filtered — reset for all data)":""}`} T={T} right={
-                  <div style={{display:"flex",gap:4,alignItems:"center"}}>
-                    <span style={{fontSize:11,color:T.textDim,marginRight:6}}>{ymData.length} rows</span>
-                    <span style={{fontSize:10,color:T.textDim,background:T.tableAlt,padding:"2px 8px",borderRadius:10,border:`1px solid ${T.border}`}}>← scroll →</span>
-                    {["bookings","pax","revenue"].map(m=>(
-                      <button key={m} onClick={()=>setYmMetric(m)} style={{background:ymMetric===m?T.accent:"transparent",color:ymMetric===m?"#fff":T.textMuted,border:`1px solid ${ymMetric===m?T.accent:T.border}`,borderRadius:5,padding:"3px 9px",fontSize:11,fontWeight:600,cursor:"pointer",textTransform:"capitalize"}}>{m==="revenue"?"Revenue":m==="bookings"?"Bookings":"PAX"}</button>
-                    ))}
-                  </div>}/>
-                <DataTable columns={ymCols} rows={ymSorted} emptyMsg="No data — apply filters or refresh" T={T} scrollable={true}/>
-              </Card>
-            </div>
-          )}
-
-          {/* ══ BUS OCCUPANCY ══════════════════════════════════════════════════ */}
-          {tab==="bus"&&(
-            <div>
-              {/* Top bar */}
-              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16,flexWrap:"wrap"}}>
-                <div style={{background:T.accent,color:"#fff",border:"none",borderRadius:8,padding:"7px 14px",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",gap:5}}>
-                  🚌 Solmar Bus Occupancy
-                </div>
-                <div style={{display:"flex",background:T.card,border:`1px solid ${T.border}`,borderRadius:8,padding:3,gap:2}}>
-                  {[["pendel","Pendel overview"],["feeder","Feeder overview"],["deck","Deck choice / class"]].map(([k,l])=>(
-                    <button key={k} onClick={()=>setBusView(k)} style={{background:busView===k?T.accent:"transparent",color:busView===k?"#fff":T.textMuted,border:"none",borderRadius:6,padding:"6px 13px",fontSize:12,fontWeight:busView===k?600:400,cursor:"pointer",whiteSpace:"nowrap"}}>{l}</button>
+              <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",overflow:"hidden"}}>
+                <div style={{padding:"12px 16px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                  <span style={{fontSize:13,fontWeight:700,color:"var(--text)",flex:1}}>Year-Month Comparison</span>
+                  <span style={{fontSize:10,color:"var(--text-dim)",background:"var(--bg-2)",padding:"2px 8px",borderRadius:10,border:"1px solid var(--border)"}}>← scroll →</span>
+                  {[["bookings","Bookings"],["pax","PAX"],["revenue","Revenue"]].map(([id,l])=>(
+                    <button key={id} onClick={()=>setMetric(id)} style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${metric===id?"var(--blue)":"var(--border)"}`,background:metric===id?"var(--blue)":"transparent",color:metric===id?"#fff":"var(--text-muted)",fontSize:11,fontWeight:600,cursor:"pointer"}}>{l}</button>
                   ))}
                 </div>
-                <div style={{flex:1}}/>
-                <button onClick={()=>setBusFiltersOpen(o=>!o)} style={{background:busFiltersOpen?T.accent:T.accentLight,color:busFiltersOpen?"#fff":T.accent,border:`1px solid ${T.accent}`,borderRadius:7,padding:"7px 14px",fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
-                  {Ic.filter} {busFiltersOpen?"Hide Filters":"Show Filters"}
-                </button>
-              </div>
-
-              <div style={{display:"flex",gap:0,alignItems:"flex-start",minWidth:0,overflow:"hidden"}}>
-                <div style={{flex:1,minWidth:0,overflow:"hidden"}}>
-                  {bLoad&&<div style={{textAlign:"center",padding:20,color:T.textMuted}}>Loading bus data...</div>}
-
-              {/* Status filter chips */}
-                  <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
-                    {[["","All","#94a3b8"],["confirmed","Confirmed","#22c55e"],["temp","Temporary","#f59e0b"],["lapsed","Lapsed","#6b7280"],["cancelled","Cancelled","#ef4444"]].map(([v,l,c])=>(
-                      <button key={v} onClick={()=>{setBusStatus(v);loadBus({...busF,status:v});}}
-                        style={{background:busStatus===v?`${c}22`:"transparent",border:`1px solid ${busStatus===v?c:T.border}`,borderRadius:20,color:busStatus===v?c:T.textMuted,padding:"4px 12px",fontSize:11,fontWeight:busStatus===v?700:400,cursor:"pointer"}}>{l}</button>
-                    ))}
-                  </div>
-
-                  {/* Bus KPI Cards */}
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:10}}>
-                    {[
-                      {label:"Total PAX",val:busKpis.total_pax,c:"#3b82f6"},
-                      {label:"Total Bookings",val:busKpis.total_bookings,c:"#06b6d4"},
-                      {label:"Royal Class",val:busKpis.royal_pax,c:"#a855f7"},
-                      {label:"First Class",val:busKpis.first_pax,c:"#10b981"},
-                    ].map(({label,val,c})=>(
-                      <Card key={label} style={{padding:"14px 16px"}} T={T}>
-                        <div style={{fontSize:10,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>{label}</div>
-                        <div style={{fontSize:22,fontWeight:800,color:c,lineHeight:1}}>{val!=null?Number(val).toLocaleString("nl-BE"):"—"}</div>
-                      </Card>
-                    ))}
-                  </div>
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}}>
-                    {[
-                      {label:"Premium",val:busKpis.premium_pax,c:"#f97316"},
-                      {label:"Confirmed PAX",val:busKpis.confirmed_pax,c:"#22c55e"},
-                      {label:"Temporary PAX",val:busKpis.temp_pax,c:"#f59e0b"},
-                      {label:"Lapsed PAX",val:busKpis.lapsed_pax,c:"#6b7280"},
-                    ].map(({label,val,c})=>(
-                      <Card key={label} style={{padding:"12px 16px"}} T={T}>
-                        <div style={{fontSize:10,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>{label}</div>
-                        <div style={{fontSize:18,fontWeight:800,color:c}}>{val!=null?Number(val).toLocaleString("nl-BE"):"—"}</div>
-                      </Card>
-                    ))}
-                  </div>
-
-                  {/* Pendel overview */}
-                  {busView==="pendel"&&(
-                    <Card T={T}>
-                      <CardHdr title="Pendel Overview — Solmar" T={T}
-                        right={<div style={{display:"flex",gap:12,alignItems:"center"}}>
-                          <span style={{fontSize:11,color:T.success,fontWeight:600}}>⬆ OUT</span>
-                          <span style={{fontSize:11,color:T.warning,fontWeight:600}}>⬇ IN</span>
-                          <span style={{fontSize:11,color:T.textDim}}>{pendelData.length} trips</span>
-                        </div>}/>
-                      {pendelData.length>0&&(
-                        <div style={{padding:"8px 16px",background:T.accentLight,borderBottom:`1px solid ${T.border}`,display:"flex",gap:24,flexWrap:"wrap"}}>
-                          <span style={{fontSize:11,fontWeight:700,color:T.accent}}>TOTAL: {pendelData.length} trips</span>
-                          <span style={{fontSize:11,color:T.success}}>OUT: {pendelData.reduce((s,r)=>s+(r.Outbound_Total||0),0).toLocaleString("nl-BE")}</span>
-                          <span style={{fontSize:11,color:T.warning}}>IN: {pendelData.reduce((s,r)=>s+(r.Inbound_Total||0),0).toLocaleString("nl-BE")}</span>
-                        </div>
-                      )}
-                      <DataTable columns={[
-                        {label:"START DATE",key:"StartDate",noWrap:true,bold:true,color:(_,T)=>T.accent},
-                        {label:"RETURN DATE",key:"EndDate",noWrap:true,color:(_,T)=>T.textMuted},
-                        {label:"OUT TOTAL",key:"Outbound_Total",right:true,bold:true,color:(_,T)=>T.success},
-                        {label:"OUT RC",key:"ORC",right:true,color:(_,T)=>T.success},
-                        {label:"OUT FC",key:"OFC",right:true,color:(_,T)=>T.success},
-                        {label:"OUT PRE",key:"OPRE",right:true,color:(_,T)=>T.success},
-                        {label:"IN TOTAL",key:"Inbound_Total",right:true,bold:true,color:(_,T)=>T.warning},
-                        {label:"IN RC",key:"RRC",right:true,color:(_,T)=>T.warning},
-                        {label:"IN FC",key:"RFC",right:true,color:(_,T)=>T.warning},
-                        {label:"IN PRE",key:"RPRE",right:true,color:(_,T)=>T.warning},
-                        {label:"DIFF RC",key:"Diff_Royal",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.Diff_Royal,T),render:r=>{const v=r.Diff_Royal||0;return v!==0?(v>0?"+":"")+v:"";}},
-                        {label:"DIFF FC",key:"Diff_First",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.Diff_First,T),render:r=>{const v=r.Diff_First||0;return v!==0?(v>0?"+":"")+v:"";}},
-                        {label:"DIFF PRE",key:"Diff_Premium",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.Diff_Premium,T),render:r=>{const v=r.Diff_Premium||0;return v!==0?(v>0?"+":"")+v:"";}},
-                        {label:"DIFF TOTAL",key:"Diff_Total",right:true,bold:true,noWrap:true,color:(r,T)=>diffClr(r.Diff_Total,T),render:r=>{const v=r.Diff_Total||0;return v!==0?(v>0?"+":"")+v:"";}},
-                      ]} rows={pendelData} emptyMsg="No pendel data — set date range and click Apply" T={T}/>
-                      <div style={{padding:"7px 14px",borderTop:`1px solid ${T.border}`,fontSize:10,color:T.textDim}}>
-                        RC = Royal Class &nbsp;|&nbsp; FC = First Class &nbsp;|&nbsp; PRE = Premium &nbsp;|&nbsp;
-                        <span style={{color:T.success}}>OUT = Outbound</span> &nbsp;|&nbsp;
-                        <span style={{color:T.warning}}>IN = Inbound</span> &nbsp;|&nbsp;
-                        DIFF = Outbound minus Inbound (negative = more inbound than outbound)
-                      </div>
-                    </Card>
-                  )}
-                  {busView==="pendel"&&false&&(
-                    <Card T={T}>
-                      <CardHdr title="Snowtravel Bus Occupancy" T={T} right={<span style={{fontSize:11,color:T.textDim}}>{stTrips.length} rows</span>}/>
-                      <DataTable columns={[
-                        {label:"DEPARTURE",key:"departure_date",noWrap:true,bold:true,color:(_,T)=>T.accent},
-
-                        {label:"DREAM CLASS",key:"dream_class",right:true,bold:true},
-                        {label:"FIRST CLASS",key:"first_class",right:true,bold:true},
-                        {label:"SLEEP/ROYAL",key:"sleep_royal_class",right:true,bold:true},
-                        {label:"TOTAL PAX",key:"total_pax",right:true,bold:true,color:(_,T)=>T.accent},
-                      ]} rows={stTrips} emptyMsg="No Snowtravel bus data" T={T}/>
-                    </Card>
-                  )}
-
-                  {/* Feeder overview — pivot table only, no charts */}
-                  {busView==="feeder"&&(
-                    <Card T={T}>
-                      <CardHdr title={`Feeder Overview — Solmar${busF.feederLabel?' — '+busF.feederLabel:''}`} T={T}
-                        right={<span style={{fontSize:11,color:T.textDim}}>{feederData.length} stops</span>}/>
-                      <FeederPivotTable data={feederData} T={T}/>
-                    </Card>
-                  )}
-
-                  {/* Deck choice/class */}
-                  {busView==="deck"&&(
-                    <Card T={T}>
-                      <CardHdr title="Deck Choice / Class — Solmar" T={T} right={
-                        <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                          <span style={{fontSize:10,color:T.warning,background:T.warningBg,padding:"2px 8px",borderRadius:10,border:`1px solid ${T.warning}`}}>⚠ Lower/Upper deck data pending from pipeline</span>
-                          <span style={{fontSize:11,color:T.textDim}}>{deckData.length} rows</span>
-                        </div>}/>
-                      <DeckTable data={deckData} T={T}/>
-                      <div style={{padding:"7px 14px",borderTop:`1px solid ${T.border}`,fontSize:10,color:T.textDim}}>RC = Royal Class &nbsp;|&nbsp; FC = First Class &nbsp;|&nbsp; PRE = Premium &nbsp;|&nbsp; Lwr = Lower Deck &nbsp;|&nbsp; Upr = Upper Deck &nbsp;|&nbsp; No = No Deck</div>
-                    </Card>
-                  )}
-                </div>
-
-                {/* Bus filter panel - overlay drawer */}
-                {busFiltersOpen&&(
-                  <div style={{position:"fixed",top:52,right:0,width:260,height:"calc(100vh - 52px)",background:T.card,borderLeft:`1px solid ${T.border}`,boxShadow:"-4px 0 20px rgba(0,0,0,0.15)",zIndex:200,overflowY:"auto",display:"flex",flexDirection:"column",gap:11,padding:"16px 14px"}}>
-
-                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",paddingBottom:10,borderBottom:`1px solid ${T.border}`}}>
-                      <span style={{fontSize:13,fontWeight:700,color:T.text}}>Filters</span>
-                      <button onClick={()=>setBusFiltersOpen(false)} style={{background:"transparent",border:"none",cursor:"pointer",color:T.textMuted,fontSize:18,lineHeight:1,padding:0}}>×</button>
-                    </div>
-
-                    {/* Dataset chips */}
-                    <div>
-                      <label style={labelStyle}>Dataset</label>
-                      <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                        {[["Solmar","#22c55e"],["Interbus","#f59e0b"],["Solmar DE","#ef4444"],["Snowtravel","#3b82f6"]].map(([ds,c])=>{
-                          const sel=(busF.datasets||[]).includes(ds);
-                          return <button key={ds} onClick={()=>setBusF(f=>({...f,datasets:sel?(f.datasets||[]).filter(x=>x!==ds):[...(f.datasets||[]),ds]}))}
-                            style={{background:sel?`${c}22`:"transparent",border:`1px solid ${sel?c:T.border}`,borderRadius:20,color:sel?c:T.textMuted,padding:"4px 10px",fontSize:11,fontWeight:sel?700:400,cursor:"pointer",whiteSpace:"nowrap"}}>
-                            {ds}
-                          </button>;
-                        })}
-                      </div>
-                      {(busF.datasets||[]).length>0&&<div style={{fontSize:10,color:T.accent,marginTop:2}}>{busF.datasets.join(' + ')}</div>}
-                    </div>
-
-                    {/* Quick year buttons */}
-                    <div>
-                      <label style={labelStyle}>Quick Select</label>
-                      <div style={{display:"flex",gap:4}}>
-                        {[["This Year",`${new Date().getFullYear()}-01-01`,`${new Date().getFullYear()}-12-31`],
-                          ["Last Year",`${new Date().getFullYear()-1}-01-01`,`${new Date().getFullYear()-1}-12-31`],
-                          ["All","",""]].map(([l,f,t])=>(
-                          <button key={l} onClick={()=>setBusF(p=>({...p,dateFrom:f,dateTo:t}))}
-                            style={{flex:1,background:busF.dateFrom===f&&busF.dateTo===t?T.accent:T.tableAlt,color:busF.dateFrom===f&&busF.dateTo===t?"#fff":T.textMuted,border:`1px solid ${T.border}`,borderRadius:6,padding:"5px 2px",fontSize:10,fontWeight:600,cursor:"pointer"}}>{l}</button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div><label style={labelStyle}>Departure From</label>
-                      <input type="date" value={busF.dateFrom||""} onChange={e=>setBusF(f=>({...f,dateFrom:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/>
-                    </div>
-                    <div><label style={labelStyle}>Departure To</label>
-                      <input type="date" value={busF.dateTo||""} onChange={e=>setBusF(f=>({...f,dateTo:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/>
-                    </div>
-
-                    {/* Pendel route */}
-                    <div><label style={labelStyle}>Pendel Route</label>
-                      <select value={busF.pendel||""} onChange={e=>setBusF(f=>({...f,pendel:e.target.value}))} style={inputStyle}>
-                        <option value="">All Routes</option>
-                        {(busSlicers.pendels||[]).map(p=><option key={p} value={p}>{p}</option>)}
-                      </select>
-                    </div>
-
-                    {/* Feeder Line filter — for feeder view */}
-                    {busView==="feeder"&&<div><label style={labelStyle}>Feeder Line</label>
-                      <select value={busF.feederLine||""} onChange={e=>setBusF(f=>({...f,feederLine:e.target.value}))} style={inputStyle}>
-                        <option value="">All Lines</option>
-                        {(busSlicers.feederLines||[]).map(l=><option key={l} value={l}>{l}</option>)}
-                      </select>
-                    </div>}
-                    {/* Label — for feeder */}
-                    {busView==="feeder"&&<div><label style={labelStyle}>Label / Dataset</label>
-                      <select value={busF.feederLabel||""} onChange={e=>setBusF(f=>({...f,feederLabel:e.target.value}))} style={inputStyle}>
-                        <option value="">All Labels</option>
-                        {["Solmar","Interbus","Solmar DE"].map(l=><option key={l} value={l}>{l}</option>)}
-                      </select>
-                    </div>}
-
-                    <div><label style={labelStyle}>Region</label>
-                      <select value={busF.region||""} onChange={e=>setBusF(f=>({...f,region:e.target.value}))} style={inputStyle}>
-                        <option value="">All Regions</option>
-                        {(busSlicers.regions||[]).map(r=><option key={r} value={r}>{r}</option>)}
-                      </select>
-                    </div>
-
-                    <div><label style={labelStyle}>Destination</label>
-                      <select value={busF.destination||""} onChange={e=>setBusF(f=>({...f,destination:e.target.value}))} style={inputStyle}>
-                        <option value="">All Destinations</option>
-                        {(busSlicers.destinations||[]).map(d=><option key={d} value={d}>{d}</option>)}
-                      </select>
-                    </div>
-
-                    <div><label style={labelStyle}>Weekday (Outbound)</label>
-                      <select value={busF.weekday||""} onChange={e=>setBusF(f=>({...f,weekday:e.target.value}))} style={inputStyle}>
-                        <option value="">All Days</option>
-                        {["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map(d=><option key={d} value={d}>{d}</option>)}
-                      </select>
-                    </div>
-
-                    <div style={{display:"flex",gap:8,paddingTop:4,borderTop:`1px solid ${T.border}`}}>
-                      <Btn onClick={()=>loadBus({...busF,status:busStatus})} T={T} style={{flex:1,justifyContent:"center"}}>Apply</Btn>
-                      <Btn variant="ghost" onClick={()=>{
-                        const y=new Date().getFullYear();
-                        const f={dateFrom:`${y}-01-01`,dateTo:`${y}-12-31`,pendel:"",region:"",destination:"",weekday:"",feederLabel:"",datasets:[]};
-                        setBusF(f);setBusStatus("");loadBus({...f,status:""});
-                      }} T={T} style={{flex:1,justifyContent:"center"}}>Reset</Btn>
-                    </div>
-                  </div>
-                )}              </div>
-            </div>
-          )}
-
-          {/* ══ DATA TABLE ═════════════════════════════════════════════════════ */}
-          {tab==="table"&&(
-            <div>
-              <Card T={T} style={{padding:"13px 16px",marginBottom:14}}>
-                <div style={{display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
-                  <div>
-                    <label style={labelStyle}>Search Booking ID</label>
-                    <div style={{position:"relative"}}>
-                      <span style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",color:T.textDim}}>{Ic.search}</span>
-                      <input value={tableFilters.search||""} onChange={e=>setTableFilters(f=>({...f,search:e.target.value}))} placeholder="e.g. booking number..."
-                        style={{...inputStyle,paddingLeft:30}}/>
-                    </div>
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Dataset</label>
-                    <select value={tableFilters.dataset||""} onChange={e=>setTableFilters(f=>({...f,dataset:e.target.value}))} style={inputStyle}>
-                      <option value="">All datasets</option>
-                      {["Snowtravel","Solmar","Interbus","Solmar DE"].map(d=><option key={d} value={d}>{d}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Status</label>
-                    <select value={tableFilters.status||""} onChange={e=>setTableFilters(f=>({...f,status:e.target.value}))} style={inputStyle}>
-                      <option value="">All</option>
-                      <option value="ok">OK</option>
-                      <option value="cancelled">Cancelled</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Booking From</label>
-                    <input type="date" value={tableFilters.bkFrom||""} onChange={e=>setTableFilters(f=>({...f,bkFrom:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/>
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Booking To</label>
-                    <input type="date" value={tableFilters.bkTo||""} onChange={e=>setTableFilters(f=>({...f,bkTo:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/>
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Departure From</label>
-                    <input type="date" value={tableFilters.depFrom||""} onChange={e=>setTableFilters(f=>({...f,depFrom:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/>
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Departure To</label>
-                    <input type="date" value={tableFilters.depTo||""} onChange={e=>setTableFilters(f=>({...f,depTo:e.target.value}))} style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/>
-                  </div>
-                  <div style={{display:"flex",gap:7,alignItems:"flex-end",paddingTop:18,flexShrink:0}}>
-                    <Btn onClick={()=>{setTablePage(1);loadTable();}} T={T}>Apply</Btn>
-                    <Btn onClick={exportCSV} T={T} style={{background:T.successBg,color:T.success,fontWeight:700}}>{Ic.download} CSV</Btn>
-                    <Btn onClick={()=>window.print()} T={T} variant="ghost">Print</Btn>
-                    <Btn onClick={async()=>{
-                      try{
-                        const h2c=(await import('html2canvas')).default;
-                        const el=document.getElementById('dashboard-content');
-                        if(!el){alert('Content not found');return;}
-                        const canvas=await h2c(el,{scale:2,useCORS:true,backgroundColor:T.bg});
-                        const link=document.createElement('a');
-                        link.download=`ttp-dashboard-${new Date().toISOString().split('T')[0]}.jpg`;
-                        link.href=canvas.toDataURL('image/jpeg',0.92);link.click();
-                      }catch(e){alert('PDF/Image export: '+e.message);}
-                    }} T={T} variant="ghost">Save JPG</Btn>
-                  </div>
-                </div>
-              </Card>
-              <Card T={T}>
-                <CardHdr title="Bookings" T={T} right={
-                  <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                    <span style={{fontSize:11,color:T.textDim}}>{fmtN(tableTotal)} total</span>
-                    <div style={{display:"flex",gap:4}}>
-                      <button onClick={()=>setTablePage(p=>Math.max(1,p-1))} disabled={tablePage===1} style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:5,padding:"3px 8px",fontSize:12,cursor:"pointer",color:T.textMuted}}>‹</button>
-                      <span style={{padding:"3px 8px",fontSize:12,color:T.textMuted,border:`1px solid ${T.border}`,borderRadius:5,background:T.tableAlt}}>{tablePage}</span>
-                      <button onClick={()=>setTablePage(p=>p+1)} disabled={tableRows.length<50} style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:5,padding:"3px 8px",fontSize:12,cursor:"pointer",color:T.textMuted}}>›</button>
-                    </div>
-                  </div>}/>
-                {tLoad?<div style={{padding:24,textAlign:"center",color:T.textMuted}}>Loading...</div>:<DataTable columns={tableCols} rows={tableRows} emptyMsg="No bookings — adjust filters and click Apply" T={T}/>}
-              </Card>
-            </div>
-          )}
-
-          {/* ══ AI ═══════════════════════════════════════════════════════════════ */}
-          {tab==="ai"&&(
-            <div style={{display:"grid",gridTemplateColumns:"1fr 270px",gap:14,height:"calc(100vh - 160px)"}}>
-              <Card T={T} style={{display:"flex",flexDirection:"column",overflow:"hidden"}}>
-                <CardHdr title="TTP AI Assistant" T={T} right={<div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:7,height:7,borderRadius:"50%",background:T.success}}/><span style={{fontSize:11,color:T.textMuted}}>OpenAI · Live data</span></div>}/>
-                <div ref={chatRef} style={{flex:1,overflowY:"auto",padding:"14px 18px",display:"flex",flexDirection:"column",gap:10}}>
-                  {msgs.map((m,i)=>(
-                    <div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start"}}>
-                      <div style={{maxWidth:"76%",background:m.role==="user"?T.accent:T.tableAlt,color:m.role==="user"?"#fff":T.text,borderRadius:m.role==="user"?"14px 14px 2px 14px":"14px 14px 14px 2px",padding:"9px 13px",fontSize:13,lineHeight:1.6,boxShadow:T.shadow}}>{m.text}</div>
-                    </div>
-                  ))}
-                  {aiLoad&&<div style={{display:"flex",gap:3,padding:"6px 0"}}>{[0,1,2].map(i=><div key={i} style={{width:7,height:7,borderRadius:"50%",background:T.textDim,animation:`bounce 1s ${i*0.2}s infinite`}}/>)}</div>}
-                </div>
-                <div style={{padding:"10px 14px",borderTop:`1px solid ${T.border}`,display:"flex",gap:7}}>
-                  <input value={aiInput} onChange={e=>setAiInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&sendAI(aiInput)}
-                    placeholder="Ask about bookings, revenue, PAX..." style={{...inputStyle,flex:1}}/>
-                  <Btn onClick={()=>sendAI(aiInput)} disabled={aiLoad||!aiInput.trim()} T={T} style={{flexShrink:0}}>{Ic.send} Send</Btn>
-                </div>
-              </Card>
-              <div style={{display:"flex",flexDirection:"column",gap:12}}>
-                <Card T={T} style={{padding:14}}>
-                  <div style={{fontSize:11,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10}}>Quick Questions</div>
-                  {["What is total revenue for 2026?","Compare Solmar vs Snowtravel bookings","Which month had the most PAX?","How many cancellations in 2025?","Revenue breakdown by dataset","Year-on-year growth rate?","Average revenue per booking?"].map((q,i)=>(
-                    <button key={i} onClick={()=>sendAI(q)} style={{display:"block",width:"100%",textAlign:"left",background:"transparent",border:`1px solid ${T.border}`,borderRadius:7,padding:"7px 10px",fontSize:12,color:T.text,cursor:"pointer",marginBottom:5,lineHeight:1.4}}
-                      onMouseEnter={e=>{e.target.style.background=T.accentLight;e.target.style.borderColor=T.accent;e.target.style.color=T.accent;}}
-                      onMouseLeave={e=>{e.target.style.background="transparent";e.target.style.borderColor=T.border;e.target.style.color=T.text;}}>{q}</button>
-                  ))}
-                </Card>
-                <Card T={T} style={{padding:14}}>
-                  <div style={{fontSize:11,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10}}>Data Sources</div>
-                  {[["Snowtravel","#3b82f6"],["Solmar","#22c55e"],["Interbus","#f59e0b"],["Solmar DE","#ef4444"]].map(([ds,c])=>(
-                    <div key={ds} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",borderBottom:`1px solid ${T.border}`}}>
-                      <div style={{display:"flex",alignItems:"center",gap:6}}><div style={{width:7,height:7,borderRadius:"50%",background:c}}/><span style={{fontSize:13,color:T.text}}>{ds}</span></div>
-                      <Badge color="success" T={T}>Live</Badge>
-                    </div>
-                  ))}
-                </Card>
+                <YMTable data={ymData} metric={metric} hasFY={hasFY}/>
               </div>
             </div>
           )}
 
-          {/* ══ HOTEL INSIGHTS ══════════════════════════════════════════════ */}
-          {tab==="hotel"&&<HotelTab token={token} T={T} API={API}/>}
-
-          {/* ══ SETTINGS ══════════════════════════════════════════════════════ */}
-          {tab==="settings"&&isAdmin&&(
-            <div>
-              <div style={{display:"flex",gap:0,borderBottom:`1px solid ${T.border}`,marginBottom:18}}>
-                {[["users","User Management"],["theme","Theme"],["api","API & Integrations"],["alerts","Email Alerts"]].map(([k,l])=>(
-                  <button key={k} onClick={()=>setStTab(k)} style={{background:"transparent",border:"none",borderBottom:`2px solid ${stTab===k?T.accent:"transparent"}`,color:stTab===k?T.accent:T.textMuted,padding:"9px 16px",fontSize:13,fontWeight:stTab===k?600:400,cursor:"pointer"}}>{l}</button>
-                ))}
-              </div>
-
-              {stTab==="users"&&(
-                <div>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-                    <span style={{fontSize:15,fontWeight:700,color:T.text}}>User Accounts ({users.length}){usersLoad&&<span style={{fontSize:12,color:T.textMuted,fontWeight:400,marginLeft:8}}>Loading...</span>}</span>
-                    <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                      {usersError&&<span style={{fontSize:12,color:T.danger}}>{usersError}</span>}
-                      <Btn size="sm" variant="ghost" onClick={loadUsers} T={T}>{Ic.refresh} Refresh</Btn>
-                      <Btn onClick={()=>setShowAddUser(true)} T={T}>{Ic.plus} Add New User</Btn>
-                    </div>
-                  </div>
-                  <Card T={T}>
-                    <DataTable T={T} maxHeight={600} columns={[
-                      {label:"NAME",key:"name",bold:true},{label:"USERNAME",key:"username",color:(_,T)=>T.textMuted,noWrap:true},
-                      {label:"EMAIL",key:"email",color:(_,T)=>T.textMuted},
-                      {label:"ROLE",key:"role",render:r=><Badge color={r.role==="admin"?"accent":"muted"} T={T}>{r.role==="admin"?"Admin":"Viewer"}</Badge>},
-                      {label:"STATUS",key:"s",render:()=><Badge color="success" T={T}>Active</Badge>},
-                      {label:"ACTIONS",key:"a",render:r=>(
-                        <div style={{display:"flex",gap:5}}>
-                          <Btn size="sm" variant="ghost" onClick={()=>setEditUser({...r})} T={T}>{Ic.edit} Edit</Btn>
-                          <Btn size="sm" variant="danger" onClick={async()=>{
-                            if(!window.confirm(`Delete ${r.name}? This cannot be undone.`)) return;
-                            try{
-                              const t=localStorage.getItem("ttp_token");
-                              const res=await fetch(`${BASE}/api/auth/users/${r.id}`,{method:"DELETE",headers:{"Authorization":`Bearer ${t}`}});
-                              if(res.ok) setUsers(p=>p.filter(x=>x.id!==r.id));
-                              else { const d=await res.json(); alert(d.error||"Failed to delete"); }
-                            }catch{alert("Connection error");}
-                          }} T={T}>{Ic.trash} Delete</Btn>
-                        </div>
-                      )},
-                    ]} rows={users}/>
-                  </Card>
-                </div>
-              )}
-
-              {stTab==="theme"&&(
-                <div>
-                  <div style={{fontSize:15,fontWeight:700,color:T.text,marginBottom:14}}>Theme Selection</div>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,maxWidth:520}}>
-                    {[["light","Light Gray","#f4f5f7","#ffffff","#1d4ed8"],["dark","Dark (Corporate Blue)","#0f1115","#1a1d23","#3b82f6"]].map(([k,l,bg,card,acc])=>(
-                      <div key={k} onClick={()=>switchTheme(k)} style={{border:`2px solid ${themeKey===k?T.accent:T.border}`,borderRadius:12,padding:18,cursor:"pointer",background:T.card,boxShadow:themeKey===k?`0 0 0 3px ${T.accent}33`:T.cardShadow,transition:"all 0.2s"}}>
-                        <div style={{background:bg,borderRadius:8,padding:12,marginBottom:12,border:`1px solid ${T.border}`}}>
-                          <div style={{background:card,borderRadius:6,padding:8,marginBottom:5,display:"flex",gap:5}}>
-                            {[acc,"#f59e0b","#22c55e"].map((c,i)=><div key={i} style={{flex:1,background:c,borderRadius:3,height:14,opacity:0.8}}/>)}
-                          </div>
-                          <div style={{background:card,borderRadius:3,height:5,opacity:0.6}}/><div style={{background:card,borderRadius:3,height:3,marginTop:3,opacity:0.4,width:"70%"}}/>
-                        </div>
-                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                          <span style={{fontSize:13,fontWeight:600,color:T.text}}>{l}</span>
-                          {themeKey===k&&<span style={{color:T.accent,fontSize:12,fontWeight:700}}>✓ Active</span>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {stTab==="api"&&(
-                <div style={{maxWidth:500}}>
-                  <div style={{fontSize:15,fontWeight:700,color:T.text,marginBottom:14}}>API Configuration</div>
-                  {[["OpenAI API Key","openai","sk-proj-...","Powers TTP AI assistant"],["Anthropic API Key","anthropic","sk-ant-...","Alternative AI provider"],].map(([l,k,ph,desc])=>(
-                    <Card key={k} T={T} style={{padding:"15px 16px",marginBottom:10}}>
-                      <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:10}}>
-                        <span style={{color:T.accent}}>{Ic.key}</span>
-                        <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:T.text}}>{l}</div><div style={{fontSize:11,color:T.textMuted}}>{desc}</div></div>
-                        <Badge color={apiKeys[k]?"success":"muted"} T={T}>{apiKeys[k]?"Connected":"Not set"}</Badge>
-                      </div>
-                      <div style={{display:"flex",gap:7}}>
-                        <input type="password" value={apiKeys[k]||""} onChange={e=>setApiKeys(a=>({...a,[k]:e.target.value}))} placeholder={ph} style={{...inputStyle,flex:1}}/>
-                        <Btn size="sm" onClick={()=>alert("Update backend .env to apply in production.")} T={T}>Save</Btn>
-                      </div>
-                    </Card>
-                  ))}
-                  <Card T={T} style={{padding:"15px 16px"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:10}}>
-                      <span style={{color:T.accent}}>{Ic.database}</span>
-                      <div><div style={{fontSize:13,fontWeight:600,color:T.text}}>Azure SQL Database</div><div style={{fontSize:11,color:T.textMuted}}>ttpserver.database.windows.net / TTPDatabase</div></div>
-                      <Badge color="success" T={T}>Connected</Badge>
-                    </div>
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,fontSize:12}}>
-                      {[["Snowtravel",6720],["Solmar",10345],["Interbus",2824],["Solmar DE",64]].map(([ds,cnt])=>(
-                        <div key={ds} style={{display:"flex",justifyContent:"space-between",padding:"5px 8px",background:T.tableAlt,borderRadius:6,border:`1px solid ${T.border}`}}>
-                          <span style={{color:T.textMuted}}>{ds}</span><span style={{fontWeight:700,color:T.accent}}>{fmtN(cnt)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </Card>
-                </div>
-              )}
-
-              {stTab==="alerts"&&(
-                <div style={{maxWidth:460}}>
-                  <div style={{fontSize:15,fontWeight:700,color:T.text,marginBottom:14}}>Email Alerts</div>
-                  <Card T={T} style={{padding:"16px 18px"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:14}}>
-                      <span style={{color:T.accent}}>{Ic.bell}</span>
-                      <div><div style={{fontSize:13,fontWeight:600,color:T.text}}>Notification Email</div><div style={{fontSize:11,color:T.textMuted}}>Receive daily summary and error alerts</div></div>
-                    </div>
-                    <div style={{marginBottom:12}}><label style={labelStyle}>Email Address</label>
-                      <input type="email" value={apiKeys.emailAlert||""} onChange={e=>setApiKeys(a=>({...a,emailAlert:e.target.value}))} placeholder="e.g. datateamttpservices@gmail.com" style={inputStyle}/>
-                    </div>
-                    <Btn onClick={()=>alert("Email alert saved. Configure SMTP in backend to activate.")} T={T}>Save Email</Btn>
-                    <div style={{marginTop:14,padding:"10px 12px",background:T.tableAlt,borderRadius:8,fontSize:12,color:T.textMuted,border:`1px solid ${T.border}`}}>
-                      <div style={{fontWeight:600,color:T.text,marginBottom:4}}>Auto-refresh: Daily at 00:00 Dubai time</div>
-                      <div>Dashboard data refreshes automatically every night. Email alerts require SMTP configuration in backend.</div>
-                    </div>
-                  </Card>
-                </div>
-              )}
-              {stTab==="ai_prompts"&&(
-                <div>
-                  <div style={{marginBottom:16}}>
-                    <div style={{fontSize:13,fontWeight:700,color:T.text,marginBottom:4}}>AI System Prompt</div>
-                    <div style={{fontSize:11,color:T.textMuted,marginBottom:10}}>This prompt controls how the AI agent behaves, what data it can access, and how it responds to questions. Changes take effect immediately.</div>
-                    <textarea
-                      defaultValue={`You are TTP AI — the analytics assistant for TTP Services (Belgian travel company).
-You have LIVE data from Azure SQL.
-
-DATASETS:
-- Solmar: CustomerOverview WHERE Dataset='Solmar'
-- Interbus: CustomerOverview WHERE Dataset='Interbus'
-- Solmar DE: CustomerOverview WHERE Dataset='Solmar DE'
-- Snowtravel: ST_Bookings
-- DEF = confirmed | DEF-GEANNULEERD = cancelled
-
-RULES:
-1. If question is ambiguous, ASK BACK before answering.
-2. Only use numbers from the live data context.
-3. Always ask: which dataset? which date range? confirmed only?`}
-                      style={{width:"100%",minHeight:220,padding:"12px 14px",background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:10,color:T.text,fontSize:12,fontFamily:"monospace",resize:"vertical",outline:"none",boxSizing:"border-box",lineHeight:1.6}}
-                    />
-                    <div style={{marginTop:8,display:"flex",gap:8}}>
-                      <Btn T={T} style={{justifyContent:"center"}}>Save Prompt</Btn>
-                      <span style={{fontSize:11,color:T.textDim,alignSelf:"center"}}>Prompt is stored in backend environment variables</span>
-                    </div>
-                  </div>
-                  <div style={{borderTop:`1px solid ${T.border}`,paddingTop:16,marginTop:8}}>
-                    <div style={{fontSize:13,fontWeight:700,color:T.text,marginBottom:8}}>AI Data Access</div>
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                      {[
-                        {label:"CustomerOverview (Solmar/Interbus/Solmar DE)",enabled:true},
-                        {label:"ST_Bookings (Snowtravel)",enabled:true},
-                        {label:"BUStrips (Pendel)",enabled:false},
-                        {label:"FeederOverview",enabled:false},
-                        {label:"HotelRatings",enabled:false},
-                        {label:"HotelReviews",enabled:false},
-                      ].map(({label,enabled})=>(
-                        <div key={label} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:T.tableAlt,borderRadius:8,border:`1px solid ${T.border}`}}>
-                          <div style={{width:8,height:8,borderRadius:"50%",background:enabled?T.success:T.textDim,flexShrink:0}}/>
-                          <span style={{fontSize:11,color:enabled?T.text:T.textMuted}}>{label}</span>
-                          <span style={{marginLeft:"auto",fontSize:10,color:enabled?T.success:T.textDim,fontWeight:600}}>{enabled?"Active":"Inactive"}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-            </div>
+          {tab==="bus"     &&<BusTab/>}
+          {tab==="hotel"   &&<HotelTab/>}
+          {tab==="data"    &&<DataTableTab applied={applied}/>}
+          {tab==="ai"      &&<AiTab user={user} kpiData={kpiData}/>}
+          {tab==="settings"&&(user.role==="admin"
+            ?<SettingsTab user={user} theme={theme} setTheme={t=>{setTheme(t);localStorage.setItem("ttp_theme",t);}}/>
+            :<div style={{padding:60,textAlign:"center"}}><div style={{fontSize:32,marginBottom:12}}>🔒</div><div style={{fontSize:16,fontWeight:600,color:"var(--text)"}}>Admin access required</div></div>
           )}
-        </div>
+        </main>
 
         {/* STATUS BAR */}
-        <div style={{background:T.headerBg,borderTop:`1px solid ${T.border}`,padding:"4px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,flexShrink:0}}>
+        <div style={{background:"var(--bg-2)",borderTop:"1px solid var(--border)",padding:"4px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,flexShrink:0}}>
           <div style={{display:"flex",gap:14,alignItems:"center",flexWrap:"wrap"}}>
-            <span style={{color:T.textDim}}>Last sync: <span style={{color:T.accent,fontWeight:600}}>{lastSync||"—"}</span> Dubai</span>
-            {[["Solmar",kpis?.currentBookings!=null?"Live":"—"],["Snowtravel","Live"],["Interbus","Live"],["Solmar DE","Live"]].map(([k,v])=>(
-              <span key={k} style={{color:T.textDim}}><span style={{color:T.textMuted,fontWeight:600}}>{k}</span>: <span style={{color:T.success}}>{v}</span></span>
+            <span style={{color:"var(--text-dim)"}}>Last sync: <span style={{color:"var(--blue)",fontWeight:600}}>{fmtSync(lastSync)||"—"}</span> Dubai</span>
+            {[["Solmar","Live"],["Snowtravel","Live"],["Interbus","Live"],["Solmar DE","Live"]].map(([k,v])=>(
+              <span key={k} style={{color:"var(--text-dim)"}}><span style={{color:"var(--text-muted)",fontWeight:600}}>{k}</span>: <span style={{color:"var(--green)"}}>{v}</span></span>
             ))}
           </div>
-          <span style={{color:T.textDim}}>Auto-refresh 00:00 Dubai · TTP Analytics v2.1 · <span style={{color:T.success}}>●</span> Live</span>
+          <span style={{color:"var(--text-dim)"}}>TTP Analytics v2.1 · <span style={{color:"var(--green)"}}>●</span> Live</span>
         </div>
-      </main>
+      </div>
 
-      {/* EXPORT MODAL */}
-      {showExportModal&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowExportModal(false)}>
-          <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:28,width:460,boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}} onClick={e=>e.stopPropagation()}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
-              <span style={{fontSize:16,fontWeight:700,color:T.text}}>Export Data</span>
-              <button onClick={()=>setShowExportModal(false)} style={{background:"transparent",border:"none",cursor:"pointer",color:T.textMuted}}>{Ic.close}</button>
-            </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
-              {[["Booking From","bkFrom"],["Booking To","bkTo"],["Departure From","depFrom"],["Departure To","depTo"]].map(([l,k])=>(
-                <div key={k}><label style={labelStyle}>{l}</label>
-                  <input type="date" value={exportOpts[k]||""} onChange={e=>setExportOpts(o=>({...o,[k]:e.target.value}))}
-                    style={{...inputStyle,colorScheme:themeKey==="dark"?"dark":"light"}}/>
-                </div>
-              ))}
-            </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
-              <div><label style={labelStyle}>Dataset</label>
-                <select value={exportOpts.dataset||""} onChange={e=>setExportOpts(o=>({...o,dataset:e.target.value}))} style={inputStyle}>
-                  <option value="">All Datasets</option>
-                  {["Snowtravel","Solmar","Interbus","Solmar DE"].map(d=><option key={d} value={d}>{d}</option>)}
-                </select>
-              </div>
-              <div><label style={labelStyle}>Status</label>
-                <select value={exportOpts.status||""} onChange={e=>setExportOpts(o=>({...o,status:e.target.value}))} style={inputStyle}>
-                  <option value="">All Status</option>
-                  <option value="ok">OK only</option>
-                  <option value="cancelled">Cancelled only</option>
-                </select>
-              </div>
-            </div>
-            <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>doExport("csv")} style={{flex:1,background:T.success,color:"#fff",border:"none",borderRadius:8,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>{Ic.download} CSV</button>
-              <button onClick={()=>doExport("excel")} style={{flex:1,background:"#0e7490",color:"#fff",border:"none",borderRadius:8,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer"}}>📊 Excel</button>
-              <button onClick={()=>doExport("print")} style={{flex:1,background:T.accent,color:"#fff",border:"none",borderRadius:8,padding:"10px",fontSize:13,fontWeight:600,cursor:"pointer"}}>Print</button>
-              <button onClick={()=>doExport("pdf")} style={{flex:1,background:"transparent",border:`1px solid ${T.border}`,borderRadius:8,padding:"10px",fontSize:13,fontWeight:600,cursor:"pointer",color:T.textMuted}}>📄 Save PDF</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-
-      {/* EXPORT MODAL */}
-      {showExportModal&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowExportModal(false)}>
-          <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:28,width:460,boxShadow:"0 20px 60px rgba(0,0,0,0.3)",maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
-              <span style={{fontSize:16,fontWeight:700,color:T.text}}>Export Data</span>
-              <button onClick={()=>setShowExportModal(false)} style={{background:"transparent",border:"none",cursor:"pointer",color:T.textMuted}}>{Ic.close}</button>
-            </div>
-            {/* Dataset */}
-            <div style={{marginBottom:14}}>
-              <label style={{fontSize:11,fontWeight:700,color:T.textMuted,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em",display:"block"}}>Dataset</label>
-              <div style={{display:"flex",flexDirection:"column",gap:4,background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:8,padding:"10px 12px"}}>
-                {["Snowtravel","Solmar","Interbus","Solmar DE"].map(d=>{
-                  const sel=(exportOpts.datasets||[]).includes(d);
-                  return <label key={d} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:T.text,cursor:"pointer"}}>
-                    <input type="checkbox" checked={sel} onChange={e=>setExportOpts(o=>({...o,datasets:e.target.checked?[...o.datasets,d]:o.datasets.filter(x=>x!==d)}))} style={{accentColor:T.accent}}/>
-                    <span style={{color:DS_COLORS[d]||T.text,fontWeight:sel?600:400}}>{d}</span>
-                  </label>;
-                })}
-                <div style={{marginTop:4,fontSize:11,color:T.textDim}}>{(exportOpts.datasets||[]).length===0?"All datasets selected":exportOpts.datasets.join(", ")}</div>
-              </div>
-            </div>
-            {/* Status */}
-            <div style={{marginBottom:14}}>
-              <label style={{fontSize:11,fontWeight:700,color:T.textMuted,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em",display:"block"}}>Status</label>
-              <div style={{display:"flex",gap:6}}>
-                {[["","All"],["ok","OK only"],["cancelled","Cancelled only"]].map(([v,l])=>{
-                  const active=exportOpts.status===v;
-                  const col=v==="ok"?T.success:v==="cancelled"?T.danger:T.textMuted;
-                  return <button key={v} onClick={()=>setExportOpts(o=>({...o,status:v}))} style={{flex:1,background:active?`${col}22`:"transparent",border:`1px solid ${active?col:T.border}`,borderRadius:7,color:active?col:T.textMuted,padding:"7px 6px",fontSize:12,fontWeight:active?700:400,cursor:"pointer"}}>{l}</button>;
-                })}
-              </div>
-            </div>
-            {/* Date ranges */}
-            {[["Departure Date","depFrom","depTo"],["Booking Date","bkFrom","bkTo"]].map(([label,fromK,toK])=>(
-              <div key={label} style={{marginBottom:14}}>
-                <label style={{fontSize:11,fontWeight:700,color:T.textMuted,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em",display:"block"}}>{label}</label>
-                <div style={{display:"flex",gap:8}}>
-                  <div style={{flex:1}}>
-                    <input type="date" value={exportOpts[fromK]||""} onChange={e=>setExportOpts(o=>({...o,[fromK]:e.target.value}))}
-                      placeholder="From" style={{width:"100%",boxSizing:"border-box",background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:7,padding:"8px 10px",fontSize:13,color:T.text,outline:"none",colorScheme:themeKey==="dark"?"dark":"light"}}/>
-                  </div>
-                  <div style={{flex:1}}>
-                    <input type="date" value={exportOpts[toK]||""} onChange={e=>setExportOpts(o=>({...o,[toK]:e.target.value}))}
-                      placeholder="To" style={{width:"100%",boxSizing:"border-box",background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:7,padding:"8px 10px",fontSize:13,color:T.text,outline:"none",colorScheme:themeKey==="dark"?"dark":"light"}}/>
-                  </div>
-                </div>
-              </div>
-            ))}
-            {/* Export buttons */}
-            <div style={{display:"flex",gap:8,marginTop:8,paddingTop:16,borderTop:`1px solid ${T.border}`}}>
-              <button onClick={doExportCSV} style={{flex:1,background:T.success,color:"#fff",border:"none",borderRadius:8,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-                {Ic.download} Download CSV
-              </button>
-              <button onClick={()=>{setShowExportModal(false);setTimeout(()=>window.print(),100);}} style={{flex:1,background:T.accent,color:"#fff",border:"none",borderRadius:8,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer"}}>
-                Print
-              </button>
-              <button onClick={async()=>{
-                setShowExportModal(false);
-                try{
-                  const h2c=(await import('html2canvas')).default;
-                  const el=document.getElementById('dashboard-content');
-                  if(!el)return;
-                  const canvas=await h2c(el,{scale:1.5,useCORS:true,backgroundColor:T.bg});
-                  const link=document.createElement('a');
-                  link.download=`ttp-${new Date().toISOString().split('T')[0]}.jpg`;
-                  link.href=canvas.toDataURL('image/jpeg',0.9);link.click();
-                }catch(e){alert('Export error: '+e.message);}
-              }} style={{flex:1,background:T.warning,color:"#fff",border:"none",borderRadius:8,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer"}}>
-                Save JPG
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* ADD USER MODAL */}
-      {showAddUser&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowAddUser(false)}>
-          <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,padding:26,width:380,boxShadow:"0 20px 60px rgba(0,0,0,0.25)"}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:15,fontWeight:700,color:T.text,marginBottom:18}}>Add New User</div>
-            {[["Full Name","name","text"],["Username","username","text"],["Email","email","email"],["Password","password","password"]].map(([l,k,t])=>(
-              <div key={k} style={{marginBottom:11}}><label style={labelStyle}>{l}</label><input type={t} value={newUser[k]||""} onChange={e=>setNewUser(u=>({...u,[k]:e.target.value}))} style={inputStyle}/></div>
-            ))}
-            <div style={{marginBottom:16}}><label style={labelStyle}>Role</label>
-              <select value={newUser.role} onChange={e=>setNewUser(u=>({...u,role:e.target.value}))} style={inputStyle}>
-                <option value="viewer">Viewer — can view dashboards only</option>
-                <option value="admin">Admin — can access Settings</option>
-              </select>
-            </div>
-            <div style={{display:"flex",gap:8}}>
-              <Btn onClick={async()=>{
-                if(!newUser.name||!newUser.username||!newUser.password)return;
-                try{
-                  const t=localStorage.getItem("ttp_token");
-                  const r=await fetch(`${BASE}/api/auth/users`,{method:"POST",headers:{"Authorization":`Bearer ${t}`,"Content-Type":"application/json"},body:JSON.stringify(newUser)});
-                  const d=await r.json();
-                  if(r.ok){setUsers(p=>[...p,d]);setNewUser({name:"",username:"",email:"",password:"",role:"viewer"});setShowAddUser(false);}
-                  else alert(d.error||"Failed to add user");
-                }catch{alert("Connection error");}
-              }} T={T} style={{flex:1,justifyContent:"center"}}>Add User</Btn>
-              <Btn variant="ghost" onClick={()=>setShowAddUser(false)} T={T} style={{flex:1,justifyContent:"center"}}>Cancel</Btn>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* EDIT USER MODAL */}
-      {editUser&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setEditUser(null)}>
-          <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,padding:26,width:380,boxShadow:"0 20px 60px rgba(0,0,0,0.25)"}} onClick={e=>e.stopPropagation()}>
-            <div style={{fontSize:15,fontWeight:700,color:T.text,marginBottom:18}}>Edit User — {editUser.name}</div>
-            {[["Full Name","name","text"],["Email","email","email"]].map(([l,k,t])=>(
-              <div key={k} style={{marginBottom:11}}><label style={labelStyle}>{l}</label><input type={t} value={editUser[k]||""} onChange={e=>setEditUser(u=>({...u,[k]:e.target.value}))} style={inputStyle}/></div>
-            ))}
-            <div style={{marginBottom:16}}><label style={labelStyle}>Role</label>
-              <select value={editUser.role} onChange={e=>setEditUser(u=>({...u,role:e.target.value}))} style={inputStyle}>
-                <option value="viewer">Viewer</option><option value="admin">Admin</option>
-              </select>
-            </div>
-            <div style={{display:"flex",gap:8}}>
-              <Btn onClick={async()=>{
-                try{
-                  const t=localStorage.getItem("ttp_token");
-                  const r=await fetch(`${BASE}/api/auth/users/${editUser.id}`,{method:"PUT",headers:{"Authorization":`Bearer ${t}`,"Content-Type":"application/json"},body:JSON.stringify(editUser)});
-                  const d=await r.json();
-                  if(r.ok){setUsers(p=>p.map(u=>u.id===editUser.id?d:u));setEditUser(null);}
-                  else alert(d.error||"Failed to update user");
-                }catch{alert("Connection error");}
-              }} T={T} style={{flex:1,justifyContent:"center"}}>Save Changes</Btn>
-              <Btn variant="ghost" onClick={()=>setEditUser(null)} T={T} style={{flex:1,justifyContent:"center"}}>Cancel</Btn>
-            </div>
-          </div>
-        </div>
-      )}
+      <FloatingAI tab={tab} setTab={setTab}/>
 
       <style>{`
-        @media print{
-          aside,header,.no-print{display:none!important;}
-          main{margin-left:0!important;}
-          #dashboard-content{padding:0!important;}
-          body{background:white!important;}
-          .card{break-inside:avoid;}
+        /* ═══ DARK THEME (default) ═══ */
+        :root, [data-theme="dark"] {
+          --bg:          #0d1117;
+          --bg-2:        #161b22;
+          --surface:     #1c2333;
+          --surface-2:   #243047;
+          --surface-3:   #2d3a50;
+          --border:      #30363d;
+          --text:        #e6edf3;
+          --text-muted:  #8b949e;
+          --text-dim:    #3d5a80;
+          --blue:        #4d9eff;
+          --blue-dim:    rgba(77,158,255,.12);
+          --green:       #3fb950;
+          --green-dim:   rgba(63,185,80,.12);
+          --red:         #f85149;
+          --red-dim:     rgba(248,81,73,.12);
+          --amber:       #d29922;
+          --amber-dim:   rgba(210,153,34,.12);
+          --purple:      #bc8cff;
+          --mono:        'SF Mono','Fira Code','Cascadia Code',monospace;
+          --font:        'Segoe UI',system-ui,-apple-system,sans-serif;
+          --radius:      8px;
+          --radius-lg:   12px;
+          --radius-xl:   16px;
+          --shadow-lg:   0 20px 60px rgba(0,0,0,.6);
         }
-        @media (max-width:768px){
-          aside{width:100%!important;height:52px!important;position:fixed!important;top:0!important;left:0!important;z-index:200!important;flex-direction:row!important;align-items:center!important;padding:0!important;overflow:hidden!important;border-right:none!important;border-bottom:1px solid #e2e8f0!important;}
-          aside nav{display:flex!important;flex-direction:row!important;flex:1!important;padding:0 6px!important;overflow-x:auto!important;gap:2px!important;scrollbar-width:none!important;}
-          aside nav::-webkit-scrollbar{display:none!important;}
-          aside nav button{flex-shrink:0!important;padding:6px 10px!important;font-size:11px!important;}
-          aside > div:last-child{display:none!important;}
-          aside > div:first-child{width:48px!important;flex-shrink:0!important;border-right:1px solid #e2e8f0!important;}
-          main{margin-left:0!important;margin-top:52px!important;}
-          .kpi-grid{grid-template-columns:1fr 1fr!important;}
-          .chart-grid{grid-template-columns:1fr!important;}
-          header{height:44px!important;padding:0 10px!important;}
-          #dashboard-content{padding:8px!important;overflow-x:hidden!important;}
-          .chart-grid{grid-template-columns:1fr!important;}
-          .kpi-grid{grid-template-columns:1fr 1fr!important;}
-          .kpi-value{font-size:22px!important;}
-          .hide-mobile{display:none!important;}
-          .table-scroll{-webkit-overflow-scrolling:touch!important;max-width:calc(100vw - 20px)!important;}
+
+        /* ═══ LIGHT SILVER THEME ═══ */
+        [data-theme="light"] {
+          --bg:          #f1f5f9;
+          --bg-2:        #e8edf3;
+          --surface:     #ffffff;
+          --surface-2:   #f8fafc;
+          --surface-3:   #f1f5f9;
+          --border:      #cbd5e1;
+          --text:        #0f172a;
+          --text-muted:  #475569;
+          --text-dim:    #94a3b8;
+          --blue:        #1a3a7c;
+          --blue-dim:    rgba(26,58,124,.1);
+          --green:       #16a34a;
+          --green-dim:   rgba(22,163,74,.1);
+          --red:         #dc2626;
+          --red-dim:     rgba(220,38,38,.1);
+          --amber:       #b45309;
+          --amber-dim:   rgba(180,83,9,.1);
+          --purple:      #7c3aed;
+          --shadow-lg:   0 20px 60px rgba(0,0,0,.15);
         }
-        @media (max-width:480px){
-          .kpi-grid{grid-template-columns:1fr!important;}
-          header .header-btns > *:not(:last-child):not(:nth-last-child(2)){display:none!important;}
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+          font-family: var(--font);
+          background: var(--bg);
+          color: var(--text);
+          font-size: 14px;
+          line-height: 1.5;
+          -webkit-font-smoothing: antialiased;
         }
-        @keyframes bounce{0%,80%,100%{transform:scale(0.4);opacity:0.4}40%{transform:scale(1);opacity:1}}
-        ::-webkit-scrollbar{width:6px;height:10px}
-        ::-webkit-scrollbar-track{background:${T.border};border-radius:10px}
-        ::-webkit-scrollbar-thumb{background:${T.accent};border-radius:10px;border:2px solid ${T.border}}
-        ::-webkit-scrollbar-thumb:hover{background:${T.accentHover}}
-        ::-webkit-scrollbar-corner{background:transparent}
-        /* No page-level horizontal scroll */
-        body,html{overflow-x:hidden}
-        /* Always show horizontal scrollbar */
-        .force-scroll{overflow-x:auto!important;-webkit-overflow-scrolling:touch}
-        .force-scroll::-webkit-scrollbar{height:8px!important;display:block!important}
-        .force-scroll::-webkit-scrollbar-track{background:${T.tableAlt};border-radius:4px}
-        .force-scroll::-webkit-scrollbar-thumb{background:${T.accent};border-radius:4px;min-width:40px}
-        /* Table scroll - allow both directions */
-        .table-scroll{overflow-x:auto;overflow-y:auto;-webkit-overflow-scrolling:touch}
-        .table-scroll::-webkit-scrollbar{height:8px;width:6px}
-        .table-scroll::-webkit-scrollbar-track{background:${T.tableAlt};border-radius:0 0 8px 8px}
-        .table-scroll::-webkit-scrollbar-thumb{background:${T.accent};border-radius:6px;border:3px solid ${T.tableAlt}}
-        .table-scroll::-webkit-scrollbar-thumb:hover{background:${T.accentHover}}
-        input[type="date"]::-webkit-calendar-picker-indicator{opacity:0.5;cursor:pointer;filter:${themeKey==="dark"?"invert(1)":"none"}}
-        select option{background:${T.card};color:${T.text}}
+
+        /* ── LAYOUT ── */
+        .app-shell { display: flex; height: 100vh; overflow: hidden; }
+
+        .sidebar {
+          width: 176px;
+          flex-shrink: 0;
+          background: var(--bg-2);
+          border-right: 1px solid var(--border);
+          display: flex;
+          flex-direction: column;
+          height: 100vh;
+          overflow: hidden;
+        }
+
+        .sidebar-brand {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 16px 14px;
+          border-bottom: 1px solid var(--border);
+          flex-shrink: 0;
+        }
+        .brand-logo {
+          width: 36px; height: 36px;
+          border-radius: 8px;
+          background: var(--blue);
+          display: flex; align-items: center; justify-content: center;
+          flex-shrink: 0;
+          overflow: hidden;
+        }
+        .brand-info { display: flex; flex-direction: column; min-width: 0; }
+        .brand-title { font-size: 13px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .brand-sub   { font-size: 10px; color: var(--text-dim); }
+
+        .sidebar-nav { flex: 1; padding: 10px 8px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
+
+        .nav-item {
+          display: flex; align-items: center; gap: 8px;
+          padding: 8px 10px;
+          border-radius: var(--radius);
+          background: none; border: none;
+          color: var(--text-muted);
+          font-size: 13px; font-weight: 500;
+          cursor: pointer;
+          text-align: left;
+          width: 100%;
+          transition: background .12s, color .12s;
+          white-space: nowrap;
+        }
+        .nav-item:hover { background: var(--surface); color: var(--text); }
+        .nav-item.active { background: var(--blue-dim); color: var(--blue); font-weight: 600; }
+        .nav-icon { display: flex; align-items: center; flex-shrink: 0; }
+
+        .sidebar-footer {
+          padding: 12px;
+          border-top: 1px solid var(--border);
+          display: flex; flex-direction: column; gap: 8px;
+          flex-shrink: 0;
+        }
+        .user-card { display: flex; align-items: center; gap: 8px; }
+        .user-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--blue); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+        .user-info { display: flex; flex-direction: column; min-width: 0; }
+        .user-name { font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .user-role { font-size: 10px; color: var(--text-dim); }
+        .sync-status { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--text-dim); }
+        .sync-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+        .btn-logout { padding: 6px 10px; border-radius: var(--radius); background: transparent; border: 1px solid var(--border); color: var(--text-muted); font-size: 11px; cursor: pointer; text-align: center; transition: background .12s; }
+        .btn-logout:hover { background: var(--surface); }
+
+        /* ── MAIN ── */
+        .main-area { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+
+        .topbar {
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 0 20px;
+          height: 52px;
+          border-bottom: 1px solid var(--border);
+          background: var(--bg-2);
+          flex-shrink: 0;
+          gap: 12px;
+        }
+        .topbar-left { display: flex; align-items: center; gap: 10px; min-width: 0; overflow: hidden; }
+        .page-title { font-size: 15px; font-weight: 700; color: var(--text); white-space: nowrap; }
+        .topbar-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+        .active-filters-row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; overflow: hidden; }
+        .filter-chip { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted); white-space: nowrap; }
+        .filter-chip.dataset { background: var(--blue-dim); color: var(--blue); border-color: rgba(77,158,255,.25); }
+        .filter-chip.year    { background: var(--amber-dim); color: var(--amber); border-color: rgba(210,153,34,.25); }
+        .filter-chip.date    { background: var(--surface-2); color: var(--text-muted); }
+        .filter-chip.status  { background: var(--green-dim); color: var(--green); border-color: rgba(63,185,80,.25); }
+        .chip-clear { font-size: 10px; font-weight: 700; color: var(--amber); background: var(--amber-dim); border: 1px solid rgba(210,153,34,.3); border-radius: 10px; padding: 2px 8px; cursor: pointer; white-space: nowrap; }
+
+        .metric-tabs { display: flex; gap: 2px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 2px; }
+        .metric-tab { padding: 4px 10px; border-radius: 6px; border: none; background: transparent; color: var(--text-muted); font-size: 11px; font-weight: 500; cursor: pointer; transition: background .12s, color .12s; }
+        .metric-tab.active { background: var(--blue); color: #fff; font-weight: 700; }
+
+        .btn-icon { width: 32px; height: 32px; border-radius: var(--radius); background: transparent; border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background .12s, color .12s; }
+        .btn-icon:hover { background: var(--surface); color: var(--text); }
+        .btn-icon.spinning svg { animation: spin .7s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .btn-filter { display: flex; align-items: center; gap: 5px; padding: 0 12px; height: 32px; border-radius: var(--radius); border: 1px solid var(--border); background: transparent; color: var(--text-muted); font-size: 12px; font-weight: 600; cursor: pointer; position: relative; transition: background .12s, color .12s; }
+        .btn-filter:hover, .btn-filter.active { background: var(--surface); color: var(--text); }
+        .btn-filter.has-active { border-color: var(--blue); color: var(--blue); }
+        .filter-badge { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); flex-shrink: 0; }
+
+        /* ── FILTER DRAWER ── */
+        .filter-drawer { overflow: hidden; max-height: 0; transition: max-height .25s ease; border-bottom: 0 solid var(--border); background: var(--surface); }
+        .filter-drawer.open { max-height: 420px; border-bottom-width: 1px; }
+        .filter-drawer-inner { padding: 14px 20px; display: flex; flex-wrap: wrap; gap: 16px 24px; overflow-y: auto; max-height: 400px; }
+        .filter-section { display: flex; flex-direction: column; gap: 6px; min-width: 160px; }
+        .filter-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); }
+        .chip-group { display: flex; flex-wrap: wrap; gap: 4px; }
+        .ds-chip { padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); font-size: 11px; font-weight: 500; cursor: pointer; transition: all .12s; white-space: nowrap; }
+        .ds-chip:hover { border-color: var(--blue); color: var(--blue); }
+        .ds-chip.active { background: var(--blue-dim); border-color: var(--blue); color: var(--blue); font-weight: 700; }
+        .date-range { display: flex; align-items: center; gap: 6px; }
+        .date-input { padding: 6px 8px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-size: 11px; outline: none; }
+        .date-sep { color: var(--text-dim); font-size: 11px; }
+        .filter-actions { display: flex; gap: 8px; align-items: flex-end; margin-top: 4px; }
+        .btn-clear-filters { padding: 7px 14px; border-radius: var(--radius); background: transparent; border: 1px solid var(--border); color: var(--text-muted); font-size: 12px; cursor: pointer; }
+        .btn-apply-filters { padding: 7px 18px; border-radius: var(--radius); background: var(--blue); border: none; color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; }
+
+        /* ── PAGE BODY ── */
+        .page-body { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 0; }
+        .tab-content { display: flex; flex-direction: column; gap: 16px; }
+
+        /* ── MISC ── */
+        .loading-bar { height: 3px; background: var(--surface); flex-shrink: 0; }
+        .loading-bar-fill { height: 100%; width: 40%; background: linear-gradient(90deg,var(--blue),var(--green)); animation: slideBar 1.2s ease infinite; }
+        @keyframes slideBar { from{transform:translateX(-100%)} to{transform:translateX(350%)} }
+        .error-banner { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: var(--red-dim); border: 1px solid rgba(248,113,113,.3); border-radius: var(--radius); font-size: 13px; color: var(--red); margin-bottom: 12px; }
+
+        input[type="date"]::-webkit-calendar-picker-indicator { opacity: .5; cursor: pointer; }
+        [data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); }
+        select option { background: var(--surface); color: var(--text); }
+
+        @keyframes typingDot { 0%,80%,100%{transform:scale(.7);opacity:.4} 40%{transform:scale(1);opacity:1} }
+
+        /* ── MOBILE ── */
+        @media(max-width:768px){
+          .sidebar{position:fixed;bottom:0;left:0;width:100%;height:52px;flex-direction:row;z-index:100;border-right:none;border-top:1px solid var(--border);}
+          .sidebar-brand,.sidebar-footer{display:none;}
+          .sidebar-nav{flex-direction:row;padding:0 8px;overflow-x:auto;align-items:center;}
+          .nav-item{flex-direction:column;gap:2px;padding:5px 8px;font-size:10px;}
+          .main-area{padding-bottom:52px;}
+        }
       `}</style>
     </div>
   );
