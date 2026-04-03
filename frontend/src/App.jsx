@@ -554,6 +554,161 @@ function Empty({msg}) {
   return <div style={{padding:40,textAlign:"center",color:"var(--text-muted)",fontSize:13}}>{msg||"No data"}</div>;
 }
 
+
+// ─── PURCHASE OBLIGATIONS TAB ─────────────────────────────────────────────────
+function PurchasesTab() {
+  const [kpis,setKpis]      = useState(null);
+  const [rows,setRows]      = useState([]);
+  const [loading,setLoading]= useState(false);
+  const [error,setError]    = useState("");
+  const [depFrom,setDepFrom]= useState("");
+  const [depTo,setDepTo]    = useState("");
+  const [retFrom,setRetFrom]= useState("");
+  const [retTo,setRetTo]    = useState("");
+  const [status,setStatus]  = useState("all");
+
+  const load = useCallback(async () => {
+    setLoading(true); setError("");
+    try {
+      const p = {
+        ...(depFrom?{depFrom}:{}),
+        ...(depTo?{depTo}:{}),
+        ...(retFrom?{retFrom}:{}),
+        ...(retTo?{retTo}:{}),
+        ...(status&&status!=="all"?{status}:{}),
+      };
+      const d = await apiFetch("/api/dashboard/margin-overview", p);
+      setKpis(d.kpis || null);
+      setRows(Array.isArray(d.rows) ? d.rows : []);
+    } catch(e) {
+      setError(e.message);
+    } finally { setLoading(false); }
+  }, [depFrom,depTo,retFrom,retTo,status]);
+
+  useEffect(()=>{ load(); }, [load]);
+
+  const iS={padding:"6px 10px",background:"var(--bg)",border:"1px solid var(--border)",borderRadius:"var(--radius)",color:"var(--text)",fontSize:12,outline:"none"};
+  const lS={fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:".05em",color:"var(--text-dim)",marginBottom:4,display:"block"};
+  const fmtD = v => v ? v : "—";
+  const fmtE = v => v==null?"—":fmtEur(Number(v));
+
+  const kpiCards = kpis ? [
+    {label:"Total Bookings",  val:fmtN(kpis.total_bookings),         color:"var(--blue)"},
+    {label:"Sales",           val:fmtE(kpis.total_sales),             color:"var(--green)"},
+    {label:"Purchase Calc.",  val:fmtE(kpis.total_purchase_calc),     color:"var(--amber)"},
+    {label:"Purchase Obl.",   val:fmtE(kpis.total_purchase_obl),      color:"var(--purple)"},
+    {label:"Margin",          val:fmtE(kpis.total_margin),            color:"var(--green)"},
+    {label:"Commission",      val:fmtE(kpis.total_commission),        color:"var(--text-muted)"},
+    {label:"Margin incl. Comm.",val:fmtE(kpis.total_margin_incl_comm),color:"var(--blue)"},
+  ] : [];
+
+  const cols = [
+    {k:"BookingID",    l:"Booking ID"},
+    {k:"StatusCode",   l:"Status"},
+    {k:"DepartureDate",l:"Departure"},
+    {k:"ReturnDate",   l:"Return"},
+    {k:"SalesBooking", l:"Sales",         num:true},
+    {k:"PurchaseCalculation",l:"Purch. Calc.",num:true},
+    {k:"PurchaseObligation",l:"Purch. Obl.",num:true},
+    {k:"Margin",       l:"Margin",        num:true},
+    {k:"Commission",   l:"Commission",    num:true},
+    {k:"MarginIncludingCommission",l:"Margin incl. Comm.",num:true},
+  ];
+
+  return (
+    <div className="tab-content">
+      {/* Filter bar */}
+      <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"14px 16px",display:"flex",gap:14,alignItems:"flex-end",flexWrap:"wrap"}}>
+        <div>
+          <label style={lS}>Departure Date</label>
+          <div style={{display:"flex",gap:6,alignItems:"center"}}>
+            <input type="date" value={depFrom} onChange={e=>setDepFrom(e.target.value)} style={iS}/>
+            <span style={{color:"var(--text-dim)",fontSize:11}}>→</span>
+            <input type="date" value={depTo} onChange={e=>setDepTo(e.target.value)} style={iS}/>
+          </div>
+        </div>
+        <div>
+          <label style={lS}>Return Date</label>
+          <div style={{display:"flex",gap:6,alignItems:"center"}}>
+            <input type="date" value={retFrom} onChange={e=>setRetFrom(e.target.value)} style={iS}/>
+            <span style={{color:"var(--text-dim)",fontSize:11}}>→</span>
+            <input type="date" value={retTo} onChange={e=>setRetTo(e.target.value)} style={iS}/>
+          </div>
+        </div>
+        <div>
+          <label style={lS}>Status</label>
+          <div style={{display:"flex",gap:4}}>
+            {[["all","All"],["ok","OK / Confirmed"],["cancelled","Cancelled"]].map(([v,l])=>(
+              <button key={v} onClick={()=>setStatus(v)} style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${status===v?"var(--blue)":"var(--border)"}`,background:status===v?"var(--blue-dim)":"transparent",color:status===v?"var(--blue)":"var(--text-muted)",fontSize:12,fontWeight:status===v?700:400,cursor:"pointer"}}>{l}</button>
+            ))}
+          </div>
+        </div>
+        <div style={{display:"flex",gap:6,alignSelf:"flex-end"}}>
+          <button onClick={load} disabled={loading} style={{padding:"7px 20px",borderRadius:"var(--radius)",background:"var(--blue)",border:"none",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",opacity:loading?.6:1}}>
+            {loading?"Loading…":"Apply"}
+          </button>
+          <button onClick={()=>{setDepFrom("");setDepTo("");setRetFrom("");setRetTo("");setStatus("all");}} style={{padding:"7px 12px",borderRadius:"var(--radius)",background:"transparent",border:"1px solid var(--border)",color:"var(--text-muted)",fontSize:12,cursor:"pointer"}}>Reset</button>
+        </div>
+      </div>
+
+      {error && <div style={{padding:"10px 14px",background:"var(--red-dim)",border:"1px solid rgba(248,113,113,.3)",borderRadius:"var(--radius)",fontSize:13,color:"var(--red)"}}>{error}</div>}
+
+      {/* KPI Cards */}
+      {kpis && (
+        <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+          {kpiCards.map(k=>(
+            <div key={k.label} style={{flex:1,minWidth:130,background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"14px 16px"}}>
+              <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:".07em",color:"var(--text-dim)",marginBottom:6}}>{k.label}</div>
+              <div style={{fontSize:20,fontWeight:800,color:k.color,fontFamily:"var(--mono)"}}>{k.val}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Table */}
+      <div style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",overflow:"hidden"}}>
+        <div style={{padding:"12px 16px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:13,fontWeight:700,color:"var(--text)",flex:1}}>Purchase Obligations — {fmtN(rows.length)} records</span>
+          {loading&&<div style={{height:3,width:60,background:"linear-gradient(90deg,var(--blue),var(--green))",borderRadius:2}}/>}
+        </div>
+        <div style={{overflowX:"auto",maxHeight:520}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+            <thead style={{position:"sticky",top:0,zIndex:1}}>
+              <tr style={{background:"var(--bg-2)"}}>
+                {cols.map(c=>(
+                  <th key={c.k} style={{padding:"9px 10px",textAlign:c.num?"right":"left",fontSize:10,fontWeight:700,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:".05em",borderBottom:"1px solid var(--border)",whiteSpace:"nowrap"}}>{c.l}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {!rows.length&&!loading&&<tr><td colSpan={cols.length} style={{padding:24,textAlign:"center",color:"var(--text-muted)"}}>No data — apply filters and click Apply</td></tr>}
+              {rows.map((r,i)=>(
+                <tr key={i} style={{borderBottom:"1px solid var(--border)",background:i%2?"var(--bg-2)":"transparent"}}>
+                  {cols.map(c=>{
+                    const v = r[c.k];
+                    const isStatus = c.k==="StatusCode";
+                    const sc = isStatus?(v==="ok"||v==="Confirmed"?"var(--green)":"var(--red)"):"";
+                    return (
+                      <td key={c.k} style={{padding:"7px 10px",textAlign:c.num?"right":"left",whiteSpace:"nowrap",fontFamily:c.num?"var(--mono)":"var(--font)",color:isStatus?sc:c.num?"var(--text)":"var(--text-muted)"}}>
+                        {isStatus
+                          ? <span style={{background:`${sc}22`,color:sc,padding:"2px 7px",borderRadius:10,fontSize:11,fontWeight:600}}>{v||"—"}</span>
+                          : c.num
+                            ? (v!=null&&v!==0?fmtEur(Number(v)):"—")
+                            : (v||"—")
+                        }
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── BUS OCCUPANCY TAB ────────────────────────────────────────────────────────
 function BusTab() {
   const [sub,setSub]            = useState("pendel");
@@ -1231,6 +1386,7 @@ const TABS=[
   {id:"overview",label:"Overview",icon:null},
   {id:"bus",label:"Bus Occupancy",icon:null},
   {id:"hotel",label:"Hotel Insights",icon:null},
+  {id:"purchases",label:"Purchase Obligations",icon:null},
   {id:"data",label:"Data Table",icon:null},
   {id:"ai",label:"TTP AI",icon:null},
   {id:"settings",label:"Settings",icon:null},
@@ -1363,8 +1519,8 @@ export default function App() {
     setFO(false);
   };
 
-  const tabIcons={overview:I.overview,bus:I.bus,hotel:I.hotel,data:I.table,ai:I.ai,settings:I.settings};
-  const tabLabels={overview:"Overview",bus:"Bus Occupancy",hotel:"Hotel Insights",data:"Data Table",ai:"TTP AI",settings:"Settings"};
+  const tabIcons={overview:I.overview,bus:I.bus,hotel:I.hotel,purchases:I.table,data:I.table,ai:I.ai,settings:I.settings};
+  const tabLabels={overview:"Overview",bus:"Bus Occupancy",hotel:"Hotel Insights",purchases:"Purchase Obligations",data:"Data Table",ai:"TTP AI",settings:"Settings"};
 
   return(
     <div className="app-shell" data-theme={theme}>
@@ -1544,6 +1700,7 @@ export default function App() {
           )}
 
           {tab==="bus"     &&<BusTab/>}
+          {tab==="purchases"&&<PurchasesTab/>}
           {tab==="hotel"   &&<HotelTab/>}
           {tab==="data"    &&<DataTableTab applied={applied}/>}
           {tab==="ai"      &&<AiTab user={user} kpiData={kpiData}/>}
