@@ -526,8 +526,7 @@ router.get('/margin-overview', async (req, res) => {
     if (req.query.departureTo)   { conds.push('CAST(DepartureDate AS DATE)<=@depTo');   p.depTo   = req.query.departureTo; }
     if (req.query.returnFrom)    { conds.push('CAST(ReturnDate AS DATE)>=@retFrom');     p.retFrom = req.query.returnFrom; }
     if (req.query.returnTo)      { conds.push('CAST(ReturnDate AS DATE)<=@retTo');       p.retTo   = req.query.returnTo; }
-    if (req.query.bookingFrom)   { conds.push('CAST(BookingDate AS DATE)>=@bkFrom');    p.bkFrom  = req.query.bookingFrom; }
-    if (req.query.bookingTo)     { conds.push('CAST(BookingDate AS DATE)<=@bkTo');      p.bkTo    = req.query.bookingTo; }
+    // NOTE: BookingDate does not exist in solmar.MarginOverview — booking date filters removed
     if (req.query.status && req.query.status !== 'all') {
       conds.push("StatusCode=@status"); p.status = req.query.status;
     }
@@ -545,13 +544,15 @@ router.get('/margin-overview', async (req, res) => {
         FROM solmar.MarginOverview ${where}`, p),
       query(`SELECT
         StatusCode,
-        CONVERT(VARCHAR(10),BookingDate,103)   AS BookingDate,
         CONVERT(VARCHAR(10),DepartureDate,103) AS DepartureDate,
         CONVERT(VARCHAR(10),ReturnDate,103)    AS ReturnDate,
-        ROUND(SalesBooking,2)        AS SalesBooking,
-        ROUND(PurchaseCalculation,2) AS PurchaseCalculation,
-        ROUND(PurchaseObligation,2)  AS PurchaseObligation,
-        ROUND(Margin,2)              AS Margin
+        PAX,
+        ROUND(SalesBooking,2)              AS SalesBooking,
+        ROUND(PurchaseCalculation,2)       AS PurchaseCalculation,
+        ROUND(PurchaseObligation,2)        AS PurchaseObligation,
+        ROUND(Margin,2)                    AS Margin,
+        ROUND(Commission,2)                AS Commission,
+        ROUND(MarginIncludingCommission,2) AS MarginIncludingCommission
         FROM solmar.MarginOverview ${where}
         ORDER BY DepartureDate DESC`, p),
     ]);
@@ -570,9 +571,7 @@ router.get('/margin-slicers', async (req, res) => {
       MIN(CAST(DepartureDate AS DATE)) AS minDeparture,
       MAX(CAST(DepartureDate AS DATE)) AS maxDeparture,
       MIN(CAST(ReturnDate AS DATE))    AS minReturn,
-      MAX(CAST(ReturnDate AS DATE))    AS maxReturn,
-      MIN(CAST(BookingDate AS DATE))   AS minBooking,
-      MAX(CAST(BookingDate AS DATE))   AS maxBooking
+      MAX(CAST(ReturnDate AS DATE))    AS maxReturn
       FROM solmar.MarginOverview`);
     res.json(r.recordset[0] || {});
   } catch(e) { res.status(500).json({ error: e.message }); }

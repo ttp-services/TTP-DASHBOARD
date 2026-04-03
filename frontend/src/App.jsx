@@ -14,8 +14,12 @@ function loadAuth(){try{const raw=localStorage.getItem(AUTH_KEY)||sessionStorage
 function clearAuth(){try{localStorage.removeItem(AUTH_KEY);sessionStorage.removeItem(AUTH_KEY);}catch{}}
 
 async function api(path,params={},token){
-  const qs=new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([,v])=>v!=null&&v!==""))).toString();
-  const r=await fetch(`${BASE}${path}${qs?"?"+qs:""}`,{headers:{Authorization:`Bearer ${token}`}});
+  const qs=new URLSearchParams();
+  Object.entries(params).filter(([,v])=>v!=null&&v!=="").forEach(([k,v])=>{
+    if(Array.isArray(v)){v.forEach(item=>qs.append(k,item));}
+    else{qs.set(k,v);}
+  });
+  const r=await fetch(`${BASE}${path}${qs.toString()?"?"+qs.toString():""}`,{headers:{Authorization:`Bearer ${token}`}});
   if(!r.ok)throw new Error(`HTTP ${r.status}`);
   return r.json();
 }
@@ -716,25 +720,27 @@ function PurchaseTab({token}){
           <div style={{padding:"11px 14px",borderBottom:`1px solid ${S.border}`,display:"flex",gap:10,alignItems:"center"}}>
             <div style={{fontSize:13,fontWeight:700,color:S.text,flex:1}}>Purchase Obligations <span style={{fontSize:11,color:S.muted,fontWeight:400}}>({fmtN(filtered.length)} rows)</span></div>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search booking ID…" style={{...inpS,width:180}}/>
-            <button onClick={()=>{const cols=["StatusCode","BookingDate","DepartureDate","ReturnDate","SalesBooking","PurchaseCalculation","PurchaseObligation","Margin"];const csv=[cols.join(","),...filtered.map(r=>cols.map(c=>String(r[c]??"")))].join("\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download="purchase-obligations.csv";a.click();}} style={{padding:"5px 12px",background:"transparent",border:`1px solid ${S.border2}`,borderRadius:6,color:S.muted,fontSize:11,cursor:"pointer"}}>↓ CSV</button>
+            <button onClick={()=>{const cols=["StatusCode","DepartureDate","ReturnDate","PAX","SalesBooking","PurchaseCalculation","PurchaseObligation","Margin","Commission","MarginIncludingCommission"];const csv=[cols.join(","),...filtered.map(r=>cols.map(c=>String(r[c]??"")))].join("\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download="purchase-obligations.csv";a.click();}} style={{padding:"5px 12px",background:"transparent",border:`1px solid ${S.border2}`,borderRadius:6,color:S.muted,fontSize:11,cursor:"pointer"}}>↓ CSV</button>
           </div>
           <div style={{maxHeight:460,overflowY:"auto",overflowX:"auto"}}>
             {!loading&&filtered.length===0?<div style={{padding:40,textAlign:"center",color:S.muted}}>No matching records</div>:(
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
                 <thead style={{position:"sticky",top:0,zIndex:5,background:S.bg}}>
-                  <tr>{[["Status","left"],["Booking Date","left"],["Departure","left"],["Return","left"],["Sales (€)","right"],["Purchase (€)","right"],["Obligation (€)","right"],["Margin (€)","right"]].map(([h,a],i)=><th key={i} style={{padding:"8px 11px",textAlign:a,color:S.muted,fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderBottom:`1px solid ${S.border}`}}>{h}</th>)}</tr>
+                  <tr>{[["Status","left"],["Departure","left"],["Return","left"],["PAX","right"],["Sales (€)","right"],["Purchase (€)","right"],["Obligation (€)","right"],["Margin (€)","right"],["Commission (€)","right"],["Margin+Comm (€)","right"]].map(([h,a],i)=><th key={i} style={{padding:"8px 11px",textAlign:a,color:S.muted,fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderBottom:`1px solid ${S.border}`}}>{h}</th>)}</tr>
                 </thead>
                 <tbody>
                   {filtered.map((r,i)=>(
                     <tr key={i} style={{borderBottom:`1px solid ${S.border}`,background:i%2===0?"transparent":"rgba(255,255,255,0.025)"}}>
                       <td style={{padding:"7px 11px",whiteSpace:"nowrap"}}><span style={{background:r.StatusCode==="ok"?"rgba(16,185,129,0.18)":"rgba(239,68,68,0.15)",color:r.StatusCode==="ok"?S.success:S.danger,padding:"3px 10px",borderRadius:10,fontSize:11,fontWeight:700}}>{r.StatusCode==="ok"?"Confirmed":"Cancelled"}</span></td>
-                      <td style={{padding:"7px 11px",color:S.muted,whiteSpace:"nowrap"}}>{r.BookingDate}</td>
                       <td style={{padding:"7px 11px",color:S.text,fontWeight:500,whiteSpace:"nowrap"}}>{r.DepartureDate}</td>
                       <td style={{padding:"7px 11px",color:S.muted,whiteSpace:"nowrap"}}>{r.ReturnDate}</td>
+                      <td style={{padding:"7px 11px",textAlign:"right",color:S.text,whiteSpace:"nowrap"}}>{fmtN(r.PAX)}</td>
                       <td style={{padding:"7px 11px",textAlign:"right",color:S.text,whiteSpace:"nowrap"}}>{fmtEur(r.SalesBooking)}</td>
                       <td style={{padding:"7px 11px",textAlign:"right",color:S.text,whiteSpace:"nowrap"}}>{fmtEur(r.PurchaseCalculation)}</td>
                       <td style={{padding:"7px 11px",textAlign:"right",color:S.warn,fontWeight:600,whiteSpace:"nowrap"}}>{fmtEur(r.PurchaseObligation)}</td>
                       <td style={{padding:"7px 11px",textAlign:"right",fontWeight:700,color:parseFloat(r.Margin||0)>=0?S.success:S.danger,whiteSpace:"nowrap"}}>{fmtEur(r.Margin)}</td>
+                      <td style={{padding:"7px 11px",textAlign:"right",color:S.muted,whiteSpace:"nowrap"}}>{fmtEur(r.Commission)}</td>
+                      <td style={{padding:"7px 11px",textAlign:"right",fontWeight:700,color:parseFloat(r.MarginIncludingCommission||0)>=0?S.success:S.danger,whiteSpace:"nowrap"}}>{fmtEur(r.MarginIncludingCommission)}</td>
                     </tr>
                   ))}
                 </tbody>
