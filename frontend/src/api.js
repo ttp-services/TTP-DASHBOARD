@@ -51,7 +51,6 @@ export const fetchHotelReviews        = (f) => get("/api/dashboard/hotel-reviews
 export const fetchBusPendel   = (f) => get("/api/dashboard/bus-pendel",  f);
 export const fetchBusFeeder   = (f) => get("/api/dashboard/bus-feeder",  f);
 export const fetchBusDeck     = (f) => get("/api/dashboard/bus-deck",    f);
-export const fetchBusKpis     = (f) => get("/api/dashboard/bus-kpis",    f);
 export const fetchHotelStats  = ()  => get("/api/dashboard/hotel-stats");
 export const fetchHotelRatings= (f) => get("/api/dashboard/hotel-ratings", f);
 
