@@ -1,66 +1,73 @@
-﻿import 'dotenv/config';
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+
 import { requireAuth } from './middleware/auth.js';
-import dashboardRoutes from './routes/dashboard.js';
 import authRoutes from './routes/auth.js';
+import dashboardRoutes from './routes/dashboard.js';
 import aiRoutes from './routes/ai.js';
-// 1. New User Management Route Import
-import userRoutes from './routes/users.js';
+import { getPool } from './db/azureSql.js';
 
 const app = express();
-const PORT = process.env.PORT || 3001;
-const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
-const allowedOrigins = corsOrigin.split(',').map(o => o.trim());
+const PORT = process.env.PORT || 8080;
+const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173,https://ttp-services.github.io';
+const allowedOrigins = corsOrigin.split(',').map(o => o.trim()).filter(Boolean);
 
-// Security & Middleware
-app.use(helmet({ contentSecurityPolicy: false }));
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Rejection:', reason);
+});
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+});
+
+// CORS — must be first
 app.use(cors({
-  origin: (origin, cb) => {
-    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
-    cb(new Error('Not allowed by CORS'));
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error(`CORS blocked for origin ${origin}`));
   },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
 }));
+app.options('*', cors());
+
+app.use(helmet());
 app.use(express.json());
+app.set('trust proxy', 1);
 
-// Rate Limiting
-const limiter = rateLimit({ 
-  windowMs: 60 * 1000, 
-  max: 200, 
-  message: { error: 'Too many requests' } 
-});
-app.use('/api', limiter);
+app.use('/api', rateLimit({ windowMs: 60 * 1000, max: 200 }));
 
-// ── API ROUTES ──────────────────────────────────────────────────────────────
-
-// Public Routes
+// ── ROUTES ──────────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
-
-// Protected Routes (Require Token)
 app.use('/api/dashboard', requireAuth, dashboardRoutes);
 app.use('/api/ai', requireAuth, aiRoutes);
 
-// 2. Register User Management (Protected)
-app.use('/api/users', requireAuth, userRoutes);
+// ── HEALTH ──────────────────────────────────────────────────────────────────
+app.get('/', (_req, res) => res.send('TTP Dashboard API is running'));
+app.get('/health', (_, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
+app.get('/api/health', (_, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
 
-// Health Check
-app.get('/health', (req, res) => res.json({ 
-  status: 'ok', 
-  time: new Date().toISOString(),
-  environment: process.env.NODE_ENV || 'development'
-}));
+// ── DB INIT ─────────────────────────────────────────────────────────────────
+async function initDb() {
+  try {
+    await getPool();
+    console.log('DB connected');
+  } catch (e) {
+    console.warn('DB not ready:', e?.message || e);
+  }
+}
 
-// Global Error Handler
+// ── GLOBAL ERROR ────────────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
-  if (err.message === 'Not allowed by CORS') return res.status(403).json({ error: 'Forbidden' });
-  console.error('Server Error:', err.stack);
+  console.error(err.stack);
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📡 CORS allowed for: ${allowedOrigins.join(', ')}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT}`);
+  initDb();
 });

@@ -638,7 +638,7 @@ function PurchasesTab() {
         <div>
           <label style={lS}>Status</label>
           <div style={{display:"flex",gap:4}}>
-            {[["all","All"],["ok","OK / Confirmed"],["cancelled","Cancelled"]].map(([v,l])=>(
+            {[["all","All"],["confirmed","Confirmed (DEF)"],["cancelled","Cancelled (DEF-GEANNULEERD)"]].map(([v,l])=>(
               <button key={v} onClick={()=>setStatus(v)} style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${status===v?"var(--blue)":"var(--border)"}`,background:status===v?"var(--blue-dim)":"transparent",color:status===v?"var(--blue)":"var(--text-muted)",fontSize:12,fontWeight:status===v?700:400,cursor:"pointer"}}>{l}</button>
             ))}
           </div>

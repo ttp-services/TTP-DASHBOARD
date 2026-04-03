@@ -2,165 +2,75 @@ import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { query } from '../db/azureSql.js';
-
 const router = Router();
-const SECRET = process.env.JWT_SECRET || 'ttp-secret-key';
+const SECRET = process.env.JWT_SECRET;
 
-// ─── LOGIN ────────────────────────────────────────────────────────────────────
+// ─── LOGIN ──────────────────────────────────────────────────────────────────
 router.post('/login', async (req, res) => {
   try {
-    const { identifier, password } = req.body;
-    if (!identifier || !password) return res.status(400).json({ error: 'Credentials required' });
-
+    const { username, identifier, password } = req.body;
+    const id = username || identifier;
+    if (!id || !password) return res.status(400).json({ error: 'Username and password required' });
     const result = await query(
-      'SELECT id, name, username, email, password, role FROM users WHERE username = @identifier OR email = @identifier',
-      { identifier }
+      `SELECT id, name, username, email, password, role FROM users
+       WHERE username = @identifier OR email = @identifier`,
+      { identifier: id }
     );
     const user = result?.recordset?.[0];
     if (!user) return res.status(401).json({ error: 'Invalid credentials' });
-
-    const valid = user.password && user.password.startsWith('$2')
-      ? await bcrypt.compare(password, user.password)
-      : password === user.password;
+    const valid = await bcrypt.compare(password, user.password);
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
-
-    const token = jwt.sign(
-      { user: { id: user.id, name: user.name, email: user.email, username: user.username, role: user.role } },
-      SECRET,
-      { expiresIn: '8h' }
-    );
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email, username: user.username, role: user.role } });
+    const payload = { id: user.id, name: user.name, email: user.email, role: user.role };
+    if (!SECRET) return res.status(500).json({ error: 'Server misconfigured: JWT_SECRET is required' });
+    const token = jwt.sign(payload, SECRET, { expiresIn: '30d' });
+    res.json({ token, user: payload });
   } catch (err) {
     console.error('Login error:', err);
-    res.status(500).json({ error: 'Login failed' });
+    res.status(500).json({ error: 'Authentication failed' });
   }
 });
 
-// ─── ME ───────────────────────────────────────────────────────────────────────
-router.get('/me', (req, res) => {
+// ─── USER MANAGEMENT ────────────────────────────────────────────────────────
+router.get('/users', async (req, res) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ error: 'No token' });
-    const decoded = jwt.verify(token, SECRET);
-    res.json(decoded.user);
-  } catch {
-    res.status(401).json({ error: 'Invalid token' });
-  }
+    const r = await query(`SELECT id, name, username, email, role FROM users ORDER BY id ASC`);
+    res.json(r.recordset || []);
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// ─── MIDDLEWARE: admin only ───────────────────────────────────────────────────
-function requireAdmin(req, res, next) {
-  try {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ error: 'Unauthorized' });
-    const decoded = jwt.verify(token, SECRET);
-    if (decoded?.user?.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-    req.user = decoded.user;
-    next();
-  } catch {
-    res.status(401).json({ error: 'Invalid token' });
-  }
-}
-
-// ─── GET ALL USERS ────────────────────────────────────────────────────────────
-router.get('/users', requireAdmin, async (req, res) => {
-  try {
-    const result = await query(
-      'SELECT id, name, username, email, role FROM users ORDER BY id ASC'
-    );
-    res.json(result.recordset || []);
-  } catch (err) {
-    console.error('Get users error:', err);
-    res.status(500).json({ error: 'Failed to fetch users' });
-  }
-});
-
-// ─── ADD USER ─────────────────────────────────────────────────────────────────
-router.post('/users', requireAdmin, async (req, res) => {
+router.post('/users', async (req, res) => {
   try {
     const { name, username, email, password, role } = req.body;
-    if (!name || !username || !password) {
-      return res.status(400).json({ error: 'Name, username and password are required' });
-    }
-
-    // Check duplicate username
-    const exists = await query(
-      'SELECT id FROM users WHERE username = @username OR email = @email',
-      { username, email: email || '' }
-    );
-    if (exists.recordset?.length) {
-      return res.status(409).json({ error: 'Username or email already exists' });
-    }
-
+    if (!name || !username || !password) return res.status(400).json({ error: 'Name, username and password required' });
     const hashed = await bcrypt.hash(password, 10);
-    await query(
+    const r = await query(
       `INSERT INTO users (name, username, email, password, role)
-       VALUES (@name, @username, @email, @password, @role)`,
-      { name, username, email: email || '', password: hashed, role: role || 'viewer' }
+       OUTPUT INSERTED.id, INSERTED.name, INSERTED.username, INSERTED.email, INSERTED.role
+       VALUES (@name, @username, @email, @pass, @role)`,
+      { name, username, email: email||'', pass: hashed, role: role||'viewer' }
     );
-
-    // Return the new user
-    const newUser = await query(
-      'SELECT id, name, username, email, role FROM users WHERE username = @username',
-      { username }
-    );
-    res.status(201).json(newUser.recordset?.[0] || { name, username, email, role });
-  } catch (err) {
-    console.error('Add user error:', err);
-    res.status(500).json({ error: 'Failed to add user', details: err.message });
-  }
+    res.json(r.recordset[0]);
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// ─── UPDATE USER ──────────────────────────────────────────────────────────────
-router.put('/users/:id', requireAdmin, async (req, res) => {
+router.put('/users/:id', async (req, res) => {
   try {
-    const { id } = req.params;
-    const { name, email, role, password } = req.body;
-
-    if (password && password.trim()) {
-      // Update with new password
-      const hashed = await bcrypt.hash(password, 10);
-      await query(
-        'UPDATE users SET name = @name, email = @email, role = @role, password = @password WHERE id = @id',
-        { name, email: email || '', role: role || 'viewer', password: hashed, id: parseInt(id) }
-      );
-    } else {
-      // Update without changing password
-      await query(
-        'UPDATE users SET name = @name, email = @email, role = @role WHERE id = @id',
-        { name, email: email || '', role: role || 'viewer', id: parseInt(id) }
-      );
-    }
-
-    const updated = await query(
-      'SELECT id, name, username, email, role FROM users WHERE id = @id',
-      { id: parseInt(id) }
+    const { name, email, role } = req.body;
+    const r = await query(
+      `UPDATE users SET name=@name, email=@email, role=@role
+       OUTPUT INSERTED.id, INSERTED.name, INSERTED.username, INSERTED.email, INSERTED.role
+       WHERE id=@id`,
+      { name, email: email||'', role, id: parseInt(req.params.id) }
     );
-    res.json(updated.recordset?.[0] || { id, name, email, role });
-  } catch (err) {
-    console.error('Update user error:', err);
-    res.status(500).json({ error: 'Failed to update user', details: err.message });
-  }
+    res.json(r.recordset[0]);
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// ─── DELETE USER ──────────────────────────────────────────────────────────────
-router.delete('/users/:id', requireAdmin, async (req, res) => {
+router.delete('/users/:id', async (req, res) => {
   try {
-    const { id } = req.params;
-
-    // Prevent deleting yourself
-    const token = req.headers.authorization?.split(' ')[1];
-    const decoded = jwt.verify(token, SECRET);
-    if (decoded?.user?.id === parseInt(id)) {
-      return res.status(400).json({ error: 'Cannot delete your own account' });
-    }
-
-    await query('DELETE FROM users WHERE id = @id', { id: parseInt(id) });
-    res.json({ success: true, message: `User ${id} deleted` });
-  } catch (err) {
-    console.error('Delete user error:', err);
-    res.status(500).json({ error: 'Failed to delete user', details: err.message });
-  }
+    await query(`DELETE FROM users WHERE id=@id`, { id: parseInt(req.params.id) });
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 export default router;

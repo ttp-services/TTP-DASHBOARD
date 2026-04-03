@@ -5,138 +5,171 @@ const router = Router();
 router.post('/chat', async (req, res) => {
   try {
     const { message, history = [] } = req.body;
-    if (!message) return res.status(400).json({ error: 'No message' });
+    if (!message) return res.status(400).json({ error: 'No message provided' });
 
-    // ── Pull LIVE data from correct Azure SQL tables ────────────────────────
-    const [kpiRes, datasetRes, monthlyRes] = await Promise.allSettled([
+    // ── Pull LIVE data from Azure SQL ─────────────────────────────────────────
+    const [kpiRes, datasetRes, monthlyRes, busRes] = await Promise.allSettled([
       query(`
         SELECT
           (SELECT COUNT(*) FROM CustomerOverview WHERE Status IN ('DEF','DEF-GEANNULEERD')) +
           (SELECT COUNT(*) FROM ST_Bookings WHERE status IN ('ok','cancelled')) AS total_bookings,
-          (SELECT SUM(PAXCount) FROM CustomerOverview WHERE Status IN ('DEF','DEF-GEANNULEERD')) +
-          (SELECT SUM(paxCount) FROM ST_Bookings WHERE status IN ('ok','cancelled')) AS total_pax,
-          (SELECT ROUND(SUM(TotalRevenue),0) FROM CustomerOverview WHERE Status IN ('DEF','DEF-GEANNULEERD')) +
-          (SELECT ROUND(SUM(totalPrice),0) FROM ST_Bookings WHERE status IN ('ok','cancelled')) AS total_revenue,
+          (SELECT ISNULL(SUM(PAXCount),0) FROM CustomerOverview WHERE Status IN ('DEF','DEF-GEANNULEERD')) +
+          (SELECT ISNULL(SUM(paxCount),0) FROM ST_Bookings WHERE status IN ('ok','cancelled')) AS total_pax,
+          (SELECT ISNULL(ROUND(SUM(TotalRevenue),0),0) FROM CustomerOverview WHERE Status IN ('DEF','DEF-GEANNULEERD')) +
+          (SELECT ISNULL(ROUND(SUM(totalPrice),0),0) FROM ST_Bookings WHERE status IN ('ok','cancelled')) AS total_revenue,
+          -- Current year (confirmed only)
           (SELECT COUNT(*) FROM CustomerOverview WHERE Status='DEF' AND DepartureYear=YEAR(GETDATE())) +
           (SELECT COUNT(*) FROM ST_Bookings WHERE status='ok' AND YEAR(dateDeparture)=YEAR(GETDATE())) AS cy_bookings,
           (SELECT COUNT(*) FROM CustomerOverview WHERE Status='DEF' AND DepartureYear=YEAR(GETDATE())-1) +
           (SELECT COUNT(*) FROM ST_Bookings WHERE status='ok' AND YEAR(dateDeparture)=YEAR(GETDATE())-1) AS py_bookings,
-          (SELECT SUM(PAXCount) FROM CustomerOverview WHERE Status='DEF' AND DepartureYear=YEAR(GETDATE())) +
-          (SELECT SUM(paxCount) FROM ST_Bookings WHERE status='ok' AND YEAR(dateDeparture)=YEAR(GETDATE())) AS cy_pax,
-          (SELECT ROUND(SUM(TotalRevenue),0) FROM CustomerOverview WHERE Status='DEF' AND DepartureYear=YEAR(GETDATE())) +
-          (SELECT ROUND(SUM(totalPrice),0) FROM ST_Bookings WHERE status='ok' AND YEAR(dateDeparture)=YEAR(GETDATE())) AS cy_revenue,
-          (SELECT ROUND(SUM(TotalRevenue),0) FROM CustomerOverview WHERE Status='DEF' AND DepartureYear=YEAR(GETDATE())-1) +
-          (SELECT ROUND(SUM(totalPrice),0) FROM ST_Bookings WHERE status='ok' AND YEAR(dateDeparture)=YEAR(GETDATE())-1) AS py_revenue,
+          (SELECT ISNULL(SUM(PAXCount),0) FROM CustomerOverview WHERE Status='DEF' AND DepartureYear=YEAR(GETDATE())) +
+          (SELECT ISNULL(SUM(paxCount),0) FROM ST_Bookings WHERE status='ok' AND YEAR(dateDeparture)=YEAR(GETDATE())) AS cy_pax,
+          (SELECT ISNULL(ROUND(SUM(TotalRevenue),0),0) FROM CustomerOverview WHERE Status='DEF' AND DepartureYear=YEAR(GETDATE())) +
+          (SELECT ISNULL(ROUND(SUM(totalPrice),0),0) FROM ST_Bookings WHERE status='ok' AND YEAR(dateDeparture)=YEAR(GETDATE())) AS cy_revenue,
+          (SELECT ISNULL(ROUND(SUM(TotalRevenue),0),0) FROM CustomerOverview WHERE Status='DEF' AND DepartureYear=YEAR(GETDATE())-1) +
+          (SELECT ISNULL(ROUND(SUM(totalPrice),0),0) FROM ST_Bookings WHERE status='ok' AND YEAR(dateDeparture)=YEAR(GETDATE())-1) AS py_revenue,
+          -- Cancelled
           (SELECT COUNT(*) FROM CustomerOverview WHERE Status='DEF-GEANNULEERD') +
-          (SELECT COUNT(*) FROM ST_Bookings WHERE status='cancelled') AS cancelled,
+          (SELECT COUNT(*) FROM ST_Bookings WHERE status='cancelled') AS total_cancelled,
           (SELECT COUNT(*) FROM CustomerOverview WHERE Status='DEF') +
-          (SELECT COUNT(*) FROM ST_Bookings WHERE status='ok') AS confirmed
-      `),
+          (SELECT COUNT(*) FROM ST_Bookings WHERE status='ok') AS total_confirmed`),
+
       query(`
-        SELECT Dataset, COUNT(*) AS bookings, SUM(PAXCount) AS pax, ROUND(SUM(TotalRevenue),0) AS revenue
+        SELECT Dataset, COUNT(*) AS bookings, SUM(PAXCount) AS pax,
+          ROUND(SUM(TotalRevenue),0) AS revenue,
+          COUNT(CASE WHEN Status='DEF-GEANNULEERD' THEN 1 END) AS cancelled,
+          COUNT(CASE WHEN Status='DEF' THEN 1 END) AS confirmed
         FROM CustomerOverview WHERE Status IN ('DEF','DEF-GEANNULEERD')
-        GROUP BY Dataset ORDER BY bookings DESC
-      `),
+        GROUP BY Dataset ORDER BY bookings DESC`),
+
       query(`
         SELECT DepartureYear AS year, DepartureMonth AS month,
           COUNT(*) AS bookings, SUM(PAXCount) AS pax, ROUND(SUM(TotalRevenue),0) AS revenue
         FROM CustomerOverview
-        WHERE Status IN ('DEF','DEF-GEANNULEERD') AND DepartureYear >= YEAR(GETDATE())-1
-        GROUP BY DepartureYear, DepartureMonth ORDER BY DepartureYear DESC, DepartureMonth DESC
-      `),
+        WHERE Status IN ('DEF','DEF-GEANNULEERD') AND DepartureYear >= YEAR(GETDATE())-2
+        GROUP BY DepartureYear, DepartureMonth
+        ORDER BY DepartureYear DESC, DepartureMonth DESC`),
+
+      query(`
+        SELECT
+          SUM(CASE WHEN Status='DEF' THEN PAX ELSE 0 END) AS confirmed_pax,
+          SUM(CASE WHEN Status='TIJD' THEN PAX ELSE 0 END) AS temp_pax,
+          SUM(CASE WHEN Status='VERV' THEN PAX ELSE 0 END) AS lapsed_pax,
+          COUNT(DISTINCT CASE WHEN Status='DEF' THEN Booking_Number END) AS confirmed_bookings,
+          SUM(CASE WHEN Outbound_Class='Royal Class' AND Status='DEF' THEN PAX ELSE 0 END) AS royal_pax,
+          SUM(CASE WHEN Outbound_Class='First Class' AND Status='DEF' THEN PAX ELSE 0 END) AS first_pax,
+          SUM(CASE WHEN Outbound_Class='Premium Class' AND Status='DEF' THEN PAX ELSE 0 END) AS premium_pax
+        FROM solmar_bus_bookings_modified`),
     ]);
 
-    const kpi      = kpiRes.status === 'fulfilled'     ? (kpiRes.value.recordset?.[0] || {}) : {};
-    const datasets = datasetRes.status === 'fulfilled' ? (datasetRes.value.recordset || [])  : [];
-    const monthly  = monthlyRes.status === 'fulfilled' ? (monthlyRes.value.recordset || [])  : [];
+    const kpi      = kpiRes.status      === 'fulfilled' ? (kpiRes.value.recordset?.[0]      || {}) : {};
+    const datasets = datasetRes.status  === 'fulfilled' ? (datasetRes.value.recordset        || []) : [];
+    const monthly  = monthlyRes.status  === 'fulfilled' ? (monthlyRes.value.recordset        || []) : [];
+    const bus      = busRes.status      === 'fulfilled' ? (busRes.value.recordset?.[0]       || {}) : {};
 
     const curYear  = new Date().getFullYear();
     const prevYear = curYear - 1;
-    const revGrowth = kpi.py_revenue > 0
-      ? (((kpi.cy_revenue - kpi.py_revenue) / kpi.py_revenue) * 100).toFixed(1) : 'N/A';
-    const bkGrowth  = kpi.py_bookings > 0
-      ? (((kpi.cy_bookings - kpi.py_bookings) / kpi.py_bookings) * 100).toFixed(1) : 'N/A';
-    const cancRate  = kpi.total_bookings > 0
-      ? ((kpi.cancelled / kpi.total_bookings) * 100).toFixed(1) : 0;
-    const avgRev    = kpi.total_bookings > 0
-      ? Math.round(kpi.total_revenue / kpi.total_bookings) : 0;
-    const avgPax    = kpi.total_bookings > 0
-      ? (kpi.total_pax / kpi.total_bookings).toFixed(1) : 0;
+    const fmt = n => n != null ? Number(n).toLocaleString('nl-BE') : 'N/A';
+    const fmtM = n => n != null ? `€${(Number(n)/1e6).toFixed(2)}M` : 'N/A';
+    const revGrowth = kpi.py_revenue > 0 ? (((kpi.cy_revenue - kpi.py_revenue) / kpi.py_revenue) * 100).toFixed(1) + '%' : 'N/A';
+    const bkGrowth  = kpi.py_bookings > 0 ? (((kpi.cy_bookings - kpi.py_bookings) / kpi.py_bookings) * 100).toFixed(1) + '%' : 'N/A';
+    const cancRate  = kpi.total_bookings > 0 ? ((kpi.total_cancelled / kpi.total_bookings) * 100).toFixed(1) + '%' : 'N/A';
 
     const dbContext = `
-=== TTP SERVICES LIVE DATABASE (${new Date().toISOString().split('T')[0]}) ===
-SOURCES: CustomerOverview (Solmar NL, Interbus, Solmar DE) + ST_Bookings (Snowtravel)
-STATUS MAPPING: DEF=confirmed, DEF-GEANNULEERD=cancelled | ok=confirmed, cancelled=cancelled
+══════════════════════════════════════════════════════════════
+TTP SERVICES — LIVE AZURE SQL DATA
+Snapshot: ${new Date().toISOString().split('T')[0]} ${new Date().toTimeString().split(' ')[0]} UTC
+══════════════════════════════════════════════════════════════
 
-ALL-TIME TOTALS:
-• Total bookings: ${kpi.total_bookings?.toLocaleString('nl-BE') || 'N/A'}
-• Total PAX: ${kpi.total_pax?.toLocaleString('nl-BE') || 'N/A'}
-• Total revenue: €${kpi.total_revenue ? (kpi.total_revenue/1e6).toFixed(2) : 'N/A'}M
-• Confirmed: ${kpi.confirmed?.toLocaleString('nl-BE') || 'N/A'} | Cancelled: ${kpi.cancelled?.toLocaleString('nl-BE') || 'N/A'} (${cancRate}% cancel rate)
-• Avg revenue/booking: €${avgRev.toLocaleString('nl-BE')} | Avg PAX/booking: ${avgPax}
+DATA SOURCES:
+• CustomerOverview → Solmar NL, Interbus, Solmar DE
+  Statuses: DEF = Confirmed | DEF-GEANNULEERD = Cancelled
+• ST_Bookings → Snowtravel
+  Statuses: ok = Confirmed | cancelled = Cancelled
+• Bus: solmar_bus_bookings_modified (all statuses: DEF, TIJD, VERV)
 
-YEAR COMPARISON:
-• ${curYear}: ${kpi.cy_bookings?.toLocaleString('nl-BE') || 'N/A'} bookings | €${kpi.cy_revenue ? (kpi.cy_revenue/1e6).toFixed(2)+'M' : 'N/A'} revenue
-• ${prevYear}: ${kpi.py_bookings?.toLocaleString('nl-BE') || 'N/A'} bookings | €${kpi.py_revenue ? (kpi.py_revenue/1e6).toFixed(2)+'M' : 'N/A'} revenue
-• Bookings growth: ${bkGrowth}% | Revenue growth: ${revGrowth}%
+BOOKING TOTALS (ALL TIME — confirmed + cancelled):
+• Total bookings : ${fmt(kpi.total_bookings)}
+• Total PAX       : ${fmt(kpi.total_pax)}
+• Total revenue   : ${fmtM(kpi.total_revenue)}
+• Confirmed       : ${fmt(kpi.total_confirmed)}
+• Cancelled       : ${fmt(kpi.total_cancelled)} (${cancRate} cancel rate)
 
-BY DATASET (CustomerOverview only):
-${datasets.map(d => `• ${d.dataset}: ${d.bookings?.toLocaleString('nl-BE')} bookings | ${d.pax?.toLocaleString('nl-BE')} PAX | €${(d.revenue/1e6).toFixed(2)}M`).join('\n')}
-NOTE: Snowtravel (ST_Bookings) totals are included in all-time figures above.
+${curYear} vs ${prevYear} (CONFIRMED ONLY):
+• ${curYear} bookings : ${fmt(kpi.cy_bookings)} | PAX: ${fmt(kpi.cy_pax)} | Revenue: ${fmtM(kpi.cy_revenue)}
+• ${prevYear} bookings : ${fmt(kpi.py_bookings)} | Revenue: ${fmtM(kpi.py_revenue)}
+• Growth: bookings ${bkGrowth} | revenue ${revGrowth}
 
-MONTHLY TREND (CustomerOverview, last 18 months):
-${monthly.slice(0,18).map(m => `• ${m.year}-${String(m.month).padStart(2,'0')}: ${m.bookings} bookings | ${m.pax} PAX | €${(m.revenue/1000).toFixed(0)}K`).join('\n')}
+BY DATASET (CustomerOverview — confirmed + cancelled):
+${datasets.map(d => `• ${d.dataset}: ${fmt(d.bookings)} bookings | ${fmt(d.pax)} PAX | ${fmtM(d.revenue)} | ${fmt(d.confirmed)} conf. | ${fmt(d.cancelled)} canc.`).join('\n')}
+Note: Snowtravel (ST_Bookings) is included in all-time totals above but shown separately.
 
-IMPORTANT NOTES FOR AI:
-- Route zero data: verify with Samir before drawing conclusions
-- 2026 Lower/Upper deck data not yet assigned (pipeline pending)
-- Fiscal: Solmar = Dec 1–Nov 30 | Snowtravel = Jul 1–Jun 30
-=== END CONTEXT ===`;
+MONTHLY TREND (CustomerOverview, last 3 years):
+${monthly.slice(0, 36).map(m => `• ${m.year}-${String(m.month).padStart(2,'0')}: ${fmt(m.bookings)} bookings | ${fmt(m.pax)} PAX | €${Math.round(m.revenue/1000)}K`).join('\n')}
 
-    // ── Ambiguity detection ─────────────────────────────────────────────────
-    const q = message.toLowerCase();
-    const isAmbiguous =
-      (q.includes('best') && !q.includes('month') && !q.includes('year') && !q.includes('dataset')) ||
-      (q.includes('compare') && !q.includes('solmar') && !q.includes('snow') && !q.includes('year') && !q.includes('month')) ||
-      (q.includes('performance') && q.split(' ').length < 5);
+BUS OCCUPANCY (solmar_bus_bookings_modified — all statuses):
+• Confirmed PAX (DEF) : ${fmt(bus.confirmed_pax)}
+• Temporary PAX (TIJD): ${fmt(bus.temp_pax)}
+• Lapsed PAX (VERV)   : ${fmt(bus.lapsed_pax)}
+• Royal Class PAX     : ${fmt(bus.royal_pax)}
+• First Class PAX     : ${fmt(bus.first_pax)}
+• Premium Class PAX   : ${fmt(bus.premium_pax)}
 
-    if (isAmbiguous) {
-      return res.json({
-        reply: `I want to make sure I give you accurate data. Could you be more specific?\n\nFor example:\n• "Which year had the best bookings?"\n• "Compare Solmar vs Snowtravel revenue"\n• "What was performance in 2026 vs 2025?"\n\nWhat specifically are you looking for?`,
-        source: 'clarification'
-      });
-    }
+FISCAL YEARS:
+• Solmar    = Dec 1 – Nov 30
+• Snowtravel= Jul 1 – Jun 30
+══════════════════════════════════════════════════════════════`;
 
-    // ── Build messages for OpenAI ───────────────────────────────────────────
-    const systemPrompt = `You are TTP AI, the analytics assistant for TTP Services (Belgian travel company).
+    // ── Professional system prompt ────────────────────────────────────────────
+    const systemPrompt = `You are TTP AI — the internal analytics assistant for TTP Services, a Belgian travel and bus company headquartered in Belgium with operations in the Middle East.
 
-CRITICAL RULES:
-1. ONLY answer using the database context provided. NEVER invent or estimate numbers.
-2. If a question is ambiguous or the data isn't in the context, ASK for clarification instead of guessing.
-3. If asked about something not in the context (e.g. specific booking IDs, hotel names, individual customers), say you don't have that level of detail and suggest checking the Data Table.
-4. Format numbers Dutch style (. as thousand separator), use € for currency.
-5. Be concise and professional. Use bullet points for multi-part answers.
-6. If data shows "N/A" or is missing, say so honestly — do not fill in gaps.
-7. For Route zero queries: flag that this should be verified with Samir before drawing conclusions.
+You have direct read-only access to live data from the TTP Azure SQL database, pulled fresh at the start of every conversation.
 
-You have access to live data from Azure SQL (CustomerOverview + ST_Bookings tables).`;
+═══ YOUR ROLE ═══
+You help the management team (Robbert Jan Tel, Abdul Rahman, Samir) quickly understand booking performance, PAX trends, revenue, and bus occupancy — without them having to run SQL queries themselves.
+
+═══ DATA SOURCES ═══
+1. CustomerOverview — Solmar NL, Interbus, Solmar DE bookings
+   • DEF = Confirmed | DEF-GEANNULEERD = Cancelled
+2. ST_Bookings — Snowtravel bookings
+   • ok = Confirmed | cancelled = Cancelled
+3. solmar_bus_bookings_modified — Bus bookings (all statuses)
+   • DEF = Confirmed | TIJD = Temporary | VERV = Lapsed/Cancelled
+
+═══ RULES — NEVER BREAK THESE ═══
+1. ONLY use numbers from the live database context provided. NEVER estimate, extrapolate, or make up figures.
+2. If a question is ambiguous, ASK ONE clarifying question before answering. Do not ask multiple questions at once.
+   — Missing dataset? Ask: "Which dataset — Solmar, Interbus, Solmar DE, Snowtravel, or all combined?"
+   — Missing period? Ask: "Which period — this year (${new Date().getFullYear()}), last year, a specific date range, or all time?"
+   — Missing status? Ask: "Confirmed bookings only, or include cancelled?"
+3. Answer directly when all three are clear: dataset + period + status.
+4. Format all numbers Dutch-style (1.234.567) and use € for currency.
+5. Never say "as an AI" or "I don't have real-time access" — you DO have live data.
+6. If a number isn't in the current data context, say: "That specific breakdown isn't in the current data pull — please use the Data Table tab for row-level detail."
+7. Route zero queries: flag that Samir should verify route assignment before drawing conclusions.
+8. Keep answers concise. Use bullet points for multi-part answers. Lead with the number.
+
+═══ FISCAL YEAR AWARENESS ═══
+• Solmar fiscal year = 1 Dec → 30 Nov
+• Snowtravel fiscal year = 1 Jul → 30 Jun
+• Always clarify which year you're reporting when comparing across fiscal boundaries.
+
+═══ TONE ═══
+Professional, direct, precise. Like a smart analyst briefing the CEO — no padding, no hedging, just clean numbers with context.`;
 
     const messages = [
-      ...history.slice(-8).map(h => ({ role: h.role, content: h.content })),
-      { role: 'user', content: `${dbContext}\n\nUser question: ${message}` }
+      { role: 'system', content: systemPrompt },
+      ...history.slice(-10).map(h => ({ role: h.role, content: h.content })),
+      { role: 'user', content: `${dbContext}\n\nUser question: ${message}` },
     ];
 
+    // ── OpenAI ────────────────────────────────────────────────────────────────
     const apiKey = process.env.OPENAI_API_KEY;
     if (apiKey) {
       const r = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [{ role: 'system', content: systemPrompt }, ...messages],
-          max_tokens: 700,
-          temperature: 0.2
-        })
+        body: JSON.stringify({ model: 'gpt-4o-mini', messages, max_tokens: 800, temperature: 0.15 }),
       });
       if (r.ok) {
         const d = await r.json();
@@ -144,26 +177,29 @@ You have access to live data from Azure SQL (CustomerOverview + ST_Bookings tabl
       }
     }
 
-    // ── Smart fallback using live data ──────────────────────────────────────
+    // ── Smart fallback ────────────────────────────────────────────────────────
+    const q = message.toLowerCase();
     let reply = '';
 
-    if (q.includes('revenue') && (q.includes(String(curYear)) || q.includes('this year'))) {
-      reply = `Revenue ${curYear}: €${kpi.cy_revenue ? (kpi.cy_revenue/1e6).toFixed(2)+'M' : 'N/A'} (${revGrowth}% vs ${prevYear}).`;
-    } else if (q.includes('previous') || (q.includes('compare') && q.includes('year'))) {
-      reply = `${curYear} vs ${prevYear}:\n• Bookings: ${kpi.cy_bookings?.toLocaleString('nl-BE')} vs ${kpi.py_bookings?.toLocaleString('nl-BE')} (${bkGrowth}%)\n• Revenue: €${kpi.cy_revenue ? (kpi.cy_revenue/1e6).toFixed(2)+'M' : 'N/A'} vs €${kpi.py_revenue ? (kpi.py_revenue/1e6).toFixed(2)+'M' : 'N/A'} (${revGrowth}%)`;
-    } else if (q.includes('cancell')) {
-      reply = `Cancellation rate: ${cancRate}% (${kpi.cancelled?.toLocaleString('nl-BE')} of ${kpi.total_bookings?.toLocaleString('nl-BE')} bookings).`;
-    } else if (q.includes('dataset') || q.includes('breakdown') || q.includes('solmar') || q.includes('interbus')) {
-      reply = `Revenue by dataset:\n${datasets.map(d=>`• ${d.dataset}: €${(d.revenue/1e6).toFixed(2)}M (${d.bookings?.toLocaleString('nl-BE')} bookings)`).join('\n')}\nNote: Snowtravel figures are included in all-time totals but shown separately in the Data Table.`;
-    } else if (q.includes('average') || q.includes('avg')) {
-      reply = `Average per booking: €${avgRev.toLocaleString('nl-BE')} revenue | ${avgPax} PAX.`;
-    } else if (q.includes('pax')) {
-      reply = `Total PAX: ${kpi.total_pax?.toLocaleString('nl-BE')} | ${curYear} PAX: ${kpi.cy_pax?.toLocaleString('nl-BE')}.`;
-    } else if (q.includes('route zero') || q.includes('route 0')) {
-      reply = `⚠️ Route zero data requires verification with Samir before drawing conclusions. The assignment of certain locations to "Route zero" may reflect a data categorisation issue rather than actual trips. Please check the Data Table and confirm with the data engineering team.`;
+    // Ambiguity check
+    const hasDataset = q.includes('solmar') || q.includes('interbus') || q.includes('snowtravel') || q.includes('all');
+    const hasPeriod  = q.includes('2025') || q.includes('2026') || q.includes('this year') || q.includes('last year') || q.includes('all time');
+
+    if (!hasDataset && (q.includes('revenue') || q.includes('bookings') || q.includes('pax'))) {
+      reply = `I want to give you the right number — which dataset do you mean?\n• Solmar NL\n• Interbus\n• Solmar DE\n• Snowtravel\n• All combined`;
+    } else if (!hasPeriod && (q.includes('revenue') || q.includes('bookings'))) {
+      reply = `Which period should I report?\n• ${curYear} (current year)\n• ${prevYear} (last year)\n• All time\n• Specific date range`;
+    } else if (q.includes('revenue') && q.includes(String(curYear))) {
+      reply = `Revenue ${curYear} (confirmed): ${fmtM(kpi.cy_revenue)}\nGrowth vs ${prevYear}: ${revGrowth}`;
+    } else if (q.includes('cancel')) {
+      reply = `Cancellation rate: ${cancRate}\n• Total cancelled: ${fmt(kpi.total_cancelled)}\n• Total bookings: ${fmt(kpi.total_bookings)}`;
+    } else if (q.includes('bus') || q.includes('pendel')) {
+      reply = `Bus occupancy (confirmed DEF):\n• Confirmed PAX: ${fmt(bus.confirmed_pax)}\n• Temporary (TIJD): ${fmt(bus.temp_pax)}\n• Lapsed (VERV): ${fmt(bus.lapsed_pax)}\n• Royal Class: ${fmt(bus.royal_pax)}\n• First Class: ${fmt(bus.first_pax)}\n• Premium: ${fmt(bus.premium_pax)}`;
+    } else if (q.includes('dataset') || q.includes('breakdown')) {
+      reply = `By dataset:\n${datasets.map(d => `• ${d.dataset}: ${fmt(d.bookings)} bookings | ${fmtM(d.revenue)}`).join('\n')}`;
     } else {
-      const topMonth = [...monthly].sort((a,b)=>b.bookings-a.bookings)[0];
-      reply = `Here's a live summary:\n• ${curYear} bookings: ${kpi.cy_bookings?.toLocaleString('nl-BE')} (${bkGrowth}% vs ${prevYear})\n• Total revenue: €${kpi.total_revenue ? (kpi.total_revenue/1e6).toFixed(2)+'M' : 'N/A'}\n• Cancel rate: ${cancRate}%\n• Best recent month: ${topMonth?.year}-${String(topMonth?.month||1).padStart(2,'0')} (${topMonth?.bookings?.toLocaleString('nl-BE')} bookings)\n\nAsk me something specific and I'll pull the exact numbers!`;
+      const top = [...monthly].sort((a,b) => b.bookings - a.bookings)[0];
+      reply = `Here's a live summary:\n• ${curYear} bookings: ${fmt(kpi.cy_bookings)} (${bkGrowth} vs ${prevYear})\n• ${curYear} revenue: ${fmtM(kpi.cy_revenue)}\n• Cancel rate: ${cancRate}\n• Best recent month: ${top?.year}-${String(top?.month||1).padStart(2,'0')} (${fmt(top?.bookings)} bookings)\n\nAsk me something specific and I'll pull the exact number!`;
     }
 
     res.json({ reply, source: 'fallback' });
