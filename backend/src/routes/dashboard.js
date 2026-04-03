@@ -262,35 +262,88 @@ router.get('/year-month-comparison', async (req,res)=>{
     res.json(r.recordset||[]);
   } catch(e){res.status(500).json({error:e.message});}
 });
-// ─── BUS WHERE BUILDERS ───────────────────────────────────────────────────────
-function buildBusWhere(q) {
-  const p={};
-  // Status: default DEF only; if explicit status param, use it
-  const validStatuses=['DEF','TIJD','VERV','DEF-GEANNULEERD','ACC AV NIET OK','CTRL','IN_AANVRAAG'];
-  let statusCond;
-  if(q.status && q.status!=='all' && validStatuses.includes(q.status)){
-    statusCond=`Status=@bst`; p.bst=q.status;
-  } else if(q.status==='all'){
-    statusCond=`Status IN ('DEF','TIJD','VERV','DEF-GEANNULEERD','ACC AV NIET OK','CTRL','IN_AANVRAAG')`;
-  } else {
-    statusCond=`Status='DEF'`;
-  }
-  const conds=[statusCond];
-  if(q.dateFrom){conds.push('dateDeparture>=@df');p.df=q.dateFrom;}
-  if(q.dateTo){conds.push('dateDeparture<=@dt');p.dt=q.dateTo;}
-  if(q.pendel){conds.push('(Pendel_Outbound LIKE @pd OR Pendel_Inbound LIKE @pd)');p.pd=`%${q.pendel}%`;}
-  if(q.region){conds.push('Region=@rg');p.rg=q.region;}
-  if(q.weekday){conds.push('DATENAME(weekday,dateDeparture)=@wd');p.wd=q.weekday;}
-  return{where:'WHERE '+conds.join(' AND '),params:p};
-}
+// ✅ FIXED DECK CLASS ENDPOINT using real table: solmar_bus_deck_choice
+router.get('/deck-class', async (req, res) => {
+  try {
 
-function buildBustripsWhere(q) {
-  const conds=[],p={};
-  if(q.dateFrom){conds.push('StartDate>=@df');p.df=q.dateFrom;}
-  if(q.dateTo){conds.push('StartDate<=@dt');p.dt=q.dateTo;}
-  if(q.pendel){conds.push('NormalizedPendel=@pd');p.pd=q.pendel;}
-  return{where:conds.length?'WHERE '+conds.join(' AND '):'',params:p};
-}
+    // Build WHERE (correct columns)
+    const conds = [];
+    const p = {};
+
+    if (req.query.dateFrom) {
+      conds.push("dateDeparture >= @df");
+      p.df = req.query.dateFrom;
+    }
+
+    if (req.query.dateTo) {
+      conds.push("dateDeparture <= @dt");
+      p.dt = req.query.dateTo;
+    }
+
+    if (req.query.region) {
+      conds.push("Region = @rg");
+      p.rg = req.query.region;
+    }
+
+    if (req.query.pendel) {
+      conds.push("Pendel_Outbound LIKE @pd");
+      p.pd = `%${req.query.pendel}%`;
+    }
+
+    if (req.query.status && req.query.status !== "all") {
+      conds.push("Status = @st");
+      p.st = req.query.status;
+    }
+
+    if (req.query.weekday) {
+      conds.push("DATENAME(weekday, dateDeparture) = @wd");
+      p.wd = req.query.weekday;
+    }
+
+    const where = conds.length ? "WHERE " + conds.join(" AND ") : "";
+
+    // ✅ Correct SQL using actual columns from solmar_bus_deck_choice
+    const sql = `
+      SELECT
+        CONVERT(VARCHAR(10), dateDeparture, 103) AS dateDeparture,
+
+        -- Total
+        SUM(PAX) AS Total,
+        SUM(CASE WHEN Outbound_Deck LIKE '%Onderdek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS Total_Lower,
+        SUM(CASE WHEN Outbound_Deck LIKE '%Bovendek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS Total_Upper,
+        SUM(CASE WHEN Outbound_Deck LIKE '%Geen%' OR Outbound_Deck IS NULL THEN PAX ELSE 0 END) AS Total_NoDeck,
+
+        -- Royal
+        SUM(CASE WHEN Outbound_Class = 'Royal Class' THEN PAX ELSE 0 END) AS Royal_Total,
+        SUM(CASE WHEN Outbound_Class = 'Royal Class' AND Outbound_Deck LIKE '%Onderdek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS Royal_Lower,
+        SUM(CASE WHEN Outbound_Class = 'Royal Class' AND Outbound_Deck LIKE '%Bovendek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS Royal_Upper,
+        SUM(CASE WHEN Outbound_Class = 'Royal Class' AND (Outbound_Deck LIKE '%Geen%' OR Outbound_Deck IS NULL) THEN PAX ELSE 0 END) AS Royal_NoDeck,
+
+        -- First Class
+        SUM(CASE WHEN Outbound_Class = 'First Class' THEN PAX ELSE 0 END) AS First_Total,
+        SUM(CASE WHEN Outbound_Class = 'First Class' AND Outbound_Deck LIKE '%Onderdek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS First_Lower,
+        SUM(CASE WHEN Outbound_Class = 'First Class' AND Outbound_Deck LIKE '%Bovendek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS First_Upper,
+        SUM(CASE WHEN Outbound_Class = 'First Class' AND (Outbound_Deck LIKE '%Geen%' OR Outbound_Deck IS NULL) THEN PAX ELSE 0 END) AS First_NoDeck,
+
+        -- Premium
+        SUM(CASE WHEN Outbound_Class = 'Premium Class' THEN PAX ELSE 0 END) AS Premium_Total,
+        SUM(CASE WHEN Outbound_Class = 'Premium Class' AND Outbound_Deck LIKE '%Onderdek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS Premium_Lower,
+        SUM(CASE WHEN Outbound_Class = 'Premium Class' AND Outbound_Deck LIKE '%Bovendek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS Premium_Upper,
+        SUM(CASE WHEN Outbound_Class = 'Premium Class' AND (Outbound_Deck LIKE '%Geen%' OR Outbound_Deck IS NULL) THEN PAX ELSE 0 END) AS Premium_NoDeck
+
+      FROM solmar_bus_deck_choice
+      ${where}
+      GROUP BY dateDeparture
+      ORDER BY CAST(dateDeparture AS DATE) ASC
+    `;
+
+    const r = await query(sql, p);
+    res.json(r.recordset || []);
+
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 // ─── BUS SLICERS ──────────────────────────────────────────────────────────────
 router.get('/bus-slicers', async (req,res)=>{
