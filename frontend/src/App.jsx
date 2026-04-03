@@ -28,8 +28,8 @@ const fmtEur=v=>{const n=parseFloat(v)||0;return`€${n.toLocaleString("nl-BE",{
 const dc=v=>v==null?"#94a3b8":v>=0?"#10b981":"#ef4444";
 
 const S={
-  bg:"#0b1120",side:"#111827",card:"#161f2e",border:"#1e3048",border2:"#243552",
-  accent:"#3b82f6",accent2:"#60a5fa",text:"#f0f6ff",muted:"#64748b",muted2:"#475569",
+  bg:"#0f172a",side:"#1a2540",card:"#1e293b",border:"#253352",border2:"#2e3f60",
+  accent:"#3b82f6",accent2:"#60a5fa",text:"#f1f5f9",muted:"#64748b",muted2:"#475569",
   success:"#10b981",danger:"#ef4444",warn:"#f59e0b",purple:"#8b5cf6",orange:"#f97316"
 };
 
@@ -405,19 +405,19 @@ function BusTab({token}){
 
 // ── Purchase Obligations ──────────────────────────────────────────────────────
 function PurchaseTab({token}){
-  const[f,setF]=useState({departureFrom:"",departureTo:"",returnFrom:"",returnTo:"",status:"all",transportType:"all"});
+  const[f,setF]=useState({departureFrom:"",departureTo:"",returnFrom:"",returnTo:"",status:"all"});
   const[data,setData]=useState([]);
   const[kpis,setKpis]=useState(null);
-  const[ttypes,setTtypes]=useState([]);
+  
   const[loading,setLoading]=useState(false);
   const[err,setErr]=useState(null);
   const[search,setSearch]=useState("");
 
-  function load(params){setLoading(true);setErr(null);api("/api/dashboard/margin-overview",params||f,token).then(d=>{setKpis(d.kpis);setData(d.data);setTtypes(d.transportTypes||[]);}).catch(e=>setErr(e.message)).finally(()=>setLoading(false));}
+  function load(params){setLoading(true);setErr(null);api("/api/dashboard/margin-overview",params||f,token).then(d=>{setKpis(d.kpis);setData(d.data);}).catch(e=>setErr(e.message)).finally(()=>setLoading(false));}
   useEffect(()=>{load({});},[token]);
-  function reset(){setF({departureFrom:"",departureTo:"",returnFrom:"",returnTo:"",status:"all",transportType:"all"});setSearch("");load({});}
+  function reset(){setF({departureFrom:"",departureTo:"",returnFrom:"",returnTo:"",status:"all"});setSearch("");load({});}
 
-  const filtered=data.filter(r=>!search||String(r.BookingID).includes(search)||(r.TransportType||"").toLowerCase().includes(search.toLowerCase()));
+  const filtered=data.filter(r=>!search||String(r.BookingID).includes(search)||String(r.StatusCode||"").toLowerCase().includes(search.toLowerCase())||(r.DepartureDate||"").includes(search));
   const inpS={background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"5px 8px",color:S.text,fontSize:12};
 
   return(
@@ -433,11 +433,7 @@ function PurchaseTab({token}){
               <option value="all">All</option><option value="ok">Confirmed (ok)</option><option value="cancelled">Cancelled</option>
             </select>
           </div>
-          <div><label style={{fontSize:10,color:S.muted,display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em"}}>Transport</label>
-            <select value={f.transportType} onChange={e=>setF({...f,transportType:e.target.value})} style={inpS}>
-              <option value="all">All</option>{ttypes.map(t=><option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
+
           <button onClick={reset} style={{padding:"6px 12px",background:"transparent",border:`1px solid ${S.border2}`,borderRadius:6,color:S.muted,fontSize:12,cursor:"pointer",alignSelf:"flex-end"}}>Reset</button>
           <button onClick={()=>load(f)} style={{padding:"6px 16px",background:S.accent,border:"none",borderRadius:6,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",alignSelf:"flex-end"}}>Apply</button>
         </div>
@@ -449,44 +445,36 @@ function PurchaseTab({token}){
         {kpis&&(
           <>
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:12}}>
-              {[{l:"Total Bookings",v:fmtN(kpis.totalBookings),c:S.accent},{l:"Total Sales",v:fmtM(kpis.totalSales),c:S.success},{l:"Total Purchase",v:fmtM(kpis.totalPurchase),c:S.warn},{l:"Obligations",v:fmtM(kpis.totalObligation),c:S.orange}].map(k=>(
+              {[{l:"Total Bookings",v:fmtN(kpis.totalBookings),c:S.accent},{l:"Confirmed",v:fmtN(kpis.confirmedCount),c:S.success},{l:"Cancelled",v:fmtN(kpis.cancelledCount),c:S.danger},{l:"Total Sales",v:fmtM(kpis.totalSales),c:S.success},{l:"Purchase Calc",v:fmtM(kpis.totalPurchase),c:S.warn},{l:"Obligations",v:fmtM(kpis.totalObligation),c:S.orange},{l:"Net Margin",v:fmtM(kpis.totalMargin),c:parseFloat(kpis.totalMargin||0)>=0?S.success:S.danger}].map(k=>(
                 <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:11,padding:"13px 15px"}}><div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.07em"}}>{k.l}</div><div style={{fontSize:22,fontWeight:800,color:k.c,marginTop:4}}>{k.v}</div></div>
               ))}
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:14}}>
-              {[{l:"Margin",v:fmtM(kpis.totalMargin),c:kpis.totalMargin>=0?S.success:S.danger},{l:"Commission",v:fmtM(kpis.totalCommission),c:S.purple},{l:"Margin incl. Commission",v:fmtM(kpis.totalMarginWithCommission),c:kpis.totalMarginWithCommission>=0?S.success:S.danger}].map(k=>(
-                <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:11,padding:"13px 15px"}}><div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.07em"}}>{k.l}</div><div style={{fontSize:22,fontWeight:800,color:k.c,marginTop:4}}>{k.v}</div></div>
-              ))}
-            </div>
+
           </>
         )}
         <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,overflow:"hidden"}}>
           <div style={{padding:"11px 14px",borderBottom:`1px solid ${S.border}`,display:"flex",gap:10,alignItems:"center"}}>
             <div style={{fontSize:13,fontWeight:700,color:S.text,flex:1}}>Purchase Obligations <span style={{fontSize:11,color:S.muted,fontWeight:400}}>({fmtN(filtered.length)} rows)</span></div>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search booking ID…" style={{...inpS,width:180}}/>
-            <button onClick={()=>{const cols=["BookingID","StatusCode","BookingDate","DepartureDate","ReturnDate","SalesBooking","PurchaseCalculation","PurchaseObligation","Margin","Commission","MarginIncludingCommission","TransportType"];const csv=[cols.join(","),...filtered.map(r=>cols.map(c=>String(r[c]??"")))].join("\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download="purchase-obligations.csv";a.click();}} style={{padding:"5px 12px",background:"transparent",border:`1px solid ${S.border2}`,borderRadius:6,color:S.muted,fontSize:11,cursor:"pointer"}}>↓ CSV</button>
+            <button onClick={()=>{const cols=["StatusCode","BookingDate","DepartureDate","ReturnDate","SalesBooking","PurchaseCalculation","PurchaseObligation","Margin"];const csv=[cols.join(","),...filtered.map(r=>cols.map(c=>String(r[c]??"")))].join("\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download="purchase-obligations.csv";a.click();}} style={{padding:"5px 12px",background:"transparent",border:`1px solid ${S.border2}`,borderRadius:6,color:S.muted,fontSize:11,cursor:"pointer"}}>↓ CSV</button>
           </div>
           <div style={{maxHeight:460,overflowY:"auto",overflowX:"auto"}}>
             {!loading&&filtered.length===0?<div style={{padding:40,textAlign:"center",color:S.muted}}>No matching records</div>:(
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
                 <thead style={{position:"sticky",top:0,zIndex:5,background:S.bg}}>
-                  <tr>{[["Booking ID","left"],["Status","left"],["Booking Date","left"],["Departure","left"],["Return","left"],["Sales","right"],["Purchase","right"],["Obligation","right"],["Margin","right"],["Commission","right"],["Margin+Comm.","right"],["Transport","left"]].map(([h,a],i)=><th key={i} style={{padding:"8px 11px",textAlign:a,color:S.muted,fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderBottom:`1px solid ${S.border}`}}>{h}</th>)}</tr>
+                  <tr>{[["Status","left"],["Booking Date","left"],["Departure","left"],["Return","left"],["Sales (€)","right"],["Purchase (€)","right"],["Obligation (€)","right"],["Margin (€)","right"]].map(([h,a],i)=><th key={i} style={{padding:"8px 11px",textAlign:a,color:S.muted,fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderBottom:`1px solid ${S.border}`}}>{h}</th>)}</tr>
                 </thead>
                 <tbody>
                   {filtered.map((r,i)=>(
-                    <tr key={i} style={{borderBottom:`1px solid ${S.border}`,background:i%2===0?"transparent":"rgba(255,255,255,0.012)"}}>
-                      <td style={{padding:"7px 11px",color:S.text,fontWeight:600,whiteSpace:"nowrap"}}>{r.BookingID}</td>
-                      <td style={{padding:"7px 11px",whiteSpace:"nowrap"}}><span style={{background:r.StatusCode==="ok"?"rgba(16,185,129,0.15)":"rgba(239,68,68,0.12)",color:r.StatusCode==="ok"?S.success:S.danger,padding:"2px 8px",borderRadius:10,fontSize:11,fontWeight:600}}>{r.StatusCode==="ok"?"Confirmed":"Cancelled"}</span></td>
+                    <tr key={i} style={{borderBottom:`1px solid ${S.border}`,background:i%2===0?"transparent":"rgba(255,255,255,0.025)"}}>
+                      <td style={{padding:"7px 11px",whiteSpace:"nowrap"}}><span style={{background:r.StatusCode==="ok"?"rgba(16,185,129,0.18)":"rgba(239,68,68,0.15)",color:r.StatusCode==="ok"?S.success:S.danger,padding:"3px 10px",borderRadius:10,fontSize:11,fontWeight:700}}>{r.StatusCode==="ok"?"Confirmed":"Cancelled"}</span></td>
                       <td style={{padding:"7px 11px",color:S.muted,whiteSpace:"nowrap"}}>{r.BookingDate}</td>
-                      <td style={{padding:"7px 11px",color:S.muted,whiteSpace:"nowrap"}}>{r.DepartureDate}</td>
+                      <td style={{padding:"7px 11px",color:S.text,fontWeight:500,whiteSpace:"nowrap"}}>{r.DepartureDate}</td>
                       <td style={{padding:"7px 11px",color:S.muted,whiteSpace:"nowrap"}}>{r.ReturnDate}</td>
                       <td style={{padding:"7px 11px",textAlign:"right",color:S.text,whiteSpace:"nowrap"}}>{fmtEur(r.SalesBooking)}</td>
                       <td style={{padding:"7px 11px",textAlign:"right",color:S.text,whiteSpace:"nowrap"}}>{fmtEur(r.PurchaseCalculation)}</td>
-                      <td style={{padding:"7px 11px",textAlign:"right",color:S.warn,whiteSpace:"nowrap"}}>{fmtEur(r.PurchaseObligation)}</td>
-                      <td style={{padding:"7px 11px",textAlign:"right",fontWeight:600,color:r.Margin>=0?S.success:S.danger,whiteSpace:"nowrap"}}>{fmtEur(r.Margin)}</td>
-                      <td style={{padding:"7px 11px",textAlign:"right",color:S.purple,whiteSpace:"nowrap"}}>{fmtEur(r.Commission)}</td>
-                      <td style={{padding:"7px 11px",textAlign:"right",fontWeight:600,color:r.MarginIncludingCommission>=0?S.success:S.danger,whiteSpace:"nowrap"}}>{fmtEur(r.MarginIncludingCommission)}</td>
-                      <td style={{padding:"7px 11px",color:S.muted,whiteSpace:"nowrap"}}>{r.TransportType||"—"}</td>
+                      <td style={{padding:"7px 11px",textAlign:"right",color:S.warn,fontWeight:600,whiteSpace:"nowrap"}}>{fmtEur(r.PurchaseObligation)}</td>
+                      <td style={{padding:"7px 11px",textAlign:"right",fontWeight:700,color:parseFloat(r.Margin||0)>=0?S.success:S.danger,whiteSpace:"nowrap"}}>{fmtEur(r.Margin)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -499,61 +487,58 @@ function PurchaseTab({token}){
   );
 }
 
-// ── Data Table ────────────────────────────────────────────────────────────────
-function DataTab({token}){
-  const[rows,setRows]=useState([]),[ total,setTotal]=useState(0),[page,setPage]=useState(1),[loading,setLoading]=useState(false);
-  const[search,setSearch]=useState(""),[ dataset,setDataset]=useState(""),[ status,setStatus]=useState("");
-  const[depFrom,setDepFrom]=useState(""),[ depTo,setDepTo]=useState(""),[ bkFrom,setBkFrom]=useState(""),[ bkTo,setBkTo]=useState("");
-  const LIMIT=50;
-  const load=useCallback((pg=1)=>{setLoading(true);const p={page:pg,limit:LIMIT};if(search)p.search=search;if(dataset)p.dataset=dataset;if(status)p.status=status;if(depFrom)p.depFrom=depFrom;if(depTo)p.depTo=depTo;if(bkFrom)p.bkFrom=bkFrom;if(bkTo)p.bkTo=bkTo;api("/api/dashboard/bookings-table",p,token).then(d=>{setRows(d.rows||[]);setTotal(d.total||0);}).catch(()=>{}).finally(()=>setLoading(false));},[token,search,dataset,status,depFrom,depTo,bkFrom,bkTo]);
-  useEffect(()=>{load(page);},[load,page]);
-  const totalPages=Math.ceil(total/LIMIT);
-  const COLS=[{k:"BookingID",l:"Booking ID",w:100},{k:"Dataset",l:"Dataset",w:90},{k:"Status",l:"Status",w:80},{k:"Label",l:"Label",w:90},{k:"BookingDate",l:"Booked",w:90},{k:"DepartureDate",l:"Departure",w:90},{k:"ReturnDate",l:"Return",w:90},{k:"Duration",l:"Days",w:55},{k:"PAX",l:"PAX",w:50},{k:"Revenue",l:"Revenue",w:90},{k:"City",l:"City",w:90},{k:"Country",l:"Country",w:70},{k:"Destination",l:"Resort",w:110}];
-  const inpS={background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"4px 7px",color:S.text,fontSize:12};
+// ── Settings ──────────────────────────────────────────────────────────────────
+function SettingsTab({session, onLogout}){
   return(
-    <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden"}}>
-      <div style={{padding:"9px 14px",background:S.side,borderBottom:`1px solid ${S.border}`,display:"flex",gap:7,flexWrap:"wrap",alignItems:"center"}}>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search ID / Label…" style={{...inpS,width:150}}/>
-        <select value={dataset} onChange={e=>setDataset(e.target.value)} style={inpS}><option value="">All Datasets</option>{DATASETS.map(d=><option key={d} value={d}>{d}</option>)}</select>
-        <select value={status} onChange={e=>setStatus(e.target.value)} style={inpS}><option value="">All Status</option><option value="ok">Confirmed</option><option value="cancelled">Cancelled</option></select>
-        <span style={{fontSize:11,color:S.muted}}>Dep</span>
-        <input type="date" value={depFrom} onChange={e=>setDepFrom(e.target.value)} style={inpS}/>
-        <span style={{fontSize:11,color:S.muted}}>–</span>
-        <input type="date" value={depTo} onChange={e=>setDepTo(e.target.value)} style={inpS}/>
-        <span style={{fontSize:11,color:S.muted}}>Booked</span>
-        <input type="date" value={bkFrom} onChange={e=>setBkFrom(e.target.value)} style={inpS}/>
-        <span style={{fontSize:11,color:S.muted}}>–</span>
-        <input type="date" value={bkTo} onChange={e=>setBkTo(e.target.value)} style={inpS}/>
-        <button onClick={()=>{setPage(1);load(1);}} style={{padding:"5px 12px",background:S.accent,border:"none",borderRadius:6,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>Apply</button>
-        <button onClick={()=>{setSearch("");setDataset("");setStatus("");setDepFrom("");setDepTo("");setBkFrom("");setBkTo("");setPage(1);}} style={{padding:"5px 10px",background:"transparent",border:`1px solid ${S.border2}`,borderRadius:6,color:S.muted,fontSize:12,cursor:"pointer"}}>Reset</button>
-        <div style={{marginLeft:"auto",display:"flex",gap:6}}>
-          <button onClick={()=>window.open(`${BASE}/api/dashboard/export?dataset=${dataset}&status=${status}&depFrom=${depFrom}&depTo=${depTo}`,"_blank")} style={{padding:"5px 12px",background:S.success,border:"none",borderRadius:6,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>↓ CSV</button>
-          <button onClick={()=>window.open(`${BASE}/api/dashboard/export-excel?dataset=${dataset}&status=${status}&depFrom=${depFrom}&depTo=${depTo}`,"_blank")} style={{padding:"5px 12px",background:"#166534",border:`1px solid ${S.success}`,borderRadius:6,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>↓ Excel</button>
-          <button onClick={()=>window.print()} style={{padding:"5px 10px",background:"transparent",border:`1px solid ${S.border2}`,borderRadius:6,color:S.muted,fontSize:12,cursor:"pointer"}}>Print</button>
+    <div style={{display:"flex",flexDirection:"column",height:"100%",overflowY:"auto",padding:24}}>
+      <div style={{maxWidth:640}}>
+        <div style={{marginBottom:24}}>
+          <div style={{fontSize:15,fontWeight:700,color:S.text,marginBottom:4}}>Account</div>
+          <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:"18px 20px",display:"flex",alignItems:"center",gap:16}}>
+            <div style={{width:44,height:44,borderRadius:"50%",background:S.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:800,color:"#fff",flexShrink:0}}>{(session?.username||"U")[0].toUpperCase()}</div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:14,fontWeight:700,color:S.text}}>{session?.username||"User"}</div>
+              <div style={{fontSize:12,color:S.muted,marginTop:2}}>Role: {session?.role||"viewer"} · TTP Services</div>
+            </div>
+            <button onClick={onLogout} style={{padding:"7px 16px",background:"rgba(239,68,68,0.12)",border:`1px solid rgba(239,68,68,0.3)`,borderRadius:8,color:S.danger,fontSize:12,fontWeight:600,cursor:"pointer"}}>Sign Out</button>
+          </div>
         </div>
-      </div>
-      <div style={{flex:1,overflowX:"auto",overflowY:"auto"}}>
-        {loading?<div style={{color:S.muted,padding:40,textAlign:"center"}}>Loading…</div>:(
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-            <thead style={{position:"sticky",top:0,background:S.bg,zIndex:10}}>
-              <tr>{COLS.map(c=><th key={c.k} style={{padding:"8px 10px",textAlign:"left",color:S.muted,fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",minWidth:c.w,borderBottom:`1px solid ${S.border}`}}>{c.l}</th>)}</tr>
-            </thead>
-            <tbody>
-              {rows.map((row,i)=>(
-                <tr key={i} style={{borderBottom:`1px solid ${S.border}`,background:i%2===0?"transparent":"rgba(255,255,255,0.012)"}}>
-                  {COLS.map(c=>{let v=row[c.k],color=S.text;if(c.k==="Status")color=v==="ok"?S.success:S.danger;if(c.k==="Revenue"){v=v!=null?`€${Number(v).toLocaleString("nl-BE")}`:"—";color=S.warn;}return<td key={c.k} style={{padding:"7px 10px",color,whiteSpace:"nowrap"}}>{v??"-"}</td>;})}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-      <div style={{padding:"7px 14px",background:S.side,borderTop:`1px solid ${S.border}`,display:"flex",alignItems:"center",gap:10,fontSize:12}}>
-        <span style={{color:S.muted}}>{fmtN(total)} records</span>
-        <div style={{marginLeft:"auto",display:"flex",gap:6,alignItems:"center"}}>
-          <button onClick={()=>{const p=Math.max(1,page-1);setPage(p);load(p);}} disabled={page<=1} style={{padding:"3px 11px",background:"transparent",border:`1px solid ${S.border2}`,borderRadius:6,color:page<=1?S.border:S.text,cursor:page<=1?"default":"pointer",fontSize:12}}>‹</button>
-          <span style={{padding:"3px 8px",color:S.muted,fontSize:12}}>{page} / {totalPages||1}</span>
-          <button onClick={()=>{const p=Math.min(totalPages,page+1);setPage(p);load(p);}} disabled={page>=totalPages} style={{padding:"3px 11px",background:"transparent",border:`1px solid ${S.border2}`,borderRadius:6,color:page>=totalPages?S.border:S.text,cursor:page>=totalPages?"default":"pointer",fontSize:12}}>›</button>
+        <div style={{marginBottom:24}}>
+          <div style={{fontSize:15,fontWeight:700,color:S.text,marginBottom:4}}>Data Sources</div>
+          <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,overflow:"hidden"}}>
+            {[
+              {name:"CustomerOverview",desc:"Solmar · Interbus · Solmar DE bookings",status:"ok"},
+              {name:"ST_Bookings",desc:"Snowtravel bookings",status:"ok"},
+              {name:"solmar_bus_bookings_modified",desc:"Bus deck & class assignments",status:"ok"},
+              {name:"BUStrips",desc:"Bus pendel overview",status:"ok"},
+              {name:"FeederOverview",desc:"Feeder routes & stops",status:"ok"},
+              {name:"solmar.MarginOverview",desc:"Purchase obligations & margin",status:"ok"},
+            ].map((ds,i)=>(
+              <div key={ds.name} style={{display:"flex",alignItems:"center",padding:"12px 18px",borderBottom:i<5?`1px solid ${S.border}`:"none"}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:600,color:S.text,fontFamily:"monospace"}}>{ds.name}</div>
+                  <div style={{fontSize:11,color:S.muted,marginTop:2}}>{ds.desc}</div>
+                </div>
+                <span style={{background:"rgba(16,185,129,0.15)",color:S.success,padding:"3px 10px",borderRadius:10,fontSize:11,fontWeight:700}}>● Connected</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{marginBottom:24}}>
+          <div style={{fontSize:15,fontWeight:700,color:S.text,marginBottom:4}}>System</div>
+          <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:"16px 20px"}}>
+            {[
+              ["Backend","Azure App Service (ttp-dashboard-api.azurewebsites.net)"],
+              ["Database","Azure SQL · ttpserver.database.windows.net / TTPDatabase"],
+              ["Frontend","GitHub Pages · /TTP-DASHBOARD/"],
+              ["Version","v2.0 · Data Engine"],
+            ].map(([k,v])=>(
+              <div key={k} style={{display:"flex",gap:16,padding:"6px 0",borderBottom:`1px solid ${S.border}`}}>
+                <div style={{width:100,fontSize:12,fontWeight:600,color:S.muted,flexShrink:0}}>{k}</div>
+                <div style={{fontSize:12,color:S.text}}>{v}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -573,8 +558,8 @@ export default function App(){
      ic:<svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M8 6v6M3 16V8a4 4 0 014-4h10a4 4 0 014 4v8m0 0H3m18 0v4H3v-4"/><circle cx="7.5" cy="16.5" r="1.5"/><circle cx="16.5" cy="16.5" r="1.5"/></svg>},
     {id:"purchase", l:"Purchase Obligations",
      ic:<svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>},
-    {id:"data",     l:"Data Table",
-     ic:<svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 3h18v4H3zM3 10h18v4H3zM3 17h18v4H3z"/></svg>},
+    {id:"settings", l:"Settings",
+     ic:<svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>},
   ];
   return(
     <div style={{display:"flex",height:"100vh",background:S.bg,color:S.text,fontFamily:"Inter,system-ui,sans-serif",overflow:"hidden"}}>
@@ -609,7 +594,7 @@ export default function App(){
           {tab==="overview" &&<OverviewTab  token={token}/>}
           {tab==="bus"      &&<BusTab       token={token}/>}
           {tab==="purchase" &&<PurchaseTab  token={token}/>}
-          {tab==="data"     &&<DataTab      token={token}/>}
+          {tab==="settings" &&<SettingsTab  token={token} session={session} onLogout={()=>{clearAuth();setSession(null);}}/>}
         </div>
       </div>
     </div>
