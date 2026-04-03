@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 
-const BASE = (typeof import !== "undefined" && typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL)
-  || "https://ttp-dashboard-api.azurewebsites.net";
+const BASE = import.meta.env?.VITE_API_URL || "https://ttp-dashboard-api.azurewebsites.net";
 
 const MONTHS_FULL = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
