@@ -195,26 +195,91 @@ router.get('/revenue-by-year', async (req,res)=>{
 // ─── YEAR-MONTH COMPARISON ────────────────────────────────────────────────────
 router.get('/year-month-comparison', async (req,res)=>{
   try {
-    const {coWhere,coP,stWhere,stP,hasSolmar,hasSnow}=buildOverviewWhere(req.query);
-    const co=`SELECT DepartureYear AS yr,DepartureMonth AS mo,PAXCount AS pax,TotalRevenue AS revenue FROM CustomerOverview ${coWhere} AND DepartureYear BETWEEN 2022 AND 2027`;
-    const st=`SELECT YEAR(dateDeparture) AS yr,MONTH(dateDeparture) AS mo,paxCount AS pax,totalPrice AS revenue FROM ST_Bookings ${stWhere} AND YEAR(dateDeparture) BETWEEN 2022 AND 2027`;
+    // Build WHERE without year filter — we handle years manually for YoY
+    const reqNoYear = {...req.query}; delete reqNoYear.year;
+    const {coWhere,coP,stWhere,stP,hasSolmar,hasSnow}=buildOverviewWhere(reqNoYear);
+
+    // Determine years: if user selected specific years, load those + their previous year
+    const selYears=[].concat(req.query.year||[]).filter(Boolean).map(Number);
+    const displayYears=selYears.length>0 ? selYears : null;
+    // Years to load into CTE = display years + each minus 1
+    const loadYears=displayYears
+      ? [...new Set([...displayYears,...displayYears.map(y=>y-1)])]
+      : null; // null = use BETWEEN range
+
+    // Build year range condition params (avoid collision with coP/stP)
+    const coYP={}, stYP={};
+    let coYCond='', stYCond='';
+    if(loadYears){
+      loadYears.forEach((y,i)=>{ coYP[`lyr${i}`]=y; stYP[`slyr${i}`]=y; });
+      coYCond=` AND DepartureYear IN (${loadYears.map((_,i)=>`@lyr${i}`).join(',')})`;
+      stYCond=` AND YEAR(dateDeparture) IN (${loadYears.map((_,i)=>`@slyr${i}`).join(',')})`;
+    } else {
+      coYCond=' AND DepartureYear BETWEEN 2021 AND 2027';
+      stYCond=' AND YEAR(dateDeparture) BETWEEN 2021 AND 2027';
+    }
+
+    const co=`SELECT DepartureYear AS yr,DepartureMonth AS mo,PAXCount AS pax,TotalRevenue AS revenue FROM CustomerOverview ${coWhere}${coYCond}`;
+    const st=`SELECT YEAR(dateDeparture) AS yr,MONTH(dateDeparture) AS mo,paxCount AS pax,totalPrice AS revenue FROM ST_Bookings ${stWhere}${stYCond}`;
+
     let unionSql,p;
-    if (!hasSolmar&&hasSnow){unionSql=st;p=stP;}
-    else if(hasSolmar&&!hasSnow){unionSql=co;p=coP;}
-    else{unionSql=`${co} UNION ALL ${st}`;p={...coP,...stP};}
-    const r=await query(`WITH base AS (SELECT yr AS year,mo AS month,COUNT(*) AS bookings,SUM(pax) AS pax,ROUND(SUM(revenue),2) AS revenue FROM (${unionSql}) t GROUP BY yr,mo) SELECT a.year,a.month,a.bookings AS currentBookings,ISNULL(b.bookings,0) AS previousBookings,a.pax AS currentPax,ISNULL(b.pax,0) AS previousPax,a.revenue AS currentRevenue,ISNULL(b.revenue,0) AS previousRevenue,a.bookings-ISNULL(b.bookings,0) AS diffBookings,a.pax-ISNULL(b.pax,0) AS diffPax,a.revenue-ISNULL(b.revenue,0) AS diffRevenue,CASE WHEN ISNULL(b.bookings,0)>0 THEN ROUND((CAST(a.bookings AS FLOAT)-b.bookings)/b.bookings*100,1) ELSE NULL END AS diffPctBookings,CASE WHEN ISNULL(b.pax,0)>0 THEN ROUND((CAST(a.pax AS FLOAT)-b.pax)/b.pax*100,1) ELSE NULL END AS diffPctPax,CASE WHEN ISNULL(b.revenue,0)>0 THEN ROUND((a.revenue-b.revenue)/b.revenue*100,1) ELSE NULL END AS diffPctRevenue FROM base a LEFT JOIN base b ON b.year=a.year-1 AND b.month=a.month ORDER BY a.year DESC,a.month DESC`,p);
+    if(!hasSolmar&&hasSnow){unionSql=st;p={...stP,...stYP};}
+    else if(hasSolmar&&!hasSnow){unionSql=co;p={...coP,...coYP};}
+    else{unionSql=`${co} UNION ALL ${st}`;p={...coP,...stP,...coYP,...stYP};}
+
+    // Outer WHERE: only show rows for selected (display) years
+    const outerYP={};
+    let outerWhere='';
+    if(displayYears&&displayYears.length>0){
+      displayYears.forEach((y,i)=>{ outerYP[`dyr${i}`]=y; });
+      outerWhere=`WHERE ${displayYears.map((_,i)=>`a.year=@dyr${i}`).join(' OR ')}`;
+      Object.assign(p,outerYP);
+    }
+
+    const sql=`WITH base AS (
+      SELECT yr AS year,mo AS month,
+        COUNT(*) AS bookings,SUM(pax) AS pax,ROUND(SUM(revenue),2) AS revenue
+      FROM (${unionSql}) t GROUP BY yr,mo
+    )
+    SELECT
+      a.year AS currentYear, a.year-1 AS previousYear,
+      a.month,
+      a.bookings AS currentBookings, ISNULL(b.bookings,0) AS previousBookings,
+      a.pax AS currentPax, ISNULL(b.pax,0) AS previousPax,
+      a.revenue AS currentRevenue, ISNULL(b.revenue,0) AS previousRevenue,
+      a.bookings-ISNULL(b.bookings,0) AS diffBookings,
+      a.pax-ISNULL(b.pax,0) AS diffPax,
+      ROUND(a.revenue-ISNULL(b.revenue,0),2) AS diffRevenue,
+      CASE WHEN ISNULL(b.bookings,0)>0 THEN ROUND((CAST(a.bookings AS FLOAT)-b.bookings)/b.bookings*100,1) ELSE NULL END AS diffPctBookings,
+      CASE WHEN ISNULL(b.pax,0)>0 THEN ROUND((CAST(a.pax AS FLOAT)-b.pax)/b.pax*100,1) ELSE NULL END AS diffPctPax,
+      CASE WHEN ISNULL(b.revenue,0)>0 THEN ROUND((a.revenue-b.revenue)/b.revenue*100,1) ELSE NULL END AS diffPctRevenue
+    FROM base a
+    LEFT JOIN base b ON b.year=a.year-1 AND b.month=a.month
+    ${outerWhere}
+    ORDER BY a.year DESC,a.month DESC`;
+
+    const r=await query(sql,p);
     res.json(r.recordset||[]);
   } catch(e){res.status(500).json({error:e.message});}
 });
-
 // ─── BUS WHERE BUILDERS ───────────────────────────────────────────────────────
 function buildBusWhere(q) {
-  const conds=["Status='DEF'"],p={};
+  const p={};
+  // Status: default DEF only; if explicit status param, use it
+  const validStatuses=['DEF','TIJD','VERV','DEF-GEANNULEERD','ACC AV NIET OK','CTRL','IN_AANVRAAG'];
+  let statusCond;
+  if(q.status && q.status!=='all' && validStatuses.includes(q.status)){
+    statusCond=`Status=@bst`; p.bst=q.status;
+  } else if(q.status==='all'){
+    statusCond=`Status IN ('DEF','TIJD','VERV','DEF-GEANNULEERD','ACC AV NIET OK','CTRL','IN_AANVRAAG')`;
+  } else {
+    statusCond=`Status='DEF'`;
+  }
+  const conds=[statusCond];
   if(q.dateFrom){conds.push('dateDeparture>=@df');p.df=q.dateFrom;}
   if(q.dateTo){conds.push('dateDeparture<=@dt');p.dt=q.dateTo;}
   if(q.pendel){conds.push('(Pendel_Outbound LIKE @pd OR Pendel_Inbound LIKE @pd)');p.pd=`%${q.pendel}%`;}
   if(q.region){conds.push('Region=@rg');p.rg=q.region;}
-  if(q.destination){conds.push('City=@ct');p.ct=q.destination;}
   if(q.weekday){conds.push('DATENAME(weekday,dateDeparture)=@wd');p.wd=q.weekday;}
   return{where:'WHERE '+conds.join(' AND '),params:p};
 }
@@ -230,16 +295,16 @@ function buildBustripsWhere(q) {
 // ─── BUS SLICERS ──────────────────────────────────────────────────────────────
 router.get('/bus-slicers', async (req,res)=>{
   try {
-    const [pendels,regions,destinations,feederLines]=await Promise.all([
-      query(`SELECT DISTINCT NormalizedPendel AS val FROM BUStrips WHERE NormalizedPendel IS NOT NULL ORDER BY NormalizedPendel`),
-      query(`SELECT DISTINCT Region AS val FROM solmar_bus_bookings_modified WHERE Status='DEF' AND Region IS NOT NULL AND LTRIM(RTRIM(Region))!='' ORDER BY Region`),
-      query(`SELECT DISTINCT City AS val FROM solmar_bus_bookings_modified WHERE Status='DEF' AND City IS NOT NULL AND LTRIM(RTRIM(City))!='' ORDER BY City`),
+    const [pendels,regions,statuses,feederLines]=await Promise.all([
+      query(`SELECT DISTINCT Pendel_Outbound AS val FROM solmar_bus_bookings_modified WHERE Pendel_Outbound IS NOT NULL AND LTRIM(RTRIM(Pendel_Outbound))!='' ORDER BY Pendel_Outbound`),
+      query(`SELECT DISTINCT Region AS val FROM solmar_bus_bookings_modified WHERE Region IS NOT NULL AND LTRIM(RTRIM(Region))!='' ORDER BY Region`),
+      query(`SELECT DISTINCT Status AS val FROM solmar_bus_bookings_modified WHERE Status IS NOT NULL AND LTRIM(RTRIM(Status))!='' ORDER BY Status`),
       query(`SELECT DISTINCT FeederLine AS val FROM FeederOverview WHERE FeederLine IS NOT NULL ORDER BY FeederLine`),
     ]);
     res.json({
       pendels:(pendels.recordset||[]).map(r=>r.val),
       regions:(regions.recordset||[]).map(r=>r.val),
-      destinations:(destinations.recordset||[]).map(r=>r.val),
+      statuses:(statuses.recordset||[]).map(r=>r.val),
       feederLines:(feederLines.recordset||[]).map(r=>r.val),
     });
   } catch(e){res.status(500).json({error:e.message});}
@@ -310,36 +375,35 @@ router.get('/feeder-overview', async (req,res)=>{
 // ─── DECK CLASS ───────────────────────────────────────────────────────────────
 router.get('/deck-class', async (req,res)=>{
   try {
-    const conds=["Status='DEF'","Direction='Outbound'"],p={};
-    if(req.query.dateFrom){conds.push('Date>=@df');p.df=req.query.dateFrom;}
-    if(req.query.dateTo){conds.push('Date<=@dt');p.dt=req.query.dateTo;}
-    if(req.query.region){conds.push('Region=@rg');p.rg=req.query.region;}
-    if(req.query.pendel){conds.push('Label=@lb');p.lb=req.query.pendel;}
-    const where='WHERE '+conds.join(' AND ');
+    const {where,params}=buildBusWhere(req.query);
     const r=await query(`SELECT
-      CONVERT(VARCHAR(10),Date,105) AS dateDeparture,
+      CONVERT(VARCHAR(10),dateDeparture,103) AS dateDeparture,
       SUM(PAX) AS Total,
       SUM(CASE WHEN Outbound_Deck LIKE '%Onderdek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS Total_Lower,
       SUM(CASE WHEN Outbound_Deck LIKE '%Bovendek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS Total_Upper,
-      SUM(CASE WHEN Outbound_Deck LIKE '%Geen%' THEN PAX ELSE 0 END) AS Total_NoDeck,
+      SUM(CASE WHEN Outbound_Deck LIKE '%Geen%' OR Outbound_Deck IS NULL THEN PAX ELSE 0 END) AS Total_NoDeck,
       SUM(CASE WHEN Outbound_Class='Royal Class' THEN PAX ELSE 0 END) AS Royal_Total,
       SUM(CASE WHEN Outbound_Class='Royal Class' AND Outbound_Deck LIKE '%Onderdek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS Royal_Lower,
       SUM(CASE WHEN Outbound_Class='Royal Class' AND Outbound_Deck LIKE '%Bovendek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS Royal_Upper,
-      SUM(CASE WHEN Outbound_Class='Royal Class' AND Outbound_Deck LIKE '%Geen%' THEN PAX ELSE 0 END) AS Royal_NoDeck,
+      SUM(CASE WHEN Outbound_Class='Royal Class' AND (Outbound_Deck LIKE '%Geen%' OR Outbound_Deck IS NULL) THEN PAX ELSE 0 END) AS Royal_NoDeck,
       SUM(CASE WHEN Outbound_Class='First Class' THEN PAX ELSE 0 END) AS First_Total,
       SUM(CASE WHEN Outbound_Class='First Class' AND Outbound_Deck LIKE '%Onderdek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS First_Lower,
       SUM(CASE WHEN Outbound_Class='First Class' AND Outbound_Deck LIKE '%Bovendek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS First_Upper,
-      SUM(CASE WHEN Outbound_Class='First Class' AND Outbound_Deck LIKE '%Geen%' THEN PAX ELSE 0 END) AS First_NoDeck,
+      SUM(CASE WHEN Outbound_Class='First Class' AND (Outbound_Deck LIKE '%Geen%' OR Outbound_Deck IS NULL) THEN PAX ELSE 0 END) AS First_NoDeck,
       SUM(CASE WHEN Outbound_Class='Premium Class' THEN PAX ELSE 0 END) AS Premium_Total,
       SUM(CASE WHEN Outbound_Class='Premium Class' AND Outbound_Deck LIKE '%Onderdek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS Premium_Lower,
       SUM(CASE WHEN Outbound_Class='Premium Class' AND Outbound_Deck LIKE '%Bovendek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS Premium_Upper,
-      SUM(CASE WHEN Outbound_Class='Premium Class' AND Outbound_Deck LIKE '%Geen%' THEN PAX ELSE 0 END) AS Premium_NoDeck
-      FROM solmar_bus_deck_weekly ${where}
-      GROUP BY Date ORDER BY CAST(Date AS DATE) ASC`,p);
+      SUM(CASE WHEN Outbound_Class='Premium Class' AND (Outbound_Deck LIKE '%Geen%' OR Outbound_Deck IS NULL) THEN PAX ELSE 0 END) AS Premium_NoDeck,
+      SUM(CASE WHEN Outbound_Class='Comfort Class' THEN PAX ELSE 0 END) AS Comfort_Total,
+      SUM(CASE WHEN Outbound_Class='Comfort Class' AND Outbound_Deck LIKE '%Onderdek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS Comfort_Lower,
+      SUM(CASE WHEN Outbound_Class='Comfort Class' AND Outbound_Deck LIKE '%Bovendek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS Comfort_Upper,
+      SUM(CASE WHEN Outbound_Class='Comfort Class' AND (Outbound_Deck LIKE '%Geen%' OR Outbound_Deck IS NULL) THEN PAX ELSE 0 END) AS Comfort_NoDeck
+      FROM solmar_bus_bookings_modified ${where}
+      GROUP BY dateDeparture
+      ORDER BY CAST(dateDeparture AS DATE) ASC`,params);
     res.json(r.recordset||[]);
   } catch(e){res.status(500).json({error:e.message});}
 });
-
 // ─── DATA TABLE ───────────────────────────────────────────────────────────────
 router.get('/bookings-table', async (req,res)=>{
   try {
@@ -512,6 +576,81 @@ router.get('/margin-slicers', async (req, res) => {
       FROM solmar.MarginOverview`);
     res.json(r.recordset[0] || {});
   } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+
+// ─── USER MANAGEMENT (Settings) ───────────────────────────────────────────────
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import bcrypt from 'bcryptjs';
+const __dirname2 = path.dirname(fileURLToPath(import.meta.url));
+const USERS_FILE = path.join(__dirname2,'../../data/users.json');
+const readUsers = () => { try { return JSON.parse(fs.readFileSync(USERS_FILE,'utf8')); } catch { return []; } };
+const writeUsers = (u) => fs.writeFileSync(USERS_FILE, JSON.stringify(u,null,2));
+
+router.get('/users', (req,res) => {
+  try {
+    const users = readUsers().map(u=>({id:u.id,username:u.username,role:u.role||'viewer'}));
+    res.json(users);
+  } catch(e){ res.status(500).json({error:e.message}); }
+});
+
+router.post('/users', async (req,res) => {
+  try {
+    const {username,password,role='viewer'} = req.body||{};
+    if(!username||!password) return res.status(400).json({error:'username and password required'});
+    const users = readUsers();
+    if(users.find(u=>u.username===username)) return res.status(409).json({error:'User already exists'});
+    const hash = await bcrypt.hash(password,10);
+    const newUser = {id:Date.now().toString(),username,password:hash,role};
+    users.push(newUser);
+    writeUsers(users);
+    res.json({id:newUser.id,username,role});
+  } catch(e){ res.status(500).json({error:e.message}); }
+});
+
+router.put('/users/:id', async (req,res) => {
+  try {
+    const users = readUsers();
+    const idx = users.findIndex(u=>u.id===req.params.id);
+    if(idx<0) return res.status(404).json({error:'User not found'});
+    const {role,password} = req.body||{};
+    if(role) users[idx].role=role;
+    if(password) users[idx].password=await bcrypt.hash(password,10);
+    writeUsers(users);
+    res.json({id:users[idx].id,username:users[idx].username,role:users[idx].role});
+  } catch(e){ res.status(500).json({error:e.message}); }
+});
+
+router.delete('/users/:id', (req,res) => {
+  try {
+    let users = readUsers();
+    const orig = users.length;
+    users = users.filter(u=>u.id!==req.params.id);
+    if(users.length===orig) return res.status(404).json({error:'User not found'});
+    writeUsers(users);
+    res.json({ok:true});
+  } catch(e){ res.status(500).json({error:e.message}); }
+});
+
+// ─── SETTINGS STORE (AI prompts, email alerts) ────────────────────────────────
+const SETTINGS_FILE = path.join(__dirname2,'../../data/settings.json');
+const readSettings = () => { try { return JSON.parse(fs.readFileSync(SETTINGS_FILE,'utf8')); } catch { return {}; } };
+const writeSettings = (s) => fs.writeFileSync(SETTINGS_FILE, JSON.stringify(s,null,2));
+
+router.get('/settings', (req,res) => {
+  try { res.json(readSettings()); }
+  catch(e){ res.status(500).json({error:e.message}); }
+});
+
+router.post('/settings', (req,res) => {
+  try {
+    const current = readSettings();
+    const updated = {...current,...(req.body||{})};
+    writeSettings(updated);
+    res.json(updated);
+  } catch(e){ res.status(500).json({error:e.message}); }
 });
 
 export default router;
