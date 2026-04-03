@@ -226,7 +226,7 @@ function OverviewTab({token}){
         )}
       </div>
 
-      <div style={{flex:1,overflowY:"auto",padding:18}}>
+      <div style={{flex:1,overflowY:"auto",padding:16}}>
         {loading&&<div style={{color:S.muted,textAlign:"center",padding:40,fontSize:13}}>Loading data…</div>}
 
         {/* KPI Cards */}
@@ -239,10 +239,10 @@ function OverviewTab({token}){
         )}
 
         {/* Interactive Bar Chart */}
-        <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:18,marginBottom:18}}>
+        <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:16,marginBottom:16}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
             <div>
-              <div style={{fontSize:13,fontWeight:700,color:S.text}}>{metricLabel[metric]} by Month</div>
+              <div style={{fontSize:14,fontWeight:700,color:S.text}}>{metricLabel[metric]} by Month</div>
               <div style={{fontSize:11,color:S.muted,marginTop:2}}>Click a metric button to change the chart</div>
             </div>
             <div style={{display:"flex",gap:6}}>
@@ -259,7 +259,7 @@ function OverviewTab({token}){
         {/* YoY Table */}
         <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,overflow:"hidden"}}>
           <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div style={{fontSize:13,fontWeight:700,color:S.text}}>Year-on-Year Comparison
+            <div style={{fontSize:14,fontWeight:700,color:S.text}}>Year-on-Year Comparison
               <span style={{fontSize:11,color:S.muted,fontWeight:400,marginLeft:8}}>({sortedYm.length} months)</span>
             </div>
             <div style={{display:"flex",gap:6}}>
@@ -435,15 +435,15 @@ function BusTab({token}){
   const pct=(a,b)=>b>0?`${((a/b)*100).toFixed(1)}%`:"—";
 
   return(
-    <div style={{display:"flex",height:"100%",overflow:"hidden"}}>
+    <div style={{display:"flex",flexDirection:view==="pendel"?"row-reverse":"row",height:"100%",overflow:"hidden"}}>
       {/* Filter sidebar */}
-      <div style={{width:210,background:S.side,borderRight:`1px solid ${S.border}`,display:"flex",flexDirection:"column",flexShrink:0}}>
+      <div style={{width:220,background:S.side,borderLeft:view==="pendel"?`1px solid ${S.border}`:"none",borderRight:view!=="pendel"?`1px solid ${S.border}`:"none",display:"flex",flexDirection:"column",flexShrink:0}}>
         <div style={{flex:1,padding:12,overflowY:"auto"}}>
           <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:10}}>Filters</div>
           <div style={{marginBottom:9}}>{lbl("Date From")}{di(f.dateFrom,v=>setF({...f,dateFrom:v}))}</div>
           <div style={{marginBottom:9}}>{lbl("Date To")}{di(f.dateTo,v=>setF({...f,dateTo:v}))}</div>
           <div style={{marginBottom:9}}>{lbl("Status")}
-            <select value={f.status} onChange={e=>setF({...f,status:e.target.value})} style={{width:"100%",background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"5px 7px",color:S.text,fontSize:11}}>
+            <select value={f.status} onChange={e=>setF({...f,status:e.target.value})} style={{width:"100%",background:S.bg,border:`1px solid ${S.border2}`,borderRadius:10,padding:"6px 8px",color:S.text,fontSize:12}}>
               <option value="">All Statuses</option>
               <option value="all">All (incl. cancelled)</option>
               {(sl.statuses.length>0?sl.statuses:BUS_STATUSES).map(s=><option key={s} value={s}>{s}</option>)}
@@ -469,49 +469,49 @@ function BusTab({token}){
             </div>
           </>}
         </div>
-        <div style={{padding:12,borderTop:`1px solid ${S.border}`,display:"flex",flexDirection:"column",gap:6}}>
-          <button onClick={applyLoad} style={{padding:"7px",background:S.accent,border:"none",borderRadius:6,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>Apply Filters</button>
-          <button onClick={resetFilters} style={{padding:"6px",background:"transparent",border:`1px solid ${S.border2}`,borderRadius:6,color:S.muted,fontSize:12,cursor:"pointer"}}>Reset</button>
+        <div style={{padding:12,borderTop:`1px solid ${S.border}`,display:"flex",flexDirection:"column",gap:8}}>
+          <button onClick={applyLoad} style={{padding:"8px",background:S.accent,border:"none",borderRadius:10,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>Apply Filters</button>
+          <button onClick={resetFilters} style={{padding:"8px",background:"transparent",border:`1px solid ${S.border2}`,borderRadius:10,color:S.muted,fontSize:12,cursor:"pointer"}}>Reset</button>
         </div>
       </div>
 
       {/* Main content */}
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
         {/* View tabs */}
-        <div style={{background:S.side,borderBottom:`1px solid ${S.border}`,padding:"10px 16px",display:"flex",gap:6,flexShrink:0}}>
+        <div style={{background:S.side,borderBottom:`1px solid ${S.border}`,padding:"10px 16px",display:"flex",gap:8,flexShrink:0}}>
           {[["pendel","Pendel Overview"],["deck","Deck & Class"],["feeder","Feeder Routes"]].map(([v,l])=>(
             <button key={v} onClick={()=>setView(v)} style={{padding:"6px 14px",borderRadius:6,fontSize:12,cursor:"pointer",border:`1px solid ${view===v?S.accent:S.border2}`,background:view===v?S.accent:"transparent",color:view===v?"#fff":S.muted,fontWeight:600}}>{l}</button>
           ))}
           {loading&&<span style={{marginLeft:"auto",fontSize:11,color:S.muted,alignSelf:"center"}}>Loading…</span>}
         </div>
 
-        <div style={{flex:1,overflowY:"auto",padding:16}}>
+        <div style={{flex:1,overflowY:"auto",padding:18}}>
           {/* Bus KPI Cards */}
           {busK&&(
-            <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,marginBottom:14}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10,marginBottom:16}}>
               {[
                 {l:"Total PAX",v:fmtN(busK.total_pax),c:S.accent},
-                {l:"Royal Class",v:fmtN(busK.royal_pax),c:"#f59e0b"},
+                {l:"Royal Class",v:fmtN(busK.royal_pax),c:S.warn},
                 {l:"First Class",v:fmtN(busK.first_pax),c:S.success},
                 {l:"Premium Class",v:fmtN(busK.premium_pax),c:S.purple},
                 {l:"Comfort Class",v:fmtN(busK.comfort_pax),c:S.orange},
               ].map(k=>(
-                <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:10,padding:"11px 13px"}}>
-                  <div style={{fontSize:9,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.07em"}}>{k.l}</div>
+                <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:10,padding:"16px"}}>
+                  <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.07em"}}>{k.l}</div>
                   <div style={{fontSize:20,fontWeight:800,color:k.c,marginTop:4}}>{k.v}</div>
                 </div>
               ))}
             </div>
           )}
           {busK&&(
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:10,marginBottom:16}}>
               {[
                 {l:"Lower Deck (Onderdek)",v:fmtN(busK.lower_pax),c:S.accent},
                 {l:"Upper Deck (Bovendek)",v:fmtN(busK.upper_pax),c:S.success},
                 {l:"No Deck Preference",v:fmtN(busK.no_deck_pax),c:S.muted},
               ].map(k=>(
-                <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:10,padding:"11px 13px"}}>
-                  <div style={{fontSize:9,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.07em"}}>{k.l}</div>
+                <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:10,padding:"16px"}}>
+                  <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.07em"}}>{k.l}</div>
                   <div style={{fontSize:20,fontWeight:800,color:k.c,marginTop:4}}>{k.v}</div>
                 </div>
               ))}
@@ -521,7 +521,7 @@ function BusTab({token}){
           {/* PENDEL VIEW */}
           {view==="pendel"&&(
             <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,overflow:"hidden"}}>
-              <div style={{padding:"11px 14px",borderBottom:`1px solid ${S.border}`,fontSize:13,fontWeight:700,color:S.text}}>Pendel Overview</div>
+              <div style={{padding:"11px 14px",borderBottom:`1px solid ${S.border}`,fontSize:14,fontWeight:700,color:S.text}}>Pendel Overview</div>
               <div style={{overflowX:"auto",maxHeight:500,overflowY:"auto"}}>
                 <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
                   <thead><tr>
@@ -555,7 +555,7 @@ function BusTab({token}){
           {/* DECK & CLASS VIEW */}
           {view==="deck"&&(
             <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,overflow:"hidden"}}>
-              <div style={{padding:"11px 14px",borderBottom:`1px solid ${S.border}`,fontSize:13,fontWeight:700,color:S.text}}>Deck & Class Distribution</div>
+              <div style={{padding:"11px 14px",borderBottom:`1px solid ${S.border}`,fontSize:14,fontWeight:700,color:S.text}}>Deck & Class Distribution</div>
               <div style={{overflowX:"auto"}}>
                 <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
                   <thead><tr>
@@ -590,7 +590,7 @@ function BusTab({token}){
               </div>
               {deck.length>0&&(
                 <>
-                  <div style={{padding:"10px 14px",borderTop:`1px solid ${S.border}`,borderBottom:`1px solid ${S.border}`,fontSize:11,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.06em"}}>By Departure Date</div>
+                  <div style={{padding:"10px 14px",borderTop:`1px solid ${S.border}`,borderBottom:`1px solid ${S.border}`,fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.06em"}}>By Departure Date</div>
                   <div style={{overflowX:"auto",maxHeight:350,overflowY:"auto"}}>
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
                       <thead style={{position:"sticky",top:0,background:S.bg,zIndex:5}}><tr>
@@ -599,7 +599,7 @@ function BusTab({token}){
                         <th style={{...TH,color:S.accent}}>Lower</th>
                         <th style={{...TH,color:S.success}}>Upper</th>
                         <th style={{...TH,color:S.muted}}>NoDeck</th>
-                        <th style={{...TH,color:"#f59e0b"}}>Royal</th>
+                        <th style={{...TH,color:S.warn}}>Royal</th>
                         <th style={{...TH,color:S.success}}>First</th>
                         <th style={{...TH,color:S.purple}}>Premium</th>
                         <th style={{...TH,color:S.orange}}>Comfort</th>
@@ -612,7 +612,7 @@ function BusTab({token}){
                             <td style={{...TD,color:S.accent,fontSize:11}}>{fmtN(r.Total_Lower)}</td>
                             <td style={{...TD,color:S.success,fontSize:11}}>{fmtN(r.Total_Upper)}</td>
                             <td style={{...TD,color:S.muted,fontSize:11}}>{fmtN(r.Total_NoDeck)}</td>
-                            <td style={{...TD,color:"#f59e0b",fontSize:11}}>{fmtN(r.Royal_Total)}</td>
+                            <td style={{...TD,color:S.warn,fontSize:11}}>{fmtN(r.Royal_Total)}</td>
                             <td style={{...TD,color:S.success,fontSize:11}}>{fmtN(r.First_Total)}</td>
                             <td style={{...TD,color:S.purple,fontSize:11}}>{fmtN(r.Premium_Total)}</td>
                             <td style={{...TD,color:S.orange,fontSize:11}}>{fmtN(r.Comfort_Total)}</td>
@@ -629,7 +629,7 @@ function BusTab({token}){
           {/* FEEDER VIEW */}
           {view==="feeder"&&(
             <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,overflow:"hidden"}}>
-              <div style={{padding:"11px 14px",borderBottom:`1px solid ${S.border}`,fontSize:13,fontWeight:700,color:S.text}}>Feeder Routes</div>
+              <div style={{padding:"11px 14px",borderBottom:`1px solid ${S.border}`,fontSize:14,fontWeight:700,color:S.text}}>Feeder Routes</div>
               <div style={{overflowX:"auto",maxHeight:540,overflowY:"auto"}}>
                 <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
                   <thead style={{position:"sticky",top:0,background:S.bg,zIndex:5}}><tr>
@@ -703,14 +703,14 @@ function PurchaseTab({token}){
         </div>
         <div style={{fontSize:10,color:S.muted2,marginTop:6}}>Filters only apply on click · data does not auto-refresh</div>
       </div>
-      <div style={{flex:1,overflowY:"auto",padding:14}}>
+      <div style={{flex:1,overflowY:"auto",padding:16}}>
         {err&&<div style={{background:"#450a0a",border:`1px solid ${S.danger}`,borderRadius:8,padding:"9px 12px",fontSize:12,color:"#fca5a5",marginBottom:12}}>Error: {err}</div>}
         {loading&&<div style={{color:S.muted,textAlign:"center",padding:40}}>Loading…</div>}
         {kpis&&(
           <>
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:12}}>
               {[{l:"Total Bookings",v:fmtN(kpis.totalBookings),c:S.accent},{l:"Confirmed",v:fmtN(kpis.confirmedCount),c:S.success},{l:"Cancelled",v:fmtN(kpis.cancelledCount),c:S.danger},{l:"Total Sales",v:fmtM(kpis.totalSales),c:S.success},{l:"Purchase Calc",v:fmtM(kpis.totalPurchase),c:S.warn},{l:"Obligations",v:fmtM(kpis.totalObligation),c:S.orange},{l:"Net Margin",v:fmtM(kpis.totalMargin),c:parseFloat(kpis.totalMargin||0)>=0?S.success:S.danger}].map(k=>(
-                <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:11,padding:"13px 15px"}}><div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.07em"}}>{k.l}</div><div style={{fontSize:22,fontWeight:800,color:k.c,marginTop:4}}>{k.v}</div></div>
+                <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:11,padding:"16px"}}><div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.07em"}}>{k.l}</div><div style={{fontSize:22,fontWeight:800,color:k.c,marginTop:4}}>{k.v}</div></div>
               ))}
             </div>
 
@@ -718,7 +718,7 @@ function PurchaseTab({token}){
         )}
         <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,overflow:"hidden"}}>
           <div style={{padding:"11px 14px",borderBottom:`1px solid ${S.border}`,display:"flex",gap:10,alignItems:"center"}}>
-            <div style={{fontSize:13,fontWeight:700,color:S.text,flex:1}}>Purchase Obligations <span style={{fontSize:11,color:S.muted,fontWeight:400}}>({fmtN(filtered.length)} rows)</span></div>
+            <div style={{fontSize:14,fontWeight:700,color:S.text,flex:1}}>Purchase Obligations <span style={{fontSize:11,color:S.muted,fontWeight:400}}>({fmtN(filtered.length)} rows)</span></div>
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search booking ID…" style={{...inpS,width:180}}/>
             <button onClick={()=>{const cols=["StatusCode","DepartureDate","ReturnDate","PAX","SalesBooking","PurchaseCalculation","PurchaseObligation","Margin","Commission","MarginIncludingCommission"];const csv=[cols.join(","),...filtered.map(r=>cols.map(c=>String(r[c]??"")))].join("\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download="purchase-obligations.csv";a.click();}} style={{padding:"5px 12px",background:"transparent",border:`1px solid ${S.border2}`,borderRadius:6,color:S.muted,fontSize:11,cursor:"pointer"}}>↓ CSV</button>
           </div>
@@ -1056,12 +1056,20 @@ export default function App(){
   const[session,setSession]=useState(()=>loadAuth());
   const[tab,setTab]=useState("overview");
   const[theme,setTheme]=useState(()=>localStorage.getItem("ttp_theme")||"dark");
+  const[compactNav,setCompactNav]=useState(()=>window.innerWidth<768);
   // Apply theme class
   useEffect(()=>{
     localStorage.setItem("ttp_theme",theme);
     document.body.style.background=theme==="light"?"#f8fafc":"#0f172a";
   },[theme]);
-  if(!session?.token)return<Login onLogin={d=>{saveAuth(d.token,d);setSession(d);}}/>;
+  useEffect(()=>{
+    const onResize=()=>setCompactNav(window.innerWidth<768);
+    window.addEventListener("resize",onResize);
+    return ()=>window.removeEventListener("resize",onResize);
+  },[]);
+  if(!session?.token){
+    return <Login onLogin={d=>{saveAuth(d.token,d);setSession(d);}} />;
+  }
   const token=session.token;
   const NAV=[
     {id:"overview", l:"Overview",
@@ -1074,31 +1082,31 @@ export default function App(){
      ic:<svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>},
   ];
   return(
-    <div style={{display:"flex",height:"100vh",background:S.bg,color:S.text,fontFamily:"Inter,system-ui,sans-serif",overflow:"hidden"}}>
+    <div style={{display:"flex",height:"100vh",background:S.bg,color:S.text,fontFamily:"Inter,system-ui,sans-serif",letterSpacing:"0.01em",overflow:"hidden"}}>
       {/* Sidebar */}
-      <div style={{width:220,background:S.side,borderRight:`1px solid ${S.border}`,display:"flex",flexDirection:"column",flexShrink:0}}>
+      <div style={{width:compactNav?72:220,background:S.side,borderRight:`1px solid ${S.border}`,display:"flex",flexDirection:"column",flexShrink:0}}>
         <div style={{padding:"18px 14px 14px",borderBottom:`1px solid ${S.border}`,display:"flex",alignItems:"center",gap:10}}>
           <div style={{width:34,height:34,background:S.accent,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:"#fff",flexShrink:0}}>TTP</div>
-          <div><div style={{fontSize:13,fontWeight:700,color:S.text}}>TTP Analytics</div><div style={{fontSize:10,color:S.muted}}>Data Engine v2.0</div></div>
+          {!compactNav&&<div><div style={{fontSize:13,fontWeight:700,color:S.text}}>TTP Analytics</div><div style={{fontSize:10,color:S.muted}}>Data Engine v2.0</div></div>}
         </div>
-        <div style={{flex:1,padding:"10px 8px",overflowY:"auto"}}>
+        <div style={{flex:1,padding:"10px",overflowY:"auto"}}>
           {NAV.map(n=>(
-            <div key={n.id} onClick={()=>setTab(n.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 11px",cursor:"pointer",borderRadius:8,background:tab===n.id?"rgba(59,130,246,0.15)":"transparent",color:tab===n.id?S.accent2:S.muted,borderLeft:tab===n.id?`3px solid ${S.accent}`:"3px solid transparent",marginBottom:2,fontSize:13,fontWeight:tab===n.id?600:400}}>
-              {n.ic}<span>{n.l}</span>
+            <div key={n.id} onClick={()=>setTab(n.id)} style={{display:"flex",alignItems:"center",justifyContent:compactNav?"center":"flex-start",gap:10,padding:compactNav?"10px":"10px 12px",cursor:"pointer",borderRadius:10,background:tab===n.id?"rgba(59,130,246,0.15)":"transparent",color:tab===n.id?S.accent2:S.muted,borderLeft:tab===n.id?`3px solid ${S.accent}`:"3px solid transparent",marginBottom:3,fontSize:13,fontWeight:tab===n.id?600:400}}>
+              {n.ic}{!compactNav&&<span>{n.l}</span>}
             </div>
           ))}
         </div>
-        <div style={{padding:"11px 13px",borderTop:`1px solid ${S.border}`,display:"flex",alignItems:"center",gap:9}}>
+        <div style={{padding:"11px 13px",borderTop:`1px solid ${S.border}`,display:"flex",alignItems:"center",gap:9,justifyContent:compactNav?"center":"flex-start"}}>
           <div style={{width:28,height:28,borderRadius:"50%",background:S.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:"#fff",flexShrink:0}}>{(session.username||session.name||"U")[0].toUpperCase()}</div>
-          <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:600,color:S.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{session.username||session.name||"User"}</div><div style={{fontSize:10,color:S.muted}}>{session.role||"viewer"}</div></div>
-          <button onClick={()=>{clearAuth();setSession(null);}} title="Sign out" style={{background:"none",border:"none",color:S.muted,cursor:"pointer",padding:4,flexShrink:0}}>
+          {!compactNav&&<div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:600,color:S.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{session.username||session.name||"User"}</div><div style={{fontSize:10,color:S.muted}}>{session.role||"viewer"}</div></div>}
+          <button onClick={()=>{clearAuth();setSession(null);}} title="Sign out" style={{background:"none",border:"none",color:S.muted,cursor:"pointer",padding:4,flexShrink:0,display:compactNav?"none":"block"}}>
             <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
           </button>
         </div>
       </div>
       {/* Content */}
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        <div style={{padding:"11px 18px",borderBottom:`1px solid ${S.border}`,background:S.side,display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
+        <div style={{height:52,padding:"0 18px",borderBottom:`1px solid ${S.border}`,background:S.side,display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
           <div style={{fontSize:14,fontWeight:700,color:S.text}}>{NAV.find(n=>n.id===tab)?.l}</div>
           <div style={{fontSize:11,color:S.muted}}>{new Date().toLocaleDateString("nl-BE",{weekday:"short",year:"numeric",month:"short",day:"numeric"})} · <span style={{color:S.success}}>● Live</span></div>
         </div>

@@ -11,183 +11,269 @@ const router = Router();
 // Bus Class KPIs                 →  solmar_bus_bookings_modified
 
 // ─── STATUS CONSTANTS ────────────────────────────────────────────────────────
-const CO_ALL  = `Status IN ('DEF','DEF-GEANNULEERD')`;
-const CO_CONF = `Status = 'DEF'`;
-const ST_ALL  = `status IN ('ok','cancelled')`;
-const ST_CONF = `status = 'ok'`;
+const CO_CONFIRMED = 'DEF';
+const CO_CANCELLED = 'DEF-GEANNULEERD';
+const ST_CONFIRMED = 'ok';
+const ST_CANCELLED = 'cancelled';
+const CO_ALL = `Status IN ('${CO_CONFIRMED}','${CO_CANCELLED}')`;
+const CO_CONF = `Status='${CO_CONFIRMED}'`;
+const ST_ALL = `status IN ('${ST_CONFIRMED}','${ST_CANCELLED}')`;
+const ST_CONF = `status='${ST_CONFIRMED}'`;
+const BUS_STATUS_CODES = ['DEF','TIJD','VERV','DEF-GEANNULEERD','ACC AV NIET OK','CTRL','IN_AANVRAAG'];
+const BUS_STATUS_LABELS = {
+  DEF: 'Confirmed',
+  TIJD: 'Timed',
+  VERV: 'Replaced',
+  'DEF-GEANNULEERD': 'Cancelled',
+  'ACC AV NIET OK': 'Accommodation Not OK',
+  CTRL: 'Control',
+  IN_AANVRAAG: 'Requested',
+};
 
-// ─── OVERVIEW WHERE BUILDER ───────────────────────────────────────────────────
-function buildOverviewWhere(q) {
-  const coC=[], coP={}, stC=[], stP={};
+function arr(v){ return [].concat(v||[]).filter(Boolean); }
+function numArr(v){ return arr(v).map(Number).filter(Number.isFinite); }
+function uniq(v){ return [...new Set(v)]; }
 
-  if (q.departureDateFrom) {
-    coC.push('DepartureDate>=@codf'); coP.codf=q.departureDateFrom;
-    stC.push('dateDeparture>=@stdf'); stP.stdf=q.departureDateFrom;
-  }
-  if (q.departureDateTo) {
-    coC.push('DepartureDate<=@codt'); coP.codt=q.departureDateTo;
-    stC.push('dateDeparture<=@stdt'); stP.stdt=q.departureDateTo;
-  }
-  if (q.bookingDateFrom) {
-    coC.push('CAST(BookingDate AS DATE)>=@cobf'); coP.cobf=q.bookingDateFrom;
-    stC.push('CAST(creationTime AS DATE)>=@stbf'); stP.stbf=q.bookingDateFrom;
-  }
-  if (q.bookingDateTo) {
-    coC.push('CAST(BookingDate AS DATE)<=@cobt'); coP.cobt=q.bookingDateTo;
-    stC.push('CAST(creationTime AS DATE)<=@stbt'); stP.stbt=q.bookingDateTo;
-  }
+function dateShiftOneYear(isoDate){
+  if (!isoDate || !/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return isoDate || '';
+  const year = Number(isoDate.slice(0,4)) - 1;
+  return `${year}${isoDate.slice(4)}`;
+}
 
-  const ds = [].concat(q.dataset||[]).filter(Boolean);
-  const solmarDs = ds.filter(d=>['Solmar','Interbus','Solmar DE'].includes(d));
-  const hasSnow  = !ds.length || ds.includes('Snowtravel');
-  const hasSolmar= !ds.length || solmarDs.length>0;
-
-  if (solmarDs.length) {
-    solmarDs.forEach((d,i)=>{ coP[`cods${i}`]=d; });
-    coC.push(`(${solmarDs.map((_,i)=>`Dataset=@cods${i}`).join(' OR ')})`);
-  }
-
-  // Status filter
-  const st = [].concat(q.status||[]).filter(Boolean);
-  if (st.length) {
-    if (st.includes('ok') && !st.includes('cancelled')) {
-      coC.push(`Status='DEF'`); stC.push(`status='ok'`);
-    } else if (st.includes('cancelled') && !st.includes('ok')) {
-      coC.push(`Status='DEF-GEANNULEERD'`); stC.push(`status='cancelled'`);
-    }
-  }
-
-  // Year filter
-  const yr = [].concat(q.year||[]).filter(Boolean).map(Number);
-  if (yr.length) {
-    yr.forEach((y,i)=>{ coP[`coyr${i}`]=y; stP[`styr${i}`]=y; });
-    coC.push(`(${yr.map((_,i)=>`DepartureYear=@coyr${i}`).join(' OR ')})`);
-    stC.push(`(${yr.map((_,i)=>`YEAR(dateDeparture)=@styr${i}`).join(' OR ')})`);
-  }
-
+function parseFilters(q){
   return {
-    coWhere: `WHERE ${[CO_ALL,...coC].join(' AND ')}`,
-    coP,
-    stWhere: `WHERE ${[ST_ALL,...stC].join(' AND ')}`,
-    stP,
-    hasSolmar,
-    hasSnow,
+    dataset: uniq(arr(q.dataset)),
+    status: uniq(arr(q.status)),
+    year: uniq(numArr(q.year)),
+    bookingDateFrom: q.bookingDateFrom || '',
+    bookingDateTo: q.bookingDateTo || '',
+    departureDateFrom: q.departureDateFrom || '',
+    departureDateTo: q.departureDateTo || '',
+    dateFrom: q.dateFrom || '',
+    dateTo: q.dateTo || '',
+    region: q.region || '',
+    pendel: q.pendel || '',
+    weekday: q.weekday || '',
+    feederLine: q.feederLine || '',
+    label: q.label || q.datasetName || '',
+    direction: q.direction || '',
+    statusBus: q.status || '',
+    departureFrom: q.departureFrom || '',
+    departureTo: q.departureTo || '',
+    returnFrom: q.returnFrom || '',
+    returnTo: q.returnTo || '',
+    marginStatus: q.status || '',
   };
 }
 
-function buildUnion(coWhere, stWhere, hasSolmar, hasSnow, coExtra='', stExtra='') {
-  const co = `SELECT ${coExtra}DepartureYear AS yr, DepartureMonth AS mo, PAXCount AS pax, TotalRevenue AS revenue, Dataset AS dataset FROM CustomerOverview ${coWhere}`;
-  const st = `SELECT ${stExtra}YEAR(dateDeparture) AS yr, MONTH(dateDeparture) AS mo, paxCount AS pax, totalPrice AS revenue, 'Snowtravel' AS dataset FROM ST_Bookings ${stWhere}`;
-  if (!hasSolmar && hasSnow) return { sql: st, p: {} };
-  if (hasSolmar && !hasSnow)  return { sql: co, p: {} };
-  return { sql: `${co} UNION ALL ${st}`, p: {} };
+function cleanUnion(parts){
+  const valid = parts.filter(Boolean);
+  if (!valid.length) return `SELECT CAST(NULL AS INT) AS yr, CAST(NULL AS INT) AS mo, CAST(NULL AS INT) AS bookings, CAST(NULL AS BIGINT) AS pax, CAST(NULL AS DECIMAL(18,2)) AS revenue WHERE 1=0`;
+  return valid.join(' UNION ALL ');
+}
+
+function buildOverviewWhere(filters, opts={}){
+  const f = parseFilters(filters || {});
+  const {
+    yearsOverride = null,
+    shiftYear = false,
+    applyYearFilter = true,
+    alias = '',
+  } = opts;
+  const pfx = alias ? `${alias}_` : '';
+  const coC = [`Status IN ('${CO_CONFIRMED}','${CO_CANCELLED}')`], coP = {};
+  const stC = [`status IN ('${ST_CONFIRMED}','${ST_CANCELLED}')`], stP = {};
+
+  const depFrom = shiftYear ? dateShiftOneYear(f.departureDateFrom) : f.departureDateFrom;
+  const depTo = shiftYear ? dateShiftOneYear(f.departureDateTo) : f.departureDateTo;
+  const bkFrom = shiftYear ? dateShiftOneYear(f.bookingDateFrom) : f.bookingDateFrom;
+  const bkTo = shiftYear ? dateShiftOneYear(f.bookingDateTo) : f.bookingDateTo;
+
+  if (depFrom) { coC.push(`CAST(DepartureDate AS DATE)>=@${pfx}codf`); coP[`${pfx}codf`]=depFrom; stC.push(`CAST(dateDeparture AS DATE)>=@${pfx}stdf`); stP[`${pfx}stdf`]=depFrom; }
+  if (depTo) { coC.push(`CAST(DepartureDate AS DATE)<=@${pfx}codt`); coP[`${pfx}codt`]=depTo; stC.push(`CAST(dateDeparture AS DATE)<=@${pfx}stdt`); stP[`${pfx}stdt`]=depTo; }
+  if (bkFrom) { coC.push(`CAST(BookingDate AS DATE)>=@${pfx}cobf`); coP[`${pfx}cobf`]=bkFrom; stC.push(`CAST(creationTime AS DATE)>=@${pfx}stbf`); stP[`${pfx}stbf`]=bkFrom; }
+  if (bkTo) { coC.push(`CAST(BookingDate AS DATE)<=@${pfx}cobt`); coP[`${pfx}cobt`]=bkTo; stC.push(`CAST(creationTime AS DATE)<=@${pfx}stbt`); stP[`${pfx}stbt`]=bkTo; }
+
+  const ds = f.dataset;
+  const coDatasets = ds.filter(d=>['Solmar','Interbus','Solmar DE'].includes(d));
+  const includeCO = !ds.length || coDatasets.length>0;
+  const includeST = !ds.length || ds.includes('Snowtravel');
+  if (coDatasets.length){
+    coDatasets.forEach((d,i)=>{ coP[`${pfx}cods${i}`]=d; });
+    coC.push(`(${coDatasets.map((_,i)=>`Dataset=@${pfx}cods${i}`).join(' OR ')})`);
+  }
+
+  const st = f.status;
+  const wantsConfirmed = st.some(s=>['ok','DEF','confirmed'].includes(s));
+  const wantsCancelled = st.some(s=>['cancelled','DEF-GEANNULEERD'].includes(s));
+  if (st.length){
+    if (wantsConfirmed && !wantsCancelled){ coC.push(`Status='${CO_CONFIRMED}'`); stC.push(`status='${ST_CONFIRMED}'`); }
+    else if (wantsCancelled && !wantsConfirmed){ coC.push(`Status='${CO_CANCELLED}'`); stC.push(`status='${ST_CANCELLED}'`); }
+  }
+
+  const years = yearsOverride || f.year;
+  if (applyYearFilter && years.length){
+    years.forEach((y,i)=>{ coP[`${pfx}coyr${i}`]=y; stP[`${pfx}styr${i}`]=y; });
+    coC.push(`(${years.map((_,i)=>`DepartureYear=@${pfx}coyr${i}`).join(' OR ')})`);
+    stC.push(`(${years.map((_,i)=>`YEAR(dateDeparture)=@${pfx}styr${i}`).join(' OR ')})`);
+  }
+
+  return {
+    coWhere: `WHERE ${coC.join(' AND ')}`,
+    stWhere: `WHERE ${stC.join(' AND ')}`,
+    coP: coP,
+    stP: stP,
+    coParams: coP,
+    stParams: stP,
+    hasSolmar: includeCO,
+    hasSnow: includeST,
+    includeCO,
+    includeST,
+  };
+}
+
+function overviewUnionSql(whereObj){
+  const coSql = whereObj.includeCO ? `
+    SELECT
+      DepartureYear AS yr,
+      DepartureMonth AS mo,
+      COUNT(*) AS bookings,
+      SUM(PAXCount) AS pax,
+      SUM(TotalRevenue) AS revenue
+    FROM CustomerOverview
+    ${whereObj.coWhere}
+    GROUP BY DepartureYear, DepartureMonth
+  ` : '';
+  const stSql = whereObj.includeST ? `
+    SELECT
+      YEAR(dateDeparture) AS yr,
+      MONTH(dateDeparture) AS mo,
+      COUNT(*) AS bookings,
+      SUM(paxCount) AS pax,
+      SUM(totalPrice) AS revenue
+    FROM ST_Bookings
+    ${whereObj.stWhere}
+    GROUP BY YEAR(dateDeparture), MONTH(dateDeparture)
+  ` : '';
+  return cleanUnion([coSql, stSql]);
 }
 
 // ─── SLICERS ──────────────────────────────────────────────────────────────────
 router.get('/slicers', async (req,res)=>{
   try {
-    const r = await query(`SELECT DISTINCT LOWER(REPLACE(TransportType,'ownTransport','own transport')) AS t FROM CustomerOverview WHERE TransportType IS NOT NULL AND ${CO_ALL} ORDER BY t`);
-    res.json({ transportTypes:[...new Set((r.recordset||[]).map(x=>x.t).filter(Boolean))] });
+    const [datasets, years, statuses] = await Promise.all([
+      query(`
+        SELECT DISTINCT Dataset AS val
+        FROM CustomerOverview
+        WHERE Dataset IN ('Solmar','Interbus','Solmar DE')
+        UNION
+        SELECT 'Snowtravel' AS val
+      `),
+      query(`
+        SELECT DISTINCT DepartureYear AS yr
+        FROM CustomerOverview
+        WHERE DepartureYear IS NOT NULL
+        UNION
+        SELECT DISTINCT YEAR(dateDeparture) AS yr
+        FROM ST_Bookings
+        WHERE dateDeparture IS NOT NULL
+      `),
+      query(`SELECT 'ok' AS status UNION SELECT 'cancelled' AS status`),
+    ]);
+    res.json({
+      datasets: (datasets.recordset||[]).map(r=>r.val),
+      years: (years.recordset||[]).map(r=>r.yr).filter(Boolean).sort((a,b)=>a-b),
+      statuses: (statuses.recordset||[]).map(r=>r.status),
+    });
   } catch(e){res.status(500).json({error:e.message});}
 });
 
 // ─── KPIs ─────────────────────────────────────────────────────────────────────
 router.get('/kpis', async (req,res)=>{
   try {
-    const datasets=[].concat(req.query.dataset||[]).filter(Boolean);
-    const years=[].concat(req.query.year||[]).filter(Boolean).map(Number);
-    const hasDate=!!(req.query.departureDateFrom||req.query.departureDateTo);
-    const curY=new Date().getFullYear(), prevY=curY-1;
-    const {coWhere,coP,stWhere,stP,hasSolmar,hasSnow}=buildOverviewWhere(req.query);
+    const f = parseFilters(req.query);
+    const hasDateRange = !!(f.departureDateFrom || f.departureDateTo || f.bookingDateFrom || f.bookingDateTo);
 
-    const coBase=`SELECT DepartureYear AS yr,PAXCount AS pax,TotalRevenue AS revenue,CASE WHEN Status='DEF' THEN 'ok' ELSE 'cancelled' END AS ns FROM CustomerOverview ${coWhere}`;
-    const stBase=`SELECT YEAR(dateDeparture) AS yr,paxCount AS pax,totalPrice AS revenue,status AS ns FROM ST_Bookings ${stWhere}`;
+    const curYear = new Date().getFullYear();
+    const currentYears = f.year.length ? f.year : [curYear];
+    const previousYears = currentYears.map(y=>y-1);
 
-    let unionSql, p;
-    if (!hasSolmar&&hasSnow)     { unionSql=stBase; p=stP; }
-    else if (hasSolmar&&!hasSnow){ unionSql=coBase; p=coP; }
-    else                          { unionSql=`${coBase} UNION ALL ${stBase}`; p={...coP,...stP}; }
+    const currentWhere = buildOverviewWhere(f, {
+      yearsOverride: hasDateRange ? [] : currentYears,
+      applyYearFilter: !hasDateRange,
+      alias: 'cur',
+    });
+    const previousWhere = buildOverviewWhere(f, {
+      yearsOverride: hasDateRange ? [] : previousYears,
+      applyYearFilter: !hasDateRange,
+      shiftYear: hasDateRange,
+      alias: 'prv',
+    });
 
-    // ── KPI: Compare current date range vs same period previous year ─────────────
-    let sql, periodLabel, prevLabel, p2={};
+    const currentSql = overviewUnionSql(currentWhere);
+    const previousSql = overviewUnionSql(previousWhere);
+    const params = {...currentWhere.coParams,...currentWhere.stParams,...previousWhere.coParams,...previousWhere.stParams};
 
-    const dateFrom = req.query.departureDateFrom;
-    const dateTo   = req.query.departureDateTo;
+    const sql = `
+      WITH cur AS (
+        SELECT SUM(bookings) AS bookings, SUM(pax) AS pax, SUM(revenue) AS revenue
+        FROM (${currentSql}) x
+      ),
+      prv AS (
+        SELECT SUM(bookings) AS bookings, SUM(pax) AS pax, SUM(revenue) AS revenue
+        FROM (${previousSql}) y
+      )
+      SELECT
+        ISNULL(cur.bookings,0) AS currentBookings,
+        ISNULL(prv.bookings,0) AS previousBookings,
+        ISNULL(cur.pax,0) AS currentPax,
+        ISNULL(prv.pax,0) AS previousPax,
+        ISNULL(ROUND(cur.revenue,2),0) AS currentRevenue,
+        ISNULL(ROUND(prv.revenue,2),0) AS previousRevenue
+      FROM cur CROSS JOIN prv
+    `;
+    const r = (await query(sql, params)).recordset[0] || {};
+    const cb = Number(r.currentBookings||0), pb = Number(r.previousBookings||0);
+    const cp = Number(r.currentPax||0), pp = Number(r.previousPax||0);
+    const cr = Number(r.currentRevenue||0), pr = Number(r.previousRevenue||0);
 
-    if (hasDate && (dateFrom||dateTo)) {
-      // User selected a date range → compare same range -1 year
-      const shiftYear = s => s ? s.replace(/^(\d{4})/, y=>String(parseInt(y)-1)) : null;
-      const prevFrom  = shiftYear(dateFrom);
-      const prevTo    = shiftYear(dateTo);
-      periodLabel = `${dateFrom||''}${dateTo?' – '+dateTo:''}`;
-      prevLabel   = `${prevFrom||''}${prevTo?' – '+prevTo:''}`;
-
-      // Build previous period WHERE (same filters but -1 year on dates)
-      const coCurr = coWhere;
-      const coPrev = coWhere
-        .replace('@codf', '@codf2').replace('@codt', '@codt2');
-      const p2co = {...coP};
-      if (dateFrom) p2co.codf2 = prevFrom;
-      if (dateTo)   p2co.codt2 = prevTo;
-
-      // Build ST prev WHERE
-      const stPrev = stWhere
-        .replace('@stdf', '@stdf2').replace('@stdt', '@stdt2');
-      const p2st = {...stP};
-      if (dateFrom) p2st.stdf2 = prevFrom;
-      if (dateTo)   p2st.stdt2 = prevTo;
-
-      // Curr query
-      const coBaseCurr = `SELECT PAXCount AS pax, TotalRevenue AS revenue FROM CustomerOverview ${coCurr}`;
-      const stBaseCurr = `SELECT paxCount AS pax, totalPrice AS revenue FROM ST_Bookings ${stWhere}`;
-      let currSql;
-      if (!hasSolmar&&hasSnow) currSql=stBaseCurr;
-      else if(hasSolmar&&!hasSnow) currSql=coBaseCurr;
-      else currSql=`${coBaseCurr} UNION ALL ${stBaseCurr}`;
-
-      // Prev query (replace date params with prev year values)
-      const coBasePrev = `SELECT PAXCount AS pax, TotalRevenue AS revenue FROM CustomerOverview ${coPrev}`;
-      const stBasePrev = `SELECT paxCount AS pax, totalPrice AS revenue FROM ST_Bookings ${stPrev}`;
-      let prevSql;
-      if (!hasSolmar&&hasSnow) prevSql=stBasePrev;
-      else if(hasSolmar&&!hasSnow) prevSql=coBasePrev;
-      else prevSql=`${coBasePrev} UNION ALL ${stBasePrev}`;
-
-      const allP = {...coP,...stP,...p2co,...p2st};
-      sql = `SELECT
-        (SELECT COUNT(*) FROM (${currSql}) t) AS cb,
-        (SELECT ISNULL(SUM(pax),0) FROM (${currSql}) t) AS cp,
-        (SELECT ISNULL(ROUND(SUM(revenue),2),0) FROM (${currSql}) t) AS cr,
-        (SELECT COUNT(*) FROM (${prevSql}) t) AS pb,
-        (SELECT ISNULL(SUM(pax),0) FROM (${prevSql}) t) AS pp,
-        (SELECT ISNULL(ROUND(SUM(revenue),2),0) FROM (${prevSql}) t) AS pr`;
-      p2 = allP;
-
-    } else if (years.length===1) {
-      const yr=years[0]; periodLabel=`Year ${yr}`; prevLabel=`Year ${yr-1}`;
-      sql=`SELECT SUM(CASE WHEN yr=${yr} THEN revenue ELSE 0 END) AS cr,SUM(CASE WHEN yr=${yr-1} THEN revenue ELSE 0 END) AS pr,SUM(CASE WHEN yr=${yr} THEN pax ELSE 0 END) AS cp,SUM(CASE WHEN yr=${yr-1} THEN pax ELSE 0 END) AS pp,COUNT(CASE WHEN yr=${yr} THEN 1 END) AS cb,COUNT(CASE WHEN yr=${yr-1} THEN 1 END) AS pb FROM (${unionSql}) t`;
-    } else {
-      periodLabel=`${curY} vs ${prevY}`; prevLabel=String(prevY);
-      sql=`SELECT SUM(CASE WHEN yr=${curY} THEN revenue ELSE 0 END) AS cr,SUM(CASE WHEN yr=${prevY} THEN revenue ELSE 0 END) AS pr,SUM(CASE WHEN yr=${curY} THEN pax ELSE 0 END) AS cp,SUM(CASE WHEN yr=${prevY} THEN pax ELSE 0 END) AS pp,COUNT(CASE WHEN yr=${curY} THEN 1 END) AS cb,COUNT(CASE WHEN yr=${prevY} THEN 1 END) AS pb FROM (${unionSql}) t`;
-    }
-
-    const r=(await query(sql, hasDate&&(dateFrom||dateTo) ? p2 : p)).recordset[0]||{};
-    const cb=r.cb||0,pb=r.pb||0,cp=r.cp||0,pp=r.pp||0,cr=parseFloat(r.cr)||0,pr=parseFloat(r.pr)||0;
-    res.json({currentBookings:cb,previousBookings:pb,differenceBookings:cb-pb,percentBookings:pb>0?(cb-pb)/pb*100:null,currentPax:cp,previousPax:pp,differencePax:cp-pp,percentPax:pp>0?(cp-pp)/pp*100:null,currentRevenue:cr,previousRevenue:pr,differenceRevenue:cr-pr,percentRevenue:pr>0?(cr-pr)/pr*100:null,periodLabel,prevLabel});
+    res.json({
+      currentBookings: cb,
+      previousBookings: pb,
+      differenceBookings: cb-pb,
+      percentBookings: pb>0 ? ((cb-pb)/pb)*100 : null,
+      currentPax: cp,
+      previousPax: pp,
+      differencePax: cp-pp,
+      percentPax: pp>0 ? ((cp-pp)/pp)*100 : null,
+      currentRevenue: cr,
+      previousRevenue: pr,
+      differenceRevenue: cr-pr,
+      percentRevenue: pr>0 ? ((cr-pr)/pr)*100 : null,
+      periodLabel: hasDateRange ? `${f.departureDateFrom || f.bookingDateFrom || ''}${(f.departureDateTo || f.bookingDateTo) ? ` – ${f.departureDateTo || f.bookingDateTo}` : ''}` : currentYears.join(', '),
+      prevLabel: hasDateRange ? `${dateShiftOneYear(f.departureDateFrom || f.bookingDateFrom || '')}${(f.departureDateTo || f.bookingDateTo) ? ` – ${dateShiftOneYear(f.departureDateTo || f.bookingDateTo)}` : ''}` : previousYears.join(', '),
+    });
   } catch(e){res.status(500).json({error:e.message});}
 });
 
 // ─── REVENUE BY YEAR ──────────────────────────────────────────────────────────
 router.get('/revenue-by-year', async (req,res)=>{
   try {
-    const {coWhere,coP,stWhere,stP,hasSolmar,hasSnow}=buildOverviewWhere(req.query);
-    const co=`SELECT DepartureYear AS yr,DepartureMonth AS mo,PAXCount AS pax,TotalRevenue AS revenue FROM CustomerOverview ${coWhere} AND DepartureYear BETWEEN 2022 AND 2027`;
-    const st=`SELECT YEAR(dateDeparture) AS yr,MONTH(dateDeparture) AS mo,paxCount AS pax,totalPrice AS revenue FROM ST_Bookings ${stWhere} AND YEAR(dateDeparture) BETWEEN 2022 AND 2027`;
-    let sql,p;
-    if (!hasSolmar&&hasSnow){sql=st;p=stP;}
-    else if(hasSolmar&&!hasSnow){sql=co;p=coP;}
-    else{sql=`${co} UNION ALL ${st}`;p={...coP,...stP};}
-    const r=await query(`SELECT yr AS year,mo AS month,COUNT(*) AS bookings,SUM(pax) AS pax,ROUND(SUM(revenue),2) AS revenue FROM (${sql}) t GROUP BY yr,mo ORDER BY yr ASC,mo ASC`,p);
+    const f = parseFilters(req.query);
+    const whereObj = buildOverviewWhere(f, { alias: 'ry' });
+    const unionSql = overviewUnionSql(whereObj);
+    const p = {...whereObj.coParams,...whereObj.stParams};
+    const r = await query(`
+      SELECT
+        yr AS year,
+        mo AS month,
+        SUM(bookings) AS bookings,
+        SUM(pax) AS pax,
+        ROUND(SUM(revenue),2) AS revenue
+      FROM (${unionSql}) t
+      GROUP BY yr, mo
+      ORDER BY (yr*100+mo) ASC
+    `, p);
     res.json(r.recordset||[]);
   } catch(e){res.status(500).json({error:e.message});}
 });
@@ -195,173 +281,144 @@ router.get('/revenue-by-year', async (req,res)=>{
 // ─── YEAR-MONTH COMPARISON ────────────────────────────────────────────────────
 router.get('/year-month-comparison', async (req,res)=>{
   try {
-    // Build WHERE without year filter — we handle years manually for YoY
-    const reqNoYear = {...req.query}; delete reqNoYear.year;
-    const {coWhere,coP,stWhere,stP,hasSolmar,hasSnow}=buildOverviewWhere(reqNoYear);
+    const f = parseFilters(req.query);
+    const hasDateRange = !!(f.departureDateFrom || f.departureDateTo || f.bookingDateFrom || f.bookingDateTo);
 
-    // Determine years: if user selected specific years, load those + their previous year
-    const selYears=[].concat(req.query.year||[]).filter(Boolean).map(Number);
-    const displayYears=selYears.length>0 ? selYears : null;
-    // Years to load into CTE = display years + each minus 1
-    const loadYears=displayYears
-      ? [...new Set([...displayYears,...displayYears.map(y=>y-1)])]
-      : null; // null = use BETWEEN range
+    const curYear = new Date().getFullYear();
+    const selectedYears = f.year.length ? f.year : [curYear];
+    const loadYears = uniq([...selectedYears, ...selectedYears.map(y=>y-1)]);
 
-    // Build year range condition params (avoid collision with coP/stP)
-    const coYP={}, stYP={};
-    let coYCond='', stYCond='';
-    if(loadYears){
-      loadYears.forEach((y,i)=>{ coYP[`lyr${i}`]=y; stYP[`slyr${i}`]=y; });
-      coYCond=` AND DepartureYear IN (${loadYears.map((_,i)=>`@lyr${i}`).join(',')})`;
-      stYCond=` AND YEAR(dateDeparture) IN (${loadYears.map((_,i)=>`@slyr${i}`).join(',')})`;
-    } else {
-      coYCond=' AND DepartureYear BETWEEN 2021 AND 2027';
-      stYCond=' AND YEAR(dateDeparture) BETWEEN 2021 AND 2027';
-    }
+    const currentWhere = buildOverviewWhere(f, {
+      yearsOverride: hasDateRange ? [] : loadYears,
+      applyYearFilter: !hasDateRange,
+      alias: 'ymc',
+    });
+    const previousWhere = hasDateRange ? buildOverviewWhere(f, {
+      yearsOverride: [],
+      applyYearFilter: false,
+      shiftYear: true,
+      alias: 'ymp',
+    }) : null;
 
-    const co=`SELECT DepartureYear AS yr,DepartureMonth AS mo,PAXCount AS pax,TotalRevenue AS revenue FROM CustomerOverview ${coWhere}${coYCond}`;
-    const st=`SELECT YEAR(dateDeparture) AS yr,MONTH(dateDeparture) AS mo,paxCount AS pax,totalPrice AS revenue FROM ST_Bookings ${stWhere}${stYCond}`;
+    const currentUnion = overviewUnionSql(currentWhere);
+    const previousUnion = previousWhere ? overviewUnionSql(previousWhere) : '';
+    const p = {
+      ...currentWhere.coParams,
+      ...currentWhere.stParams,
+      ...(previousWhere ? previousWhere.coParams : {}),
+      ...(previousWhere ? previousWhere.stParams : {}),
+    };
 
-    let unionSql,p;
-    if(!hasSolmar&&hasSnow){unionSql=st;p={...stP,...stYP};}
-    else if(hasSolmar&&!hasSnow){unionSql=co;p={...coP,...coYP};}
-    else{unionSql=`${co} UNION ALL ${st}`;p={...coP,...stP,...coYP,...stYP};}
-
-    // Outer WHERE: only show rows for selected (display) years
-    const outerYP={};
-    let outerWhere='';
-    if(displayYears&&displayYears.length>0){
-      displayYears.forEach((y,i)=>{ outerYP[`dyr${i}`]=y; });
-      outerWhere=`WHERE ${displayYears.map((_,i)=>`a.year=@dyr${i}`).join(' OR ')}`;
-      Object.assign(p,outerYP);
-    }
-
-    const sql=`WITH base AS (
-      SELECT yr AS year,mo AS month,
-        COUNT(*) AS bookings,SUM(pax) AS pax,ROUND(SUM(revenue),2) AS revenue
-      FROM (${unionSql}) t GROUP BY yr,mo
-    )
-    SELECT
-      a.year AS currentYear, a.year-1 AS previousYear,
-      a.month,
-      a.bookings AS currentBookings, ISNULL(b.bookings,0) AS previousBookings,
-      a.pax AS currentPax, ISNULL(b.pax,0) AS previousPax,
-      a.revenue AS currentRevenue, ISNULL(b.revenue,0) AS previousRevenue,
-      a.bookings-ISNULL(b.bookings,0) AS diffBookings,
-      a.pax-ISNULL(b.pax,0) AS diffPax,
-      ROUND(a.revenue-ISNULL(b.revenue,0),2) AS diffRevenue,
-      CASE WHEN ISNULL(b.bookings,0)>0 THEN ROUND((CAST(a.bookings AS FLOAT)-b.bookings)/b.bookings*100,1) ELSE NULL END AS diffPctBookings,
-      CASE WHEN ISNULL(b.pax,0)>0 THEN ROUND((CAST(a.pax AS FLOAT)-b.pax)/b.pax*100,1) ELSE NULL END AS diffPctPax,
-      CASE WHEN ISNULL(b.revenue,0)>0 THEN ROUND((a.revenue-b.revenue)/b.revenue*100,1) ELSE NULL END AS diffPctRevenue
-    FROM base a
-    LEFT JOIN base b ON b.year=a.year-1 AND b.month=a.month
-    ${outerWhere}
-    ORDER BY a.year DESC,a.month DESC`;
-
-    const r=await query(sql,p);
-    res.json(r.recordset||[]);
-  } catch(e){res.status(500).json({error:e.message});}
-});
-// ✅ FIXED DECK CLASS ENDPOINT using real table: solmar_bus_deck_choice
-router.get('/deck-class', async (req, res) => {
-  try {
-
-    // Build WHERE (correct columns)
-    const conds = [];
-    const p = {};
-
-    if (req.query.dateFrom) {
-      conds.push("dateDeparture >= @df");
-      p.df = req.query.dateFrom;
-    }
-
-    if (req.query.dateTo) {
-      conds.push("dateDeparture <= @dt");
-      p.dt = req.query.dateTo;
-    }
-
-    if (req.query.region) {
-      conds.push("Region = @rg");
-      p.rg = req.query.region;
-    }
-
-    if (req.query.pendel) {
-      conds.push("Pendel_Outbound LIKE @pd");
-      p.pd = `%${req.query.pendel}%`;
-    }
-
-    if (req.query.status && req.query.status !== "all") {
-      conds.push("Status = @st");
-      p.st = req.query.status;
-    }
-
-    if (req.query.weekday) {
-      conds.push("DATENAME(weekday, dateDeparture) = @wd");
-      p.wd = req.query.weekday;
-    }
-
-    const where = conds.length ? "WHERE " + conds.join(" AND ") : "";
-
-    // ✅ Correct SQL using actual columns from solmar_bus_deck_choice
-    const sql = `
+    const sql = hasDateRange ? `
+      WITH cur AS (
+        SELECT yr, mo, SUM(bookings) AS bookings, SUM(pax) AS pax, SUM(revenue) AS revenue
+        FROM (${currentUnion}) a
+        GROUP BY yr, mo
+      ),
+      prv AS (
+        SELECT yr, mo, SUM(bookings) AS bookings, SUM(pax) AS pax, SUM(revenue) AS revenue
+        FROM (${previousUnion}) b
+        GROUP BY yr, mo
+      )
       SELECT
-        CONVERT(VARCHAR(10), dateDeparture, 103) AS dateDeparture,
-
-        -- Total
-        SUM(PAX) AS Total,
-        SUM(CASE WHEN Outbound_Deck LIKE '%Onderdek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS Total_Lower,
-        SUM(CASE WHEN Outbound_Deck LIKE '%Bovendek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS Total_Upper,
-        SUM(CASE WHEN Outbound_Deck LIKE '%Geen%' OR Outbound_Deck IS NULL THEN PAX ELSE 0 END) AS Total_NoDeck,
-
-        -- Royal
-        SUM(CASE WHEN Outbound_Class = 'Royal Class' THEN PAX ELSE 0 END) AS Royal_Total,
-        SUM(CASE WHEN Outbound_Class = 'Royal Class' AND Outbound_Deck LIKE '%Onderdek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS Royal_Lower,
-        SUM(CASE WHEN Outbound_Class = 'Royal Class' AND Outbound_Deck LIKE '%Bovendek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS Royal_Upper,
-        SUM(CASE WHEN Outbound_Class = 'Royal Class' AND (Outbound_Deck LIKE '%Geen%' OR Outbound_Deck IS NULL) THEN PAX ELSE 0 END) AS Royal_NoDeck,
-
-        -- First Class
-        SUM(CASE WHEN Outbound_Class = 'First Class' THEN PAX ELSE 0 END) AS First_Total,
-        SUM(CASE WHEN Outbound_Class = 'First Class' AND Outbound_Deck LIKE '%Onderdek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS First_Lower,
-        SUM(CASE WHEN Outbound_Class = 'First Class' AND Outbound_Deck LIKE '%Bovendek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS First_Upper,
-        SUM(CASE WHEN Outbound_Class = 'First Class' AND (Outbound_Deck LIKE '%Geen%' OR Outbound_Deck IS NULL) THEN PAX ELSE 0 END) AS First_NoDeck,
-
-        -- Premium
-        SUM(CASE WHEN Outbound_Class = 'Premium Class' THEN PAX ELSE 0 END) AS Premium_Total,
-        SUM(CASE WHEN Outbound_Class = 'Premium Class' AND Outbound_Deck LIKE '%Onderdek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS Premium_Lower,
-        SUM(CASE WHEN Outbound_Class = 'Premium Class' AND Outbound_Deck LIKE '%Bovendek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS Premium_Upper,
-        SUM(CASE WHEN Outbound_Class = 'Premium Class' AND (Outbound_Deck LIKE '%Geen%' OR Outbound_Deck IS NULL) THEN PAX ELSE 0 END) AS Premium_NoDeck
-
-      FROM solmar_bus_deck_choice
-      ${where}
-      GROUP BY dateDeparture
-      ORDER BY CAST(dateDeparture AS DATE) ASC
+        cur.yr AS currentYear,
+        cur.yr-1 AS previousYear,
+        cur.mo AS month,
+        cur.bookings AS currentBookings,
+        ISNULL(prv.bookings,0) AS previousBookings,
+        cur.pax AS currentPax,
+        ISNULL(prv.pax,0) AS previousPax,
+        ROUND(cur.revenue,2) AS currentRevenue,
+        ROUND(ISNULL(prv.revenue,0),2) AS previousRevenue,
+        cur.bookings-ISNULL(prv.bookings,0) AS diffBookings,
+        cur.pax-ISNULL(prv.pax,0) AS diffPax,
+        ROUND(cur.revenue-ISNULL(prv.revenue,0),2) AS diffRevenue,
+        CASE WHEN ISNULL(prv.bookings,0)>0 THEN ROUND((CAST(cur.bookings AS FLOAT)-prv.bookings)/prv.bookings*100,1) ELSE NULL END AS diffPctBookings,
+        CASE WHEN ISNULL(prv.pax,0)>0 THEN ROUND((CAST(cur.pax AS FLOAT)-prv.pax)/prv.pax*100,1) ELSE NULL END AS diffPctPax,
+        CASE WHEN ISNULL(prv.revenue,0)>0 THEN ROUND((cur.revenue-prv.revenue)/prv.revenue*100,1) ELSE NULL END AS diffPctRevenue
+      FROM cur
+      LEFT JOIN prv ON prv.mo=cur.mo AND prv.yr=cur.yr-1
+      ORDER BY (cur.yr*100+cur.mo) DESC
+    ` : `
+      WITH base AS (
+        SELECT yr, mo, SUM(bookings) AS bookings, SUM(pax) AS pax, SUM(revenue) AS revenue
+        FROM (${currentUnion}) z
+        GROUP BY yr, mo
+      )
+      SELECT
+        a.yr AS currentYear,
+        a.yr-1 AS previousYear,
+        a.mo AS month,
+        a.bookings AS currentBookings,
+        ISNULL(b.bookings,0) AS previousBookings,
+        a.pax AS currentPax,
+        ISNULL(b.pax,0) AS previousPax,
+        ROUND(a.revenue,2) AS currentRevenue,
+        ROUND(ISNULL(b.revenue,0),2) AS previousRevenue,
+        a.bookings-ISNULL(b.bookings,0) AS diffBookings,
+        a.pax-ISNULL(b.pax,0) AS diffPax,
+        ROUND(a.revenue-ISNULL(b.revenue,0),2) AS diffRevenue,
+        CASE WHEN ISNULL(b.bookings,0)>0 THEN ROUND((CAST(a.bookings AS FLOAT)-b.bookings)/b.bookings*100,1) ELSE NULL END AS diffPctBookings,
+        CASE WHEN ISNULL(b.pax,0)>0 THEN ROUND((CAST(a.pax AS FLOAT)-b.pax)/b.pax*100,1) ELSE NULL END AS diffPctPax,
+        CASE WHEN ISNULL(b.revenue,0)>0 THEN ROUND((a.revenue-b.revenue)/b.revenue*100,1) ELSE NULL END AS diffPctRevenue
+      FROM base a
+      LEFT JOIN base b ON b.yr=a.yr-1 AND b.mo=a.mo
+      ORDER BY (a.yr*100+a.mo) DESC
     `;
 
     const r = await query(sql, p);
-    res.json(r.recordset || []);
-
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+    res.json(r.recordset||[]);
+  } catch(e){res.status(500).json({error:e.message});}
 });
 
 // ─── BUS SLICERS ──────────────────────────────────────────────────────────────
 router.get('/bus-slicers', async (req,res)=>{
   try {
     const [pendels,regions,statuses,feederLines]=await Promise.all([
-      query(`SELECT DISTINCT Pendel_Outbound AS val FROM solmar_bus_bookings_modified WHERE Pendel_Outbound IS NOT NULL AND LTRIM(RTRIM(Pendel_Outbound))!='' ORDER BY Pendel_Outbound`),
-      query(`SELECT DISTINCT Region AS val FROM solmar_bus_bookings_modified WHERE Region IS NOT NULL AND LTRIM(RTRIM(Region))!='' ORDER BY Region`),
-      query(`SELECT DISTINCT Status AS val FROM solmar_bus_bookings_modified WHERE Status IS NOT NULL AND LTRIM(RTRIM(Status))!='' ORDER BY Status`),
-      query(`SELECT DISTINCT FeederLine AS val FROM FeederOverview WHERE FeederLine IS NOT NULL ORDER BY FeederLine`),
+      query(`SELECT DISTINCT Pendel_Outbound AS val FROM solmar_bus_deck_choice WHERE Pendel_Outbound IS NOT NULL AND LTRIM(RTRIM(Pendel_Outbound))!='' ORDER BY Pendel_Outbound`),
+      query(`SELECT DISTINCT Region AS val FROM solmar_bus_deck_choice WHERE Region IS NOT NULL AND LTRIM(RTRIM(Region))!='' ORDER BY Region`),
+      query(`SELECT DISTINCT Status AS val FROM solmar_bus_deck_choice WHERE Status IS NOT NULL AND LTRIM(RTRIM(Status))!='' ORDER BY Status`),
+      query(`SELECT DISTINCT FeederLine AS val FROM FeederOverview WHERE FeederLine IS NOT NULL AND LTRIM(RTRIM(FeederLine))!='' ORDER BY FeederLine`),
     ]);
+    const statusList = (statuses.recordset||[]).map(r=>r.val).filter(Boolean);
     res.json({
       pendels:(pendels.recordset||[]).map(r=>r.val),
       regions:(regions.recordset||[]).map(r=>r.val),
-      statuses:(statuses.recordset||[]).map(r=>r.val),
+      statuses:statusList,
+      statusesEnglish:statusList.map(code=>({ code, label: BUS_STATUS_LABELS[code] || code })),
       feederLines:(feederLines.recordset||[]).map(r=>r.val),
     });
   } catch(e){res.status(500).json({error:e.message});}
 });
+
+function buildBusWhere(q){
+  const f = parseFilters(q);
+  const conds = [], params = {};
+  if (f.dateFrom) { conds.push('CAST(dateDeparture AS DATE)>=@df'); params.df=f.dateFrom; }
+  if (f.dateTo) { conds.push('CAST(dateDeparture AS DATE)<=@dt'); params.dt=f.dateTo; }
+  if (f.region) { conds.push('Region=@rg'); params.rg=f.region; }
+  if (f.pendel) { conds.push('Pendel_Outbound LIKE @pd'); params.pd=`%${f.pendel}%`; }
+  if (f.weekday) { conds.push('DATENAME(weekday,dateDeparture)=@wd'); params.wd=f.weekday; }
+  if (f.statusBus && f.statusBus !== 'all') { conds.push('Status=@st'); params.st=f.statusBus; }
+  const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
+  return { where, params };
+}
+
+function buildDeckWhere(q){
+  return buildBusWhere(q);
+}
+
+function buildFeederWhere(q){
+  const f = parseFilters(q);
+  const conds = [], params = {};
+  if (f.dateFrom) { conds.push('CAST(DepartureDate AS DATE)>=@df'); params.df=f.dateFrom; }
+  if (f.dateTo) { conds.push('CAST(DepartureDate AS DATE)<=@dt'); params.dt=f.dateTo; }
+  if (f.feederLine) { conds.push('FeederLine=@fl'); params.fl=f.feederLine; }
+  if (f.label) { conds.push('LabelName=@lb'); params.lb=f.label; }
+  if (f.direction) { conds.push('Direction=@dr'); params.dr=f.direction; }
+  const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
+  return { where, params };
+}
 
 // ─── BUS KPI CARDS ────────────────────────────────────────────────────────────
 router.get('/bus-kpis', async (req,res)=>{
@@ -378,7 +435,7 @@ router.get('/bus-kpis', async (req,res)=>{
       SUM(CASE WHEN Outbound_Deck LIKE '%Onderdek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS lower_pax,
       SUM(CASE WHEN Outbound_Deck LIKE '%Bovendek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS upper_pax,
       SUM(CASE WHEN Outbound_Deck LIKE '%Geen%' THEN PAX ELSE 0 END) AS no_deck_pax
-      FROM solmar_bus_bookings_modified ${where}`,params);
+      FROM solmar_bus_deck_choice ${where}`,params);
     res.json(r.recordset[0]||{});
   } catch(e){res.status(500).json({error:e.message});}
 });
@@ -386,7 +443,12 @@ router.get('/bus-kpis', async (req,res)=>{
 // ─── PENDEL OVERVIEW ──────────────────────────────────────────────────────────
 router.get('/pendel-overview', async (req,res)=>{
   try {
-    const {where,params}=buildBustripsWhere(req.query);
+    const f = parseFilters(req.query);
+    const conds=[], params={};
+    if (f.dateFrom) { conds.push('CAST(StartDate AS DATE)>=@df'); params.df=f.dateFrom; }
+    if (f.dateTo) { conds.push('CAST(StartDate AS DATE)<=@dt'); params.dt=f.dateTo; }
+    if (f.weekday) { conds.push('DATENAME(weekday,StartDate)=@wd'); params.wd=f.weekday; }
+    const where=conds.length?`WHERE ${conds.join(' AND ')}`:'';
     const r=await query(`SELECT
       CONVERT(VARCHAR(10),StartDate,105) AS StartDate,
       CONVERT(VARCHAR(10),EndDate,105) AS EndDate,
@@ -408,50 +470,81 @@ router.get('/pendel-overview', async (req,res)=>{
 // ─── FEEDER OVERVIEW ──────────────────────────────────────────────────────────
 router.get('/feeder-overview', async (req,res)=>{
   try {
-    const conds=[],p={};
-    if(req.query.dateFrom){conds.push('DepartureDate>=@df');p.df=req.query.dateFrom;}
-    if(req.query.dateTo){conds.push('DepartureDate<=@dt');p.dt=req.query.dateTo;}
-    if(req.query.feederLine){conds.push('FeederLine=@fl');p.fl=req.query.feederLine;}
-    if(req.query.label){conds.push('LabelName=@lb');p.lb=req.query.label;}
-    const where=conds.length?'WHERE '+conds.join(' AND '):'';
+    const {where,params}=buildFeederWhere(req.query);
     const r=await query(`SELECT
       CONVERT(VARCHAR(10),DepartureDate,105) AS DepartureDate,
-      LabelName,FeederLine,RouteNo,RouteLabel,StopName,StopType,
+      LabelName,FeederLine,RouteNo,RouteLabel,StopName,StopType,Direction,
       SUM(TotalPax) AS TotalPax,SUM(BookingCount) AS BookingCount
       FROM FeederOverview ${where}
-      GROUP BY DepartureDate,LabelName,FeederLine,RouteNo,RouteLabel,StopName,StopType
-      ORDER BY DepartureDate ASC,RouteNo ASC,StopName ASC`,p);
-    res.json(r.recordset||[]);
+      GROUP BY DepartureDate,LabelName,FeederLine,RouteNo,RouteLabel,StopName,StopType,Direction
+      ORDER BY RouteNo ASC,StopName ASC,CAST(DepartureDate AS DATE) ASC`,params);
+    const rows = r.recordset || [];
+    const totalsMap = new Map();
+    for (const row of rows){
+      const key = [row.DepartureDate,row.LabelName,row.FeederLine,row.RouteNo,row.RouteLabel,row.Direction||''].join('||');
+      if (!totalsMap.has(key)){
+        totalsMap.set(key,{
+          DepartureDate: row.DepartureDate,
+          LabelName: row.LabelName,
+          FeederLine: row.FeederLine,
+          RouteNo: row.RouteNo,
+          RouteLabel: row.RouteLabel,
+          StopName: 'Totaal vertrek',
+          StopType: 'TOTAL',
+          Direction: row.Direction || null,
+          TotalPax: 0,
+          BookingCount: 0,
+        });
+      }
+      const t = totalsMap.get(key);
+      t.TotalPax += Number(row.TotalPax||0);
+      t.BookingCount += Number(row.BookingCount||0);
+    }
+    const totals = [...totalsMap.values()];
+    res.json([...totals, ...rows]);
+  } catch(e){res.status(500).json({error:e.message});}
+});
+
+router.get('/feeder-slicers', async (req,res)=>{
+  try {
+    const [labels, feederLines, routes, directions] = await Promise.all([
+      query(`SELECT DISTINCT LabelName AS val FROM FeederOverview WHERE LabelName IS NOT NULL AND LTRIM(RTRIM(LabelName))!='' ORDER BY LabelName`),
+      query(`SELECT DISTINCT FeederLine AS val FROM FeederOverview WHERE FeederLine IS NOT NULL AND LTRIM(RTRIM(FeederLine))!='' ORDER BY FeederLine`),
+      query(`SELECT DISTINCT RouteNo AS val FROM FeederOverview WHERE RouteNo IS NOT NULL ORDER BY RouteNo`),
+      query(`SELECT DISTINCT Direction AS val FROM FeederOverview WHERE Direction IS NOT NULL AND LTRIM(RTRIM(Direction))!='' ORDER BY Direction`),
+    ]);
+    res.json({
+      labels: (labels.recordset||[]).map(r=>r.val),
+      feederLines: (feederLines.recordset||[]).map(r=>r.val),
+      routeNos: (routes.recordset||[]).map(r=>r.val),
+      directions: (directions.recordset||[]).map(r=>r.val),
+    });
   } catch(e){res.status(500).json({error:e.message});}
 });
 
 // ─── DECK CLASS ───────────────────────────────────────────────────────────────
 router.get('/deck-class', async (req,res)=>{
   try {
-    const {where,params}=buildBusWhere(req.query);
+    const {where, params} = buildDeckWhere(req.query);
     const r=await query(`SELECT
       CONVERT(VARCHAR(10),dateDeparture,103) AS dateDeparture,
       SUM(PAX) AS Total,
-      SUM(CASE WHEN Outbound_Deck LIKE '%Onderdek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS Total_Lower,
-      SUM(CASE WHEN Outbound_Deck LIKE '%Bovendek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS Total_Upper,
+      SUM(CASE WHEN Outbound_Deck LIKE '%Onderdek%' THEN PAX ELSE 0 END) AS Total_Lower,
+      SUM(CASE WHEN Outbound_Deck LIKE '%Bovendek%' THEN PAX ELSE 0 END) AS Total_Upper,
       SUM(CASE WHEN Outbound_Deck LIKE '%Geen%' OR Outbound_Deck IS NULL THEN PAX ELSE 0 END) AS Total_NoDeck,
       SUM(CASE WHEN Outbound_Class='Royal Class' THEN PAX ELSE 0 END) AS Royal_Total,
-      SUM(CASE WHEN Outbound_Class='Royal Class' AND Outbound_Deck LIKE '%Onderdek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS Royal_Lower,
-      SUM(CASE WHEN Outbound_Class='Royal Class' AND Outbound_Deck LIKE '%Bovendek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS Royal_Upper,
+      SUM(CASE WHEN Outbound_Class='Royal Class' AND Outbound_Deck LIKE '%Onderdek%' THEN PAX ELSE 0 END) AS Royal_Lower,
+      SUM(CASE WHEN Outbound_Class='Royal Class' AND Outbound_Deck LIKE '%Bovendek%' THEN PAX ELSE 0 END) AS Royal_Upper,
       SUM(CASE WHEN Outbound_Class='Royal Class' AND (Outbound_Deck LIKE '%Geen%' OR Outbound_Deck IS NULL) THEN PAX ELSE 0 END) AS Royal_NoDeck,
       SUM(CASE WHEN Outbound_Class='First Class' THEN PAX ELSE 0 END) AS First_Total,
-      SUM(CASE WHEN Outbound_Class='First Class' AND Outbound_Deck LIKE '%Onderdek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS First_Lower,
-      SUM(CASE WHEN Outbound_Class='First Class' AND Outbound_Deck LIKE '%Bovendek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS First_Upper,
+      SUM(CASE WHEN Outbound_Class='First Class' AND Outbound_Deck LIKE '%Onderdek%' THEN PAX ELSE 0 END) AS First_Lower,
+      SUM(CASE WHEN Outbound_Class='First Class' AND Outbound_Deck LIKE '%Bovendek%' THEN PAX ELSE 0 END) AS First_Upper,
       SUM(CASE WHEN Outbound_Class='First Class' AND (Outbound_Deck LIKE '%Geen%' OR Outbound_Deck IS NULL) THEN PAX ELSE 0 END) AS First_NoDeck,
       SUM(CASE WHEN Outbound_Class='Premium Class' THEN PAX ELSE 0 END) AS Premium_Total,
-      SUM(CASE WHEN Outbound_Class='Premium Class' AND Outbound_Deck LIKE '%Onderdek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS Premium_Lower,
-      SUM(CASE WHEN Outbound_Class='Premium Class' AND Outbound_Deck LIKE '%Bovendek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS Premium_Upper,
-      SUM(CASE WHEN Outbound_Class='Premium Class' AND (Outbound_Deck LIKE '%Geen%' OR Outbound_Deck IS NULL) THEN PAX ELSE 0 END) AS Premium_NoDeck,
-      SUM(CASE WHEN Outbound_Class='Comfort Class' THEN PAX ELSE 0 END) AS Comfort_Total,
-      SUM(CASE WHEN Outbound_Class='Comfort Class' AND Outbound_Deck LIKE '%Onderdek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS Comfort_Lower,
-      SUM(CASE WHEN Outbound_Class='Comfort Class' AND Outbound_Deck LIKE '%Bovendek%' AND Outbound_Deck NOT LIKE '%Geen%' THEN PAX ELSE 0 END) AS Comfort_Upper,
-      SUM(CASE WHEN Outbound_Class='Comfort Class' AND (Outbound_Deck LIKE '%Geen%' OR Outbound_Deck IS NULL) THEN PAX ELSE 0 END) AS Comfort_NoDeck
-      FROM solmar_bus_bookings_modified ${where}
+      SUM(CASE WHEN Outbound_Class='Premium Class' AND Outbound_Deck LIKE '%Onderdek%' THEN PAX ELSE 0 END) AS Premium_Lower,
+      SUM(CASE WHEN Outbound_Class='Premium Class' AND Outbound_Deck LIKE '%Bovendek%' THEN PAX ELSE 0 END) AS Premium_Upper,
+      SUM(CASE WHEN Outbound_Class='Premium Class' AND (Outbound_Deck LIKE '%Geen%' OR Outbound_Deck IS NULL) THEN PAX ELSE 0 END) AS Premium_NoDeck
+      FROM solmar_bus_deck_choice ${where}
       GROUP BY dateDeparture
       ORDER BY CAST(dateDeparture AS DATE) ASC`,params);
     res.json(r.recordset||[]);
@@ -574,15 +667,13 @@ router.get('/hotel-stats', async (req,res)=>{
 // ─── MARGIN OVERVIEW (Purchase Obligations) ────────────────
 router.get('/margin-overview', async (req, res) => {
   try {
-    const conds = [], p = {};
-    if (req.query.departureFrom) { conds.push('CAST(DepartureDate AS DATE)>=@depFrom'); p.depFrom = req.query.departureFrom; }
-    if (req.query.departureTo)   { conds.push('CAST(DepartureDate AS DATE)<=@depTo');   p.depTo   = req.query.departureTo; }
-    if (req.query.returnFrom)    { conds.push('CAST(ReturnDate AS DATE)>=@retFrom');     p.retFrom = req.query.returnFrom; }
-    if (req.query.returnTo)      { conds.push('CAST(ReturnDate AS DATE)<=@retTo');       p.retTo   = req.query.returnTo; }
-    // NOTE: BookingDate does not exist in solmar.MarginOverview — booking date filters removed
-    if (req.query.status && req.query.status !== 'all') {
-      conds.push("StatusCode=@status"); p.status = req.query.status;
-    }
+    const f = parseFilters(req.query);
+    const conds = [`StatusCode IN ('ok','cancelled')`], p = {};
+    if (f.departureFrom) { conds.push('CAST(DepartureDate AS DATE)>=@depFrom'); p.depFrom = f.departureFrom; }
+    if (f.departureTo) { conds.push('CAST(DepartureDate AS DATE)<=@depTo'); p.depTo = f.departureTo; }
+    if (f.returnFrom) { conds.push('CAST(ReturnDate AS DATE)>=@retFrom'); p.retFrom = f.returnFrom; }
+    if (f.returnTo) { conds.push('CAST(ReturnDate AS DATE)<=@retTo'); p.retTo = f.returnTo; }
+    if (f.marginStatus && f.marginStatus !== 'all') { conds.push('StatusCode=@status'); p.status = f.marginStatus; }
     const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
 
     const [kpiRes, rowsRes] = await Promise.all([
@@ -592,10 +683,13 @@ router.get('/margin-overview', async (req, res) => {
         ISNULL(ROUND(SUM(PurchaseCalculation),2),0)   AS totalPurchase,
         ISNULL(ROUND(SUM(PurchaseObligation),2),0)    AS totalObligation,
         ISNULL(ROUND(SUM(Margin),2),0)                AS totalMargin,
+        ISNULL(ROUND(SUM(Commission),2),0)            AS totalCommission,
+        ISNULL(ROUND(SUM(MarginIncludingCommission),2),0) AS totalMarginIncludingCommission,
         COUNT(CASE WHEN StatusCode='ok' THEN 1 END)         AS confirmedCount,
         COUNT(CASE WHEN StatusCode='cancelled' THEN 1 END)  AS cancelledCount
         FROM solmar.MarginOverview ${where}`, p),
       query(`SELECT
+        BookingID,
         StatusCode,
         CONVERT(VARCHAR(10),DepartureDate,103) AS DepartureDate,
         CONVERT(VARCHAR(10),ReturnDate,103)    AS ReturnDate,
@@ -607,7 +701,7 @@ router.get('/margin-overview', async (req, res) => {
         ROUND(Commission,2)                AS Commission,
         ROUND(MarginIncludingCommission,2) AS MarginIncludingCommission
         FROM solmar.MarginOverview ${where}
-        ORDER BY DepartureDate DESC`, p),
+        ORDER BY CAST(DepartureDate AS DATE) DESC`, p),
     ]);
 
     res.json({
@@ -624,9 +718,20 @@ router.get('/margin-slicers', async (req, res) => {
       MIN(CAST(DepartureDate AS DATE)) AS minDeparture,
       MAX(CAST(DepartureDate AS DATE)) AS maxDeparture,
       MIN(CAST(ReturnDate AS DATE))    AS minReturn,
-      MAX(CAST(ReturnDate AS DATE))    AS maxReturn
-      FROM solmar.MarginOverview`);
-    res.json(r.recordset[0] || {});
+      MAX(CAST(ReturnDate AS DATE))    AS maxReturn,
+      MIN(CAST(BookingDate AS DATE))   AS minBooking,
+      MAX(CAST(BookingDate AS DATE))   AS maxBooking
+      FROM solmar.MarginOverview
+      WHERE StatusCode IN ('ok','cancelled')`);
+    const [statuses, travelTypes] = await Promise.all([
+      query(`SELECT DISTINCT StatusCode AS val FROM solmar.MarginOverview WHERE StatusCode IN ('ok','cancelled') ORDER BY StatusCode`),
+      query(`SELECT DISTINCT TravelType AS val FROM solmar.MarginOverview WHERE TravelType IS NOT NULL AND LTRIM(RTRIM(TravelType))!='' ORDER BY TravelType`),
+    ]);
+    res.json({
+      ...(r.recordset[0] || {}),
+      statuses: (statuses.recordset||[]).map(x=>x.val),
+      travelTypes: (travelTypes.recordset||[]).map(x=>x.val),
+    });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
