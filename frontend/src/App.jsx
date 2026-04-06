@@ -688,7 +688,7 @@ function PurchaseTab({token}){
     {l:"Cancelled",v:fmtN(kpis?.cancelledCount),c:S.danger},
     {l:"Total PAX",v:fmtN(totalPax),c:S.purple},
     {l:"Total Sales",v:fmtM(kpis?.totalSales),c:S.success},
-    {l:"Purchase Calc",v:fmtM(kpis?.totalPurchase),c:S.warn},
+    {l:"Total Commission",v:fmtM(kpis?.totalCommission),c:S.warn},
     {l:"Obligations",v:fmtM(kpis?.totalObligation),c:S.orange},
     {l:"Net Margin",v:fmtM(kpis?.totalMargin),c:parseFloat(kpis?.totalMargin||0)>=0?S.success:S.danger},
     {l:"Margin+Comm",v:fmtM(kpis?.totalMarginIncludingCommission),c:parseFloat(kpis?.totalMarginIncludingCommission||0)>=0?S.success:S.danger},
