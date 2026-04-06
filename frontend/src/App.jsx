@@ -90,7 +90,7 @@ function BarChart({data,metric}){
     <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:"auto"}}>
       {[0,1,2,3,4].map(i=>{const y=PT+(CH/4)*i,v=maxV*(1-i/4);return<g key={i}><line x1={PL} x2={W-PR} y1={y} y2={y} stroke={S.border} strokeWidth={0.5}/><text x={PL-4} y={y+4} textAnchor="end" fontSize={8} fill={S.muted}>{fmtN(Math.round(v))}</text></g>;})}
       {sorted.map((r,i)=>{const v=vals[i],bh=(v/maxV)*CH,x=PL+(i/sorted.length)*CW+(CW/sorted.length-bw)/2,y=PT+CH-bh,color=YC[r.year]||S.accent;return<g key={i}><rect x={x} y={y} width={bw} height={bh} fill={color} rx={2} opacity={0.85}/></g>;})}
-      {[...new Set(sorted.map(r=>r.month))].sort((a,b)=>a-b).map(mo=>{const idx=sorted.findIndex(r=>r.month===mo);if(idx<0)return null;const x=PL+(idx/sorted.length)*CW+(CW/sorted.length)/2;return<text key={mo} x={x} y={H-PB+14} textAnchor="middle" fontSize={9} fill={S.muted}>{MONTHS[mo-1]}</text>;})}
+      {[...new Set(sorted.map(r=>r.month))].sort((a,b)=>a-b).map(mo=>{const indices=sorted.reduce((acc,r,i)=>{if(r.month===mo)acc.push(i);return acc;},[]);if(!indices.length)return null;const firstX=PL+(indices[0]/sorted.length)*CW+(CW/sorted.length-bw)/2;const lastX=PL+(indices[indices.length-1]/sorted.length)*CW+(CW/sorted.length+bw)/2;const cx=(firstX+lastX)/2;return<text key={mo} x={cx} y={H-PB+14} textAnchor="middle" fontSize={9} fill={S.muted}>{MONTHS[mo-1]}</text>;})}
       {yrs.map((yr,i)=><g key={yr} transform={`translate(${PL+i*55},${H-8})`}><rect width={8} height={8} fill={YC[yr]||S.accent} rx={1}/><text x={11} y={8} fontSize={8} fill={S.muted}>{yr}</text></g>)}
     </svg>
   );
@@ -174,7 +174,7 @@ function OverviewTab({token}){
     }).finally(()=>setLoading(false));
   },[token]);
 
-  useEffect(()=>{loadData({});},[loadData]);
+  useEffect(()=>{loadData({years:[2023,2024,2025,2026]});},[loadData]);
 
   function apply(){
     const cs=[];
@@ -695,7 +695,7 @@ function PurchaseTab({token}){
   ];
 
   const TABLE_COLS=[
-    ["Departure","left"]["Status","left"],["Label","left"],
+    ["Departure","left"],["Status","left"],["Label","left"],
     ["PAX","right"],["Sales (€)","right"],["Purchase (€)","right"],
     ["Obligation (€)","right"],["Margin (€)","right"],
     ["Commission (€)","right"],["Margin+Comm (€)","right"],
