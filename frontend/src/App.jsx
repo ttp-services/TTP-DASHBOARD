@@ -46,19 +46,51 @@ const QUICK_DATES=[
   {l:`Snow FY${cy}/${cy+1}`, from:`${cy}-07-01`,   to:`${cy+1}-06-30`},
 ];
 
+function LineChart({data}){
+  if(!data?.length)return<div style={{color:S.muted,textAlign:"center",padding:32,fontSize:12}}>No data</div>;
+  const sorted=[...data].sort((a,b)=>a.year!==b.year?a.year-b.year:a.month-b.month);
+  const yrs=[...new Set(sorted.map(r=>r.year))];
+  const byYear={};
+  yrs.forEach(y=>{byYear[y]=Array(12).fill(null);});
+  sorted.forEach(r=>{if(byYear[r.year])byYear[r.year][r.month-1]=Number(r.revenue)||0;});
+  const allVals=sorted.map(r=>Number(r.revenue)||0);
+  const maxV=Math.max(...allVals,1);
+  const W=500,H=220,PL=72,PR=16,PT=12,PB=48,CW=W-PL-PR,CH=H-PT-PB;
+  const mx=(mo)=>PL+(mo/11)*CW;
+  const my=(v)=>PT+CH-(v/maxV)*CH;
+  const fmtAxis=v=>{if(v>=1e6)return`€${(v/1e6).toFixed(1)}M`;if(v>=1e3)return`€${(v/1e3).toFixed(0)}K`;return`€${v}`;};
+  return(
+    <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:"auto"}}>
+      {[0,1,2,3,4].map(i=>{const y=PT+(CH/4)*i,v=maxV*(1-i/4);return<g key={i}><line x1={PL} x2={W-PR} y1={y} y2={y} stroke={S.border} strokeWidth={0.5}/><text x={PL-4} y={y+4} textAnchor="end" fontSize={8} fill={S.muted}>{fmtAxis(v)}</text></g>;})}
+      {MONTHS.map((m,i)=><text key={i} x={mx(i)} y={H-PB+14} textAnchor="middle" fontSize={8} fill={S.muted}>{m}</text>)}
+      {yrs.map(yr=>{
+        const pts=byYear[yr];
+        const validIdx=pts.map((v,i)=>v!==null?i:-1).filter(i=>i>=0);
+        if(!validIdx.length)return null;
+        const d=validIdx.map((i,j)=>`${j===0?'M':'L'}${mx(i).toFixed(1)},${my(pts[i]).toFixed(1)}`).join(' ');
+        return<g key={yr}>
+          <path d={d} fill="none" stroke={YC[yr]||S.accent} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round"/>
+          {validIdx.map(i=><circle key={i} cx={mx(i)} cy={my(pts[i])} r={2.5} fill={YC[yr]||S.accent}/>)}
+        </g>;
+      })}
+      {yrs.map((yr,i)=><g key={yr} transform={`translate(${PL+i*55},${H-8})`}><rect width={8} height={8} fill={YC[yr]||S.accent} rx={1}/><text x={11} y={8} fontSize={8} fill={S.muted}>{yr}</text></g>)}
+    </svg>
+  );
+}
+
 function BarChart({data,metric}){
   if(!data?.length)return<div style={{color:S.muted,textAlign:"center",padding:32,fontSize:12}}>No chart data available</div>;
   const sorted=[...data].sort((a,b)=>a.year!==b.year?a.year-b.year:a.month-b.month);
-  const vals=sorted.map(r=>metric==="revenue"?r.revenue:metric==="pax"?r.pax:r.bookings);
+  const vals=sorted.map(r=>metric==="pax"?r.pax:r.bookings);
   const maxV=Math.max(...vals,1);
-  const W=880,H=200,PL=55,PR=10,PT=10,PB=50,CW=W-PL-PR,CH=H-PT-PB;
-  const bw=Math.max(6,Math.floor(CW/sorted.length)-2);
+  const W=500,H=220,PL=55,PR=10,PT=12,PB=48,CW=W-PL-PR,CH=H-PT-PB;
+  const bw=Math.max(4,Math.floor(CW/sorted.length)-2);
   const yrs=[...new Set(sorted.map(r=>r.year))];
   return(
     <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:"auto"}}>
-      {[0,1,2,3,4].map(i=>{const y=PT+(CH/4)*i,v=maxV*(1-i/4);return<g key={i}><line x1={PL} x2={W-PR} y1={y} y2={y} stroke={S.border} strokeWidth={0.5}/><text x={PL-4} y={y+4} textAnchor="end" fontSize={9} fill={S.muted}>{metric==="revenue"?fmtM(v):fmtN(v)}</text></g>;})}
-      {sorted.map((r,i)=>{const v=vals[i],bh=(v/maxV)*CH,x=PL+(i/sorted.length)*CW+(CW/sorted.length-bw)/2,y=PT+CH-bh,color=YC[r.year]||S.accent,lbl=`${MONTHS[r.month-1]}'${String(r.year).slice(2)}`;return<g key={i}><rect x={x} y={y} width={bw} height={bh} fill={color} rx={2} opacity={0.85}/><text x={x+bw/2} y={H-PB+13} textAnchor="middle" fontSize={8} fill={S.muted} transform={`rotate(-40,${x+bw/2},${H-PB+13})`}>{lbl}</text></g>;})}
-      {yrs.map((yr,i)=><g key={yr} transform={`translate(${PL+i*70},${H-7})`}><rect width={10} height={10} fill={YC[yr]||S.accent} rx={2}/><text x={14} y={9} fontSize={9} fill={S.muted}>{yr}</text></g>)}
+      {[0,1,2,3,4].map(i=>{const y=PT+(CH/4)*i,v=maxV*(1-i/4);return<g key={i}><line x1={PL} x2={W-PR} y1={y} y2={y} stroke={S.border} strokeWidth={0.5}/><text x={PL-4} y={y+4} textAnchor="end" fontSize={8} fill={S.muted}>{fmtN(Math.round(v))}</text></g>;})}
+      {sorted.map((r,i)=>{const v=vals[i],bh=(v/maxV)*CH,x=PL+(i/sorted.length)*CW+(CW/sorted.length-bw)/2,y=PT+CH-bh,color=YC[r.year]||S.accent,lbl=`${MONTHS[r.month-1]}'${String(r.year).slice(2)}`;return<g key={i}><rect x={x} y={y} width={bw} height={bh} fill={color} rx={2} opacity={0.85}/><text x={x+bw/2} y={H-PB+13} textAnchor="middle" fontSize={7} fill={S.muted} transform={`rotate(-40,${x+bw/2},${H-PB+13})`}>{lbl}</text></g>;})}
+      {yrs.map((yr,i)=><g key={yr} transform={`translate(${PL+i*55},${H-8})`}><rect width={8} height={8} fill={YC[yr]||S.accent} rx={1}/><text x={11} y={8} fontSize={8} fill={S.muted}>{yr}</text></g>)}
     </svg>
   );
 }
@@ -223,21 +255,27 @@ function OverviewTab({token}){
             <KpiCard label="Gross Revenue" fmt="eur" current={kpis.currentRevenue} previous={kpis.previousRevenue} pct={kpis.percentRevenue} prevLabel={prevLabel} color={S.warn}/>
           </div>
         )}
-        <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:16,marginBottom:16}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-            <div>
-              <div style={{fontSize:14,fontWeight:700,color:S.text}}>{metric==="revenue"?"Revenue":metric==="pax"?"PAX":"Bookings"} by Month</div>
-              <div style={{fontSize:11,color:S.muted,marginTop:2}}>Click a metric button to change the chart</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:16}}>
+          <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:16}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+              <div style={{fontSize:13,fontWeight:700,color:S.text}}>Revenue by Year</div>
+              <div style={{fontSize:10,color:S.muted}}>Line per year</div>
             </div>
-            <div style={{display:"flex",gap:6}}>
-              {["revenue","pax","bookings"].map(m=>(
-                <button key={m} onClick={()=>setMetric(m)} style={{padding:"5px 14px",borderRadius:6,fontSize:12,cursor:"pointer",border:`1px solid ${metric===m?S.accent:S.border2}`,background:metric===m?S.accent:"transparent",color:metric===m?"#fff":S.muted,fontWeight:600}}>
-                  {m==="pax"?"PAX":m.charAt(0).toUpperCase()+m.slice(1)}
-                </button>
-              ))}
-            </div>
+            <LineChart data={chart}/>
           </div>
-          <BarChart data={chart} metric={metric}/>
+          <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:16}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+              <div style={{fontSize:13,fontWeight:700,color:S.text}}>{metric==="pax"?"PAX":"Bookings"} by Month</div>
+              <div style={{display:"flex",gap:5}}>
+                {["bookings","pax"].map(m=>(
+                  <button key={m} onClick={()=>setMetric(m)} style={{padding:"4px 11px",borderRadius:6,fontSize:11,cursor:"pointer",border:`1px solid ${metric===m?S.accent:S.border2}`,background:metric===m?S.accent:"transparent",color:metric===m?"#fff":S.muted,fontWeight:600}}>
+                    {m==="pax"?"PAX":"Bookings"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <BarChart data={chart} metric={metric}/>
+          </div>
         </div>
         <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,overflow:"hidden"}}>
           <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -268,7 +306,7 @@ function OverviewTab({token}){
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:750}}>
               <thead style={{position:"sticky",top:0,zIndex:5,background:S.bg}}>
                 <tr>
-                  {[["Month","left"],["Curr. Year","center"],["Prev. Year","center"],["Current","right"],["Previous","right"],["Difference","right"],["Diff %","right"]].map(([h,a],i)=>(
+                  {[["Period","left"],["Current Value","right"],["Previous Value","right"],["Difference","right"],["Diff %","right"]].map(([h,a],i)=>(
                     <th key={i} style={{padding:"9px 12px",textAlign:a,color:S.muted,fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderBottom:`1px solid ${S.border}`}}>{h}</th>
                   ))}
                 </tr>
@@ -284,15 +322,12 @@ function OverviewTab({token}){
                   const pct=ymMetric==="revenue"?r.diffPctRevenue:ymMetric==="pax"?r.diffPctPax:r.diffPctBookings;
                   const fmt=ymMetric==="revenue"?fmtM:fmtN;
                   const cy_=r.currentYear||r.year;
-                  const py_=r.previousYear||(cy_-1);
                   return(
                     <tr key={i} style={{borderBottom:`1px solid ${S.border}`,background:i%2===0?"transparent":"rgba(255,255,255,0.018)"}}>
                       <td style={{padding:"8px 12px",fontWeight:600,color:S.text,whiteSpace:"nowrap"}}>
                         <span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",background:YC[cy_]||S.accent,marginRight:7,verticalAlign:"middle"}}/>
                         {MONTHS[r.month-1]}-{cy_}
                       </td>
-                      <td style={{padding:"8px 12px",textAlign:"center",color:S.accent2,fontWeight:600}}>{cy_}</td>
-                      <td style={{padding:"8px 12px",textAlign:"center",color:S.muted}}>{py_}</td>
                       <td style={{padding:"8px 12px",textAlign:"right",color:S.text,fontWeight:600}}>{fmt(cur)}</td>
                       <td style={{padding:"8px 12px",textAlign:"right",color:S.muted}}>{fmt(prv)}</td>
                       <td style={{padding:"8px 12px",textAlign:"right",fontWeight:600,color:dc(dif)}}>{dif!=null?(parseFloat(dif)>=0?"+":"")+fmt(Math.abs(dif)):"—"}</td>
@@ -581,9 +616,9 @@ function BusTab({token}){
           <div style={{marginBottom:9}}>{lbl("Label")}
             <select value={f.label||""} onChange={e=>setF({...f,label:e.target.value})} style={{width:"100%",background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"5px 7px",color:S.text,fontSize:11}}>
               <option value="">All Labels</option>
-              <option value="STANDAARD">STANDAARD</option>
-              <option value="DEU">DEU</option>
-              <option value="ITB">ITB</option>
+              <option value="Solmar">Solmar</option>
+              <option value="Solmar DE">Solmar DE</option>
+              <option value="Interbus">Interbus</option>
             </select>
           </div>
           <div style={{marginBottom:9}}>{lbl("Status")}
@@ -687,9 +722,9 @@ function PurchaseTab({token}){
             <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em"}}>Label</label>
             <select value={f.label} onChange={e=>setF({...f,label:e.target.value})} style={inpS}>
               <option value="">All</option>
-              <option value="STANDAARD">STANDAARD</option>
-              <option value="DEU">DEU</option>
-              <option value="ITB">ITB</option>
+              <option value="Solmar">Solmar</option>
+              <option value="Solmar DE">Solmar DE</option>
+              <option value="Interbus">Interbus</option>
             </select>
           </div>
           <div>
