@@ -5,7 +5,7 @@ const BASE = import.meta.env?.VITE_API_URL || "https://ttp-dashboard-api.azurewe
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const DATASETS = ["Solmar","Interbus","Solmar DE","Snowtravel"];
 const YEARS = [2023,2024,2025,2026];
-const YC = {2022:"#f59e0b",2023:"#10b981",2024:"#8b5cf6",2025:"#f97316",2026:"#3b82f6"};
+const YC = {2023:"#10b981",2024:"#8b5cf6",2025:"#f97316",2026:"#3b82f6"};
 const AUTH_KEY = "ttp_auth_v3";
 
 function saveAuth(token,user){try{const d=JSON.stringify({token,user,ts:Date.now()});localStorage.setItem(AUTH_KEY,d);sessionStorage.setItem(AUTH_KEY,d);}catch{}}
@@ -89,7 +89,8 @@ function BarChart({data,metric}){
   return(
     <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:"auto"}}>
       {[0,1,2,3,4].map(i=>{const y=PT+(CH/4)*i,v=maxV*(1-i/4);return<g key={i}><line x1={PL} x2={W-PR} y1={y} y2={y} stroke={S.border} strokeWidth={0.5}/><text x={PL-4} y={y+4} textAnchor="end" fontSize={8} fill={S.muted}>{fmtN(Math.round(v))}</text></g>;})}
-      {sorted.map((r,i)=>{const v=vals[i],bh=(v/maxV)*CH,x=PL+(i/sorted.length)*CW+(CW/sorted.length-bw)/2,y=PT+CH-bh,color=YC[r.year]||S.accent,lbl=`${MONTHS[r.month-1]}'${String(r.year).slice(2)}`;return<g key={i}><rect x={x} y={y} width={bw} height={bh} fill={color} rx={2} opacity={0.85}/><text x={x+bw/2} y={H-PB+13} textAnchor="middle" fontSize={7} fill={S.muted} transform={`rotate(-40,${x+bw/2},${H-PB+13})`}>{lbl}</text></g>;})}
+      {sorted.map((r,i)=>{const v=vals[i],bh=(v/maxV)*CH,x=PL+(i/sorted.length)*CW+(CW/sorted.length-bw)/2,y=PT+CH-bh,color=YC[r.year]||S.accent;return<g key={i}><rect x={x} y={y} width={bw} height={bh} fill={color} rx={2} opacity={0.85}/></g>;})}
+      {[...new Set(sorted.map(r=>r.month))].sort((a,b)=>a-b).map(mo=>{const idx=sorted.findIndex(r=>r.month===mo);if(idx<0)return null;const x=PL+(idx/sorted.length)*CW+(CW/sorted.length)/2;return<text key={mo} x={x} y={H-PB+14} textAnchor="middle" fontSize={9} fill={S.muted}>{MONTHS[mo-1]}</text>;})}
       {yrs.map((yr,i)=><g key={yr} transform={`translate(${PL+i*55},${H-8})`}><rect width={8} height={8} fill={YC[yr]||S.accent} rx={1}/><text x={11} y={8} fontSize={8} fill={S.muted}>{yr}</text></g>)}
     </svg>
   );
@@ -653,7 +654,7 @@ function BusTab({token}){
 }
 
 function PurchaseTab({token}){
-  const[f,setF]=useState({departureFrom:"",departureTo:"",returnFrom:"",returnTo:"",status:"all",label:"",travelType:""});
+  const[f,setF]=useState({departureFrom:"",departureTo:"",status:"all",label:"",travelType:""});
   const[totalPax,setTotalPax]=useState(0);
   const[data,setData]=useState([]);
   const[kpis,setKpis]=useState(null);
@@ -675,7 +676,7 @@ function PurchaseTab({token}){
       .finally(()=>setLoading(false));
   }
   useEffect(()=>{load({});},[token]);
-  function reset(){setF({departureFrom:"",departureTo:"",returnFrom:"",returnTo:"",status:"all",label:"",travelType:""});setSearch("");load({});}
+  function reset(){setF({departureFrom:"",departureTo:"",status:"all",label:"",travelType:""});setSearch("");load({});}
 
   const isConfirmed=code=>code==="ok"||code==="DEF";
   const filtered=data.filter(r=>!search||String(r.BookingID).includes(search)||String(r.StatusCode||"").toLowerCase().includes(search.toLowerCase())||(r.DepartureDate||"").includes(search));
@@ -694,7 +695,7 @@ function PurchaseTab({token}){
   ];
 
   const TABLE_COLS=[
-    ["Departure","left"],["Return","left"],["Status","left"],["Label","left"],
+    ["Departure","left"]["Status","left"],["Label","left"],
     ["PAX","right"],["Sales (€)","right"],["Purchase (€)","right"],
     ["Obligation (€)","right"],["Margin (€)","right"],
     ["Commission (€)","right"],["Margin+Comm (€)","right"],
@@ -704,7 +705,7 @@ function PurchaseTab({token}){
     <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden"}}>
       <div style={{background:S.side,borderBottom:`1px solid ${S.border}`,padding:"12px 18px",flexShrink:0}}>
         <div style={{display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
-          {[["Departure From","departureFrom"],["Departure To","departureTo"],["Return From","returnFrom"],["Return To","returnTo"]].map(([l,k])=>(
+          {[["Departure From","departureFrom"],["Departure To","departureTo"]].map(([l,k])=>(
             <div key={k}>
               <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em"}}>{l}</label>
               <input type="date" value={f[k]} onChange={e=>setF({...f,[k]:e.target.value})} style={inpS}/>
@@ -731,10 +732,11 @@ function PurchaseTab({token}){
             <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em"}}>Travel Type</label>
             <select value={f.travelType} onChange={e=>setF({...f,travelType:e.target.value})} style={inpS}>
               <option value="">All</option>
-              <option value="Bus">Bus</option>
-              <option value="Flight">Flight</option>
-              <option value="Train">Train</option>
-              <option value="Car">Car</option>
+              <option value="BUS">BUS</option>
+              <option value="OWN TRANSPORT">OWN TRANSPORT</option>
+              <option value="FLIGHT">FLIGHT</option>
+              <option value="ENKEL">ENKEL</option>
+              <option value="UNKNOWN">UNKNOWN</option>
             </select>
           </div>
           <button onClick={reset} style={{padding:"6px 12px",background:"transparent",border:`1px solid ${S.border2}`,borderRadius:6,color:S.muted,fontSize:12,cursor:"pointer",alignSelf:"flex-end"}}>Reset</button>
@@ -789,7 +791,6 @@ function PurchaseTab({token}){
                       return(
                         <tr key={i} style={{borderBottom:`1px solid ${S.border}`,background:i%2===0?"transparent":"rgba(255,255,255,0.022)"}}>
                           <td style={{padding:"7px 11px",color:S.text,fontWeight:500,whiteSpace:"nowrap"}}>{r.DepartureDate||"—"}</td>
-                          <td style={{padding:"7px 11px",color:S.muted,whiteSpace:"nowrap"}}>{r.ReturnDate||"—"}</td>
                           <td style={{padding:"7px 11px",whiteSpace:"nowrap"}}>
                             <span style={{background:confirmed?"rgba(16,185,129,0.18)":"rgba(239,68,68,0.15)",color:confirmed?S.success:S.danger,padding:"3px 10px",borderRadius:10,fontSize:11,fontWeight:700}}>
                               {confirmed?"Confirmed":"Cancelled"}
