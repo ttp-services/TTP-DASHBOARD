@@ -679,7 +679,7 @@ function PurchaseTab({token}){
   function reset(){setF({departureFrom:"",departureTo:"",status:"all",label:"",travelType:""});setSearch("");load({});}
 
   const isConfirmed=code=>code==="ok"||code==="DEF";
-  const filtered=data.filter(r=>!search||String(r.BookingID).includes(search)||String(r.StatusCode||"").toLowerCase().includes(search.toLowerCase())||(r.DepartureDate||"").includes(search));
+  const filtered=data.filter(r=>{if(!search)return true;const s=search.toLowerCase();return String(r.BookingID||"").includes(search)||String(r.StatusCode||"").toLowerCase().includes(s)||(r.DepartureDate||"").includes(search)||(r.Label||"").toLowerCase().includes(s);});
   const inpS={background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"5px 8px",color:S.text,fontSize:12};
 
   const KPI_CARDS=[
@@ -695,9 +695,9 @@ function PurchaseTab({token}){
   ];
 
   const TABLE_COLS=[
-    ["Departure","left"],["Status","left"],["Label","left"],
+    ["Booking ID","left"],["Departure","left"],["Status","left"],["Label","left"],
     ["PAX","right"],["Sales (€)","right"],["Purchase (€)","right"],
-    ["Obligation (€)","right"],["Margin (€)","right"],
+    ["Obligation (€)","right"],["Margin (€)","right"],["Margin %","right"],
     ["Commission (€)","right"],["Margin+Comm (€)","right"],
   ];
 
@@ -775,7 +775,7 @@ function PurchaseTab({token}){
             {!loading&&filtered.length===0
               ?<div style={{padding:40,textAlign:"center",color:S.muted}}>No matching records</div>
               :(
-                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:1100}}>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:1300}}>
                   <thead style={{position:"sticky",top:0,zIndex:5,background:S.bg}}>
                     <tr>
                       {TABLE_COLS.map(([h,a],i)=>(
@@ -790,6 +790,7 @@ function PurchaseTab({token}){
                       const margComm=parseFloat(r.MarginIncludingCommission||0);
                       return(
                         <tr key={i} style={{borderBottom:`1px solid ${S.border}`,background:i%2===0?"transparent":"rgba(255,255,255,0.022)"}}>
+                          <td style={{padding:"7px 11px",color:S.accent2,fontWeight:600,whiteSpace:"nowrap",fontFamily:"monospace",fontSize:11}}>{r.BookingID||"—"}</td>
                           <td style={{padding:"7px 11px",color:S.text,fontWeight:500,whiteSpace:"nowrap"}}>{r.DepartureDate||"—"}</td>
                           <td style={{padding:"7px 11px",whiteSpace:"nowrap"}}>
                             <span style={{background:confirmed?"rgba(16,185,129,0.18)":"rgba(239,68,68,0.15)",color:confirmed?S.success:S.danger,padding:"3px 10px",borderRadius:10,fontSize:11,fontWeight:700}}>
@@ -802,6 +803,7 @@ function PurchaseTab({token}){
                           <td style={{padding:"7px 11px",textAlign:"right",color:S.text,whiteSpace:"nowrap"}}>{fmtEur(r.PurchaseCalculation)}</td>
                           <td style={{padding:"7px 11px",textAlign:"right",color:S.warn,fontWeight:600,whiteSpace:"nowrap"}}>{fmtEur(r.PurchaseObligation)}</td>
                           <td style={{padding:"7px 11px",textAlign:"right",fontWeight:700,color:margin>=0?S.success:S.danger,whiteSpace:"nowrap"}}>{fmtEur(r.Margin)}</td>
+                          <td style={{padding:"7px 11px",textAlign:"right",fontWeight:700,color:margin>=0?S.success:S.danger,whiteSpace:"nowrap"}}>{parseFloat(r.SalesBooking||0)>0?`${((margin/parseFloat(r.SalesBooking))*100).toFixed(1)}%`:"—"}</td>
                           <td style={{padding:"7px 11px",textAlign:"right",color:S.muted,whiteSpace:"nowrap"}}>{fmtEur(r.Commission)}</td>
                           <td style={{padding:"7px 11px",textAlign:"right",fontWeight:700,color:margComm>=0?S.success:S.danger,whiteSpace:"nowrap"}}>{fmtEur(r.MarginIncludingCommission)}</td>
                         </tr>
