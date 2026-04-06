@@ -665,7 +665,14 @@ function PurchaseTab({token}){
   function load(params){
     setLoading(true);
     setErr(null);
-    api("/api/dashboard/margin-overview",params||f,token)
+    const p=params||f;
+    const apiParams={};
+    if(p.departureFrom)apiParams.departureFrom=p.departureFrom;
+    if(p.departureTo)apiParams.departureTo=p.departureTo;
+    if(p.status&&p.status!=="all")apiParams.status=p.status;
+    if(p.label)apiParams.label=p.label;
+    if(p.travelType)apiParams.travelType=p.travelType;
+    api("/api/dashboard/margin-overview",apiParams,token)
       .then(d=>{
         setKpis(d?.kpis||null);
         const rows=Array.isArray(d?.data)?d.data:[];
@@ -682,10 +689,12 @@ function PurchaseTab({token}){
   const filtered=data.filter(r=>{if(!search)return true;const s=search.toLowerCase();return String(r.BookingID||"").includes(search)||String(r.StatusCode||"").toLowerCase().includes(s)||(r.DepartureDate||"").includes(search)||(r.Label||"").toLowerCase().includes(s);});
   const inpS={background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"5px 8px",color:S.text,fontSize:12};
 
+  const confirmedCount=data.filter(r=>r.StatusCode==="DEF").length;
+  const cancelledCount=data.filter(r=>r.StatusCode==="DEF-GEANNULEERD").length;
   const KPI_CARDS=[
     {l:"Total Bookings",v:fmtN(kpis?.totalBookings),c:S.accent},
-    {l:"Confirmed",v:fmtN(kpis?.confirmedCount),c:S.success},
-    {l:"Cancelled",v:fmtN(kpis?.cancelledCount),c:S.danger},
+    {l:"Confirmed",v:fmtN(confirmedCount),c:S.success},
+    {l:"Cancelled",v:fmtN(cancelledCount),c:S.danger},
     {l:"Total PAX",v:fmtN(totalPax),c:S.purple},
     {l:"Total Sales",v:fmtM(kpis?.totalSales),c:S.success},
     {l:"Total Commission",v:fmtM(kpis?.totalCommission),c:S.warn},
