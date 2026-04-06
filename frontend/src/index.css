@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500&display=swap');
 
 /* ═══════════════════════════════════════════════
    TOKENS
@@ -29,7 +29,7 @@
   --radius:       8px;
   --radius-lg:    12px;
   --radius-xl:    16px;
-  --font:         'Geist', system-ui, sans-serif;
+  --font:         'Inter', system-ui, sans-serif;
   --mono:         'Geist Mono', monospace;
   --sidebar-w:    240px;
   --topbar-h:     56px;
@@ -38,8 +38,9 @@
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 14px; }
-body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.55; -webkit-font-smoothing: antialiased; min-height: 100vh; }
-button { font-family: var(--font); cursor: pointer; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.55; -webkit-font-smoothing: antialiased; min-height: 100vh; letter-spacing: 0.01em; }
+body, button, input, select, textarea { font-family: Inter, system-ui, sans-serif !important; -webkit-font-smoothing: antialiased; letter-spacing: 0.01em; }
+button { font-family: var(--font); cursor: pointer; min-height: 30px; }
 input, textarea, select { font-family: var(--font); }
 
 /* ═══════════════════════════════════════════════
