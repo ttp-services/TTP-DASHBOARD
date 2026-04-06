@@ -46,7 +46,6 @@ const QUICK_DATES=[
   {l:`Snow FY${cy}/${cy+1}`, from:`${cy}-07-01`,   to:`${cy+1}-06-30`},
 ];
 
-// ── Bar chart ─────────────────────────────────────────────────────────────────
 function BarChart({data,metric}){
   if(!data?.length)return<div style={{color:S.muted,textAlign:"center",padding:32,fontSize:12}}>No chart data available</div>;
   const sorted=[...data].sort((a,b)=>a.year!==b.year?a.year-b.year:a.month-b.month);
@@ -64,7 +63,6 @@ function BarChart({data,metric}){
   );
 }
 
-// ── KPI Card ──────────────────────────────────────────────────────────────────
 function KpiCard({label,current,previous,pct,prevLabel,fmt="num",color=S.accent}){
   const f=fmt==="eur"?fmtM:fmtN,arrow=pct==null?"":pct>=0?"↑":"↓";
   return(
@@ -79,7 +77,6 @@ function KpiCard({label,current,previous,pct,prevLabel,fmt="num",color=S.accent}
   );
 }
 
-// ── Login ─────────────────────────────────────────────────────────────────────
 function Login({onLogin}){
   const[u,setU]=useState(""),[ pw,setPw]=useState(""),[ show,setShow]=useState(false),[err,setErr]=useState(""),[busy,setBusy]=useState(false);
   async function submit(e){e.preventDefault();setBusy(true);setErr("");try{const r=await fetch(`${BASE}/api/auth/login`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:u,password:pw})});const d=await r.json();if(!r.ok||!d.token){setErr(d.error||"Invalid credentials");return;}saveAuth(d.token,d.user||{username:u,role:"user"});onLogin({token:d.token,...(d.user||{username:u,role:"user"})});}catch{setErr("Connection failed");}finally{setBusy(false);}}
@@ -108,7 +105,6 @@ function Login({onLogin}){
   );
 }
 
-// ── Overview ──────────────────────────────────────────────────────────────────
 function OverviewTab({token}){
   const[f,setF]=useState({datasets:[],statuses:[],years:[],bookingFrom:"",bookingTo:"",depFrom:"",depTo:"",quickLabel:""});
   const[kpis,setKpis]=useState(null);
@@ -220,7 +216,6 @@ function OverviewTab({token}){
 
       <div style={{flex:1,overflowY:"auto",padding:16}}>
         {loading&&<div style={{color:S.muted,textAlign:"center",padding:40,fontSize:13}}>Loading data…</div>}
-
         {kpis&&(
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:18}}>
             <KpiCard label="Total Bookings" current={kpis.currentBookings} previous={kpis.previousBookings} pct={kpis.percentBookings} prevLabel={prevLabel} color={S.accent}/>
@@ -228,7 +223,6 @@ function OverviewTab({token}){
             <KpiCard label="Gross Revenue" fmt="eur" current={kpis.currentRevenue} previous={kpis.previousRevenue} pct={kpis.percentRevenue} prevLabel={prevLabel} color={S.warn}/>
           </div>
         )}
-
         <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:16,marginBottom:16}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
             <div>
@@ -245,7 +239,6 @@ function OverviewTab({token}){
           </div>
           <BarChart data={chart} metric={metric}/>
         </div>
-
         <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,overflow:"hidden"}}>
           <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <div style={{fontSize:14,fontWeight:700,color:S.text}}>Year-on-Year Comparison
@@ -316,7 +309,6 @@ function OverviewTab({token}){
   );
 }
 
-// ── Bus Occupancy ─────────────────────────────────────────────────────────────
 function BusTab({token}){
   const[view,setView]=useState("pendel");
   const[sl,setSl]=useState({pendels:[],regions:[],statuses:[],feederLines:[]});
@@ -361,7 +353,7 @@ function BusTab({token}){
   function resetFilters(){
     const def={dateFrom:`${cy}-01-01`,dateTo:`${cy}-12-31`,pendel:"",region:"",label:"",feederLine:"",weekday:"",status:"DEF"};
     setF(def);
-  } 
+  }
 
   const fdates=[...new Set(feeder.map(r=>r.DepartureDate))].sort();
   const froutes={};
@@ -391,7 +383,6 @@ function BusTab({token}){
   );
 
   const WEEKDAYS=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
-  const BUS_STATUSES=["DEF","TIJD","VERV","DEF-GEANNULEERD","ACC AV NIET OK","CTRL","IN_AANVRAAG"];
 
   const deckTotals=deck.reduce((acc,r)=>{
     ["Total","Total_Lower","Total_Upper","Total_NoDeck","Royal_Total","Royal_Lower","Royal_Upper","Royal_NoDeck","First_Total","First_Lower","First_Upper","First_NoDeck","Premium_Total","Premium_Lower","Premium_Upper","Premium_NoDeck","Comfort_Total","Comfort_Lower","Comfort_Upper","Comfort_NoDeck"].forEach(k=>{acc[k]=(acc[k]||0)+(r[k]||0);});
@@ -433,7 +424,6 @@ function BusTab({token}){
             </div>
           )}
 
-          {/* PENDEL VIEW */}
           {view==="pendel"&&(
             <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,overflow:"hidden"}}>
               <div style={{padding:"11px 14px",borderBottom:`1px solid ${S.border}`,fontSize:14,fontWeight:700,color:S.text}}>Pendel Overview</div>
@@ -473,7 +463,6 @@ function BusTab({token}){
             </div>
           )}
 
-          {/* DECK & CLASS VIEW */}
           {view==="deck"&&(
             <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,overflow:"hidden"}}>
               <div style={{padding:"11px 14px",borderBottom:`1px solid ${S.border}`,fontSize:14,fontWeight:700,color:S.text}}>Deck & Class Distribution</div>
@@ -547,7 +536,6 @@ function BusTab({token}){
             </div>
           )}
 
-          {/* FEEDER VIEW */}
           {view==="feeder"&&(
             <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,overflow:"hidden"}}>
               <div style={{padding:"11px 14px",borderBottom:`1px solid ${S.border}`,fontSize:14,fontWeight:700,color:S.text}}>Feeder Routes</div>
@@ -584,13 +572,12 @@ function BusTab({token}){
         </div>
       </div>
 
-      {/* ── Filter sidebar — RIGHT SIDE ── */}
+      {/* ── Filter sidebar RIGHT ── */}
       <div style={{width:230,background:S.side,borderLeft:`1px solid ${S.border}`,display:"flex",flexDirection:"column",flexShrink:0}}>
         <div style={{padding:"12px 14px",borderBottom:`1px solid ${S.border}`,fontSize:11,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.08em"}}>Filters</div>
         <div style={{flex:1,padding:12,overflowY:"auto"}}>
           <div style={{marginBottom:9}}>{lbl("Date From")}{di(f.dateFrom,v=>setF({...f,dateFrom:v}))}</div>
           <div style={{marginBottom:9}}>{lbl("Date To")}{di(f.dateTo,v=>setF({...f,dateTo:v}))}</div>
-
           <div style={{marginBottom:9}}>{lbl("Label")}
             <select value={f.label||""} onChange={e=>setF({...f,label:e.target.value})} style={{width:"100%",background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"5px 7px",color:S.text,fontSize:11}}>
               <option value="">All Labels</option>
@@ -599,7 +586,6 @@ function BusTab({token}){
               <option value="Interbus">Interbus</option>
             </select>
           </div>
-
           <div style={{marginBottom:9}}>{lbl("Status")}
             <select value={f.status} onChange={e=>setF({...f,status:e.target.value})} style={{width:"100%",background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"5px 7px",color:S.text,fontSize:11}}>
               <option value="">All Statuses</option>
@@ -612,7 +598,6 @@ function BusTab({token}){
               <option value="IN_AANVRAAG">Requested</option>
             </select>
           </div>
-
           {view!=="feeder"&&<>
             <div style={{marginBottom:9}}>{lbl("Pendel")}{sel(f.pendel,v=>setF({...f,pendel:v}),sl.pendels)}</div>
             <div style={{marginBottom:9}}>{lbl("Region")}{sel(f.region,v=>setF({...f,region:v}),sl.regions)}</div>
@@ -628,218 +613,13 @@ function BusTab({token}){
         </div>
       </div>
 
-    </div>
-  );
-      <div style={{width:220,background:S.side,borderRight:`1px solid ${S.border}`,display:"flex",flexDirection:"column",flexShrink:0}}>
-        <div style={{flex:1,padding:12,overflowY:"auto"}}>
-          <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:10}}>Filters</div>
-          <div style={{marginBottom:9}}>{lbl("Date From")}{di(f.dateFrom,v=>setF({...f,dateFrom:v}))}</div>
-          <div style={{marginBottom:9}}>{lbl("Date To")}{di(f.dateTo,v=>setF({...f,dateTo:v}))}</div>
-          <div style={{marginBottom:9}}>{lbl("Status")}
-            <select value={f.status} onChange={e=>setF({...f,status:e.target.value})} style={{width:"100%",background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"5px 7px",color:S.text,fontSize:11}}>
-              <option value="">All Statuses</option>
-              {(sl.statuses.length>0?sl.statuses:BUS_STATUSES).map(s=><option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          {view!=="feeder"&&<>
-            <div style={{marginBottom:9}}>{lbl("Pendel")}{sel(f.pendel,v=>setF({...f,pendel:v}),sl.pendels)}</div>
-            <div style={{marginBottom:9}}>{lbl("Region")}{sel(f.region,v=>setF({...f,region:v}),sl.regions)}</div>
-            <div style={{marginBottom:9}}>{lbl("Weekday")}{sel(f.weekday,v=>setF({...f,weekday:v}),WEEKDAYS)}</div>
-          </>}
-          {view==="feeder"&&<>
-            <div style={{marginBottom:9}}>{lbl("Label")}{sel(f.feederLabel,v=>setF({...f,feederLabel:v}),["Solmar","Interbus","Solmar DE"])}</div>
-            <div style={{marginBottom:9}}>{lbl("Feeder Line")}{sel(f.feederLine,v=>setF({...f,feederLine:v}),sl.feederLines)}</div>
-          </>}
-        </div>
-        <div style={{padding:12,borderTop:`1px solid ${S.border}`,display:"flex",flexDirection:"column",gap:8}}>
-          <button onClick={applyLoad} style={{padding:"8px",background:S.accent,border:"none",borderRadius:8,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>Apply Filters</button>
-          <button onClick={resetFilters} style={{padding:"8px",background:"transparent",border:`1px solid ${S.border2}`,borderRadius:8,color:S.muted,fontSize:12,cursor:"pointer"}}>Reset</button>
-        </div>
-      </div>
-
-      {/* Main content */}
-      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        <div style={{background:S.side,borderBottom:`1px solid ${S.border}`,padding:"10px 16px",display:"flex",gap:8,flexShrink:0}}>
-          {[["pendel","Pendel Overview"],["deck","Deck & Class"],["feeder","Feeder Routes"]].map(([v,l])=>(
-            <button key={v} onClick={()=>setView(v)} style={{padding:"6px 14px",borderRadius:6,fontSize:12,cursor:"pointer",border:`1px solid ${view===v?S.accent:S.border2}`,background:view===v?S.accent:"transparent",color:view===v?"#fff":S.muted,fontWeight:600}}>{l}</button>
-          ))}
-          {loading&&<span style={{marginLeft:"auto",fontSize:11,color:S.muted,alignSelf:"center"}}>Loading…</span>}
-        </div>
-
-        <div style={{flex:1,overflowY:"auto",padding:18}}>
-          {busK&&(
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10,marginBottom:16}}>
-              {[
-                {l:"Total PAX",v:fmtN(busK.total_pax),c:S.accent},
-                {l:"Royal Class",v:fmtN(busK.royal_pax),c:S.warn},
-                {l:"First Class",v:fmtN(busK.first_pax),c:S.success},
-                {l:"Premium Class",v:fmtN(busK.premium_pax),c:S.purple},
-                {l:"Comfort Class",v:fmtN(busK.comfort_pax),c:S.orange},
-                {l:"Lower Deck",v:fmtN(busK.lower_pax),c:S.accent2},
-                {l:"Upper Deck",v:fmtN(busK.upper_pax),c:S.success},
-                {l:"No Deck Pref",v:fmtN(busK.no_deck_pax),c:S.muted},
-              ].map(k=>(
-                <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:10,padding:"14px 16px"}}>
-                  <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>{k.l}</div>
-                  <div style={{fontSize:20,fontWeight:800,color:k.c}}>{k.v}</div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* PENDEL VIEW */}
-          {view==="pendel"&&(
-            <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,overflow:"hidden"}}>
-              <div style={{padding:"11px 14px",borderBottom:`1px solid ${S.border}`,fontSize:14,fontWeight:700,color:S.text}}>Pendel Overview</div>
-              <div style={{overflowX:"auto",maxHeight:500,overflowY:"auto"}}>
-                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                  <thead><tr>
-                    <th style={THL}>Start Date</th>
-<th style={THL}>End Date</th>
-                    <th style={TH}>ORC</th><th style={TH}>OFC</th><th style={TH}>OPRE</th><th style={TH}>Out Total</th>
-                    <th style={TH}>RRC</th><th style={TH}>RFC</th><th style={TH}>RPRE</th><th style={TH}>In Total</th>
-                    <th style={{...TH,color:S.warn}}>Δ Royal</th><th style={{...TH,color:S.warn}}>Δ First</th>
-                    <th style={{...TH,color:S.warn}}>Δ Premium</th><th style={{...TH,color:S.warn}}>Δ Total</th>
-                  </tr></thead>
-                  <tbody>
-                    {pendel.length===0&&<tr><td colSpan={14} style={{padding:24,textAlign:"center",color:S.muted}}>No data</td></tr>}
-                    {pendel.map((r,i)=>(
-                      <tr key={i} style={{borderBottom:`1px solid ${S.border}`,background:i%2===0?"transparent":"rgba(255,255,255,0.018)"}}>
-                        <td style={TDL}>{r.StartDate}</td>
-<td style={TDL}>{r.EndDate}</td>
-                        <td style={TD}>{fmtN(r.ORC)}</td><td style={TD}>{fmtN(r.OFC)}</td><td style={TD}>{fmtN(r.OPRE)}</td>
-                        <td style={{...TD,fontWeight:700,color:S.accent}}>{fmtN(r.Outbound_Total)}</td>
-                        <td style={TD}>{fmtN(r.RRC)}</td><td style={TD}>{fmtN(r.RFC)}</td><td style={TD}>{fmtN(r.RPRE)}</td>
-                        <td style={{...TD,fontWeight:700,color:S.accent}}>{fmtN(r.Inbound_Total)}</td>
-                        <td style={{...TD,color:dc(r.Diff_Royal)}}>{r.Diff_Royal>=0?"+":""}{fmtN(r.Diff_Royal)}</td>
-                        <td style={{...TD,color:dc(r.Diff_First)}}>{r.Diff_First>=0?"+":""}{fmtN(r.Diff_First)}</td>
-                        <td style={{...TD,color:dc(r.Diff_Premium)}}>{r.Diff_Premium>=0?"+":""}{fmtN(r.Diff_Premium)}</td>
-                        <td style={{...TD,fontWeight:700,color:dc(r.Diff_Total)}}>{r.Diff_Total>=0?"+":""}{fmtN(r.Diff_Total)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* DECK & CLASS VIEW */}
-          {view==="deck"&&(
-            <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,overflow:"hidden"}}>
-              <div style={{padding:"11px 14px",borderBottom:`1px solid ${S.border}`,fontSize:14,fontWeight:700,color:S.text}}>Deck & Class Distribution</div>
-              <div style={{overflowX:"auto"}}>
-                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                  <thead><tr>
-                    <th style={THL}>Class</th>
-                    <th style={TH}>Total PAX</th>
-                    <th style={{...TH,color:S.accent}}>Lower</th>
-                    <th style={{...TH,color:S.success}}>Upper</th>
-                    <th style={{...TH,color:S.muted}}>No Deck</th>
-                    <th style={{...TH,color:S.accent}}>Lower %</th>
-                    <th style={{...TH,color:S.success}}>Upper %</th>
-                  </tr></thead>
-                  <tbody>
-                    {[
-                      {label:"TOTAL",        total:"Total",        lower:"Total_Lower",   upper:"Total_Upper",   noDeck:"Total_NoDeck",   c:S.text},
-                      {label:"Royal Class",  total:"Royal_Total",  lower:"Royal_Lower",   upper:"Royal_Upper",   noDeck:"Royal_NoDeck",   c:S.warn},
-                      {label:"First Class",  total:"First_Total",  lower:"First_Lower",   upper:"First_Upper",   noDeck:"First_NoDeck",   c:S.success},
-                      {label:"Premium Class",total:"Premium_Total",lower:"Premium_Lower", upper:"Premium_Upper", noDeck:"Premium_NoDeck", c:S.purple},
-                      {label:"Comfort Class",total:"Comfort_Total",lower:"Comfort_Lower", upper:"Comfort_Upper", noDeck:"Comfort_NoDeck", c:S.orange},
-                    ].map((row,i)=>(
-                      <tr key={i} style={{borderBottom:`1px solid ${S.border}`,background:i===0?S.bg:i%2===0?"transparent":"rgba(255,255,255,0.018)"}}>
-                        <td style={{...TDL,fontWeight:i===0?800:600,color:row.c}}>{row.label}</td>
-                        <td style={{...TD,fontWeight:700,color:row.c}}>{fmtN(deckTotals[row.total]||0)}</td>
-                        <td style={{...TD,color:S.accent}}>{fmtN(deckTotals[row.lower]||0)}</td>
-                        <td style={{...TD,color:S.success}}>{fmtN(deckTotals[row.upper]||0)}</td>
-                        <td style={{...TD,color:S.muted}}>{fmtN(deckTotals[row.noDeck]||0)}</td>
-                        <td style={{...TD,color:S.accent}}>{pct(deckTotals[row.lower]||0,deckTotals[row.total]||1)}</td>
-                        <td style={{...TD,color:S.success}}>{pct(deckTotals[row.upper]||0,deckTotals[row.total]||1)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {deck.length>0&&(
-                <>
-                  <div style={{padding:"10px 14px",borderTop:`1px solid ${S.border}`,borderBottom:`1px solid ${S.border}`,fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.06em"}}>By Departure Date</div>
-                  <div style={{overflowX:"auto",maxHeight:350,overflowY:"auto"}}>
-                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
-                      <thead style={{position:"sticky",top:0,background:S.bg,zIndex:5}}><tr>
-                        <th style={THL}>Date</th>
-                        <th style={TH}>Total</th>
-                        <th style={{...TH,color:S.accent}}>Lower</th>
-                        <th style={{...TH,color:S.success}}>Upper</th>
-                        <th style={{...TH,color:S.muted}}>No Deck</th>
-                        <th style={{...TH,color:S.warn}}>Royal</th>
-                        <th style={{...TH,color:S.success}}>First</th>
-                        <th style={{...TH,color:S.purple}}>Premium</th>
-                        <th style={{...TH,color:S.orange}}>Comfort</th>
-                      </tr></thead>
-                      <tbody>
-                        {deck.map((r,i)=>(
-                          <tr key={i} style={{borderBottom:`1px solid ${S.border}`,background:i%2===0?"transparent":"rgba(255,255,255,0.018)"}}>
-                            <td style={{...TDL,fontSize:11}}>{r.dateDeparture}</td>
-                            <td style={{...TD,fontWeight:700}}>{fmtN(r.Total)}</td>
-                            <td style={{...TD,color:S.accent}}>{fmtN(r.Total_Lower)}</td>
-                            <td style={{...TD,color:S.success}}>{fmtN(r.Total_Upper)}</td>
-                            <td style={{...TD,color:S.muted}}>{fmtN(r.Total_NoDeck)}</td>
-                            <td style={{...TD,color:S.warn}}>{fmtN(r.Royal_Total)}</td>
-                            <td style={{...TD,color:S.success}}>{fmtN(r.First_Total)}</td>
-                            <td style={{...TD,color:S.purple}}>{fmtN(r.Premium_Total)}</td>
-                            <td style={{...TD,color:S.orange}}>{fmtN(r.Comfort_Total)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* FEEDER VIEW */}
-          {view==="feeder"&&(
-            <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,overflow:"hidden"}}>
-              <div style={{padding:"11px 14px",borderBottom:`1px solid ${S.border}`,fontSize:14,fontWeight:700,color:S.text}}>Feeder Routes</div>
-              <div style={{overflowX:"auto",maxHeight:540,overflowY:"auto"}}>
-                <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
-                  <thead style={{position:"sticky",top:0,background:S.bg,zIndex:5}}><tr>
-                    <th style={THL}>Route / Stop</th>
-                    {fdates.map(d=><th key={d} style={TH}>{d}</th>)}
-                    <th style={{...TH,color:S.warn}}>Total</th>
-                  </tr></thead>
-                  <tbody>
-                    {rl.length===0&&<tr><td colSpan={fdates.length+2} style={{padding:24,textAlign:"center",color:S.muted}}>No feeder data</td></tr>}
-                    {rl.map((route,ri)=>(
-                      <React.Fragment key={ri}>
-                        <tr style={{background:"rgba(59,130,246,0.08)"}}>
-                          <td style={{...TDL,fontWeight:700,color:S.accent2}}>Route {route.no} — {route.label}</td>
-                          {fdates.map(d=><td key={d} style={{...TD,fontWeight:700,color:S.accent}}>{fmtN(route.totals[d]||0)}</td>)}
-                          <td style={{...TD,fontWeight:700,color:S.warn}}>{fmtN(Object.values(route.totals).reduce((a,b)=>a+b,0))}</td>
-                        </tr>
-                        {Object.entries(route.stops).map(([stop,dates],si)=>(
-                          <tr key={si} style={{borderBottom:`1px solid ${S.border}`,background:si%2===0?"transparent":"rgba(255,255,255,0.018)"}}>
-                            <td style={{...TDL,paddingLeft:22,color:S.muted}}>{stop}</td>
-                            {fdates.map(d=><td key={d} style={TD}>{dates[d]||"—"}</td>)}
-                            <td style={{...TD,color:S.muted}}>{fmtN(Object.values(dates).reduce((a,b)=>a+b,0))}</td>
-                          </tr>
-                        ))}
-                      </React.Fragment>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   );
 }
 
-// ── Purchase Obligations ──────────────────────────────────────────────────────
 function PurchaseTab({token}){
   const[f,setF]=useState({departureFrom:"",departureTo:"",returnFrom:"",returnTo:"",status:"all",label:"",travelType:""});
+  const[totalPax,setTotalPax]=useState(0);
   const[data,setData]=useState([]);
   const[kpis,setKpis]=useState(null);
   const[loading,setLoading]=useState(false);
@@ -852,29 +632,25 @@ function PurchaseTab({token}){
     api("/api/dashboard/margin-overview",params||f,token)
       .then(d=>{
         setKpis(d?.kpis||null);
-        setData(Array.isArray(d?.data)?d.data:[]);
+        const rows=Array.isArray(d?.data)?d.data:[];
+        setData(rows);
+        setTotalPax(rows.reduce((s,r)=>s+(Number(r.PAX)||0),0));
       })
-      .catch(e=>{setErr(e.message);setData([]);setKpis(null);})
+      .catch(e=>{setErr(e.message);setData([]);setKpis(null);setTotalPax(0);})
       .finally(()=>setLoading(false));
   }
   useEffect(()=>{load({});},[token]);
   function reset(){setF({departureFrom:"",departureTo:"",returnFrom:"",returnTo:"",status:"all",label:"",travelType:""});setSearch("");load({});}
 
   const isConfirmed=code=>code==="ok"||code==="DEF";
-
-  const filtered=data.filter(r=>
-    !search||
-    String(r.BookingID).includes(search)||
-    String(r.StatusCode||"").toLowerCase().includes(search.toLowerCase())||
-    (r.DepartureDate||"").includes(search)
-  );
-
+  const filtered=data.filter(r=>!search||String(r.BookingID).includes(search)||String(r.StatusCode||"").toLowerCase().includes(search.toLowerCase())||(r.DepartureDate||"").includes(search));
   const inpS={background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"5px 8px",color:S.text,fontSize:12};
 
   const KPI_CARDS=[
     {l:"Total Bookings",v:fmtN(kpis?.totalBookings),c:S.accent},
     {l:"Confirmed",v:fmtN(kpis?.confirmedCount),c:S.success},
     {l:"Cancelled",v:fmtN(kpis?.cancelledCount),c:S.danger},
+    {l:"Total PAX",v:fmtN(totalPax),c:S.purple},
     {l:"Total Sales",v:fmtM(kpis?.totalSales),c:S.success},
     {l:"Purchase Calc",v:fmtM(kpis?.totalPurchase),c:S.warn},
     {l:"Obligations",v:fmtM(kpis?.totalObligation),c:S.orange},
@@ -883,12 +659,10 @@ function PurchaseTab({token}){
   ];
 
   const TABLE_COLS=[
-    ["Booking ID","left"],["Status","left"],["Booking Date","left"],
-    ["Departure","left"],["Return","left"],["Travel Type","left"],
+    ["Departure","left"],["Return","left"],["Status","left"],["Label","left"],
     ["PAX","right"],["Sales (€)","right"],["Purchase (€)","right"],
     ["Obligation (€)","right"],["Margin (€)","right"],
     ["Commission (€)","right"],["Margin+Comm (€)","right"],
-    ["Paid (€)","right"],["Outstanding (€)","right"],
   ];
 
   return(
@@ -937,9 +711,8 @@ function PurchaseTab({token}){
       <div style={{flex:1,overflowY:"auto",padding:16}}>
         {err&&<div style={{background:"#450a0a",border:`1px solid ${S.danger}`,borderRadius:8,padding:"9px 12px",fontSize:12,color:"#fca5a5",marginBottom:12}}>⚠ Error: {err}</div>}
         {loading&&<div style={{color:S.muted,textAlign:"center",padding:40,fontSize:13}}>Loading…</div>}
-
         {kpis&&(
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:16}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:16}}>
             {KPI_CARDS.map(k=>(
               <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:11,padding:"14px 16px"}}>
                 <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>{k.l}</div>
@@ -948,7 +721,6 @@ function PurchaseTab({token}){
             ))}
           </div>
         )}
-
         <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,overflow:"hidden"}}>
           <div style={{padding:"11px 14px",borderBottom:`1px solid ${S.border}`,display:"flex",gap:10,alignItems:"center"}}>
             <div style={{fontSize:14,fontWeight:700,color:S.text,flex:1}}>
@@ -976,22 +748,19 @@ function PurchaseTab({token}){
                   </thead>
                   <tbody>
                     {filtered.map((r,i)=>{
-                      const confirmed=isConfirmed(r.StatusCode);
+                      const confirmed=r.StatusCode==="DEF";
                       const margin=parseFloat(r.Margin||0);
                       const margComm=parseFloat(r.MarginIncludingCommission||0);
-                      const outstanding=parseFloat(r.Outstanding||0);
                       return(
                         <tr key={i} style={{borderBottom:`1px solid ${S.border}`,background:i%2===0?"transparent":"rgba(255,255,255,0.022)"}}>
-                          <td style={{padding:"7px 11px",color:S.accent2,fontFamily:"monospace",fontSize:11,whiteSpace:"nowrap"}}>{r.BookingID}</td>
+                          <td style={{padding:"7px 11px",color:S.text,fontWeight:500,whiteSpace:"nowrap"}}>{r.DepartureDate||"—"}</td>
+                          <td style={{padding:"7px 11px",color:S.muted,whiteSpace:"nowrap"}}>{r.ReturnDate||"—"}</td>
                           <td style={{padding:"7px 11px",whiteSpace:"nowrap"}}>
                             <span style={{background:confirmed?"rgba(16,185,129,0.18)":"rgba(239,68,68,0.15)",color:confirmed?S.success:S.danger,padding:"3px 10px",borderRadius:10,fontSize:11,fontWeight:700}}>
                               {confirmed?"Confirmed":"Cancelled"}
                             </span>
                           </td>
-                          <td style={{padding:"7px 11px",color:S.muted,whiteSpace:"nowrap",fontSize:11}}>{r.BookingDate||"—"}</td>
-                          <td style={{padding:"7px 11px",color:S.text,fontWeight:500,whiteSpace:"nowrap"}}>{r.DepartureDate}</td>
-                          <td style={{padding:"7px 11px",color:S.muted,whiteSpace:"nowrap"}}>{r.ReturnDate}</td>
-                          <td style={{padding:"7px 11px",color:S.muted,whiteSpace:"nowrap",fontSize:11}}>{r.TravelType||"—"}</td>
+                          <td style={{padding:"7px 11px",color:S.muted,whiteSpace:"nowrap",fontSize:11}}>{r.Label||"—"}</td>
                           <td style={{padding:"7px 11px",textAlign:"right",color:S.text,whiteSpace:"nowrap"}}>{fmtN(r.PAX)}</td>
                           <td style={{padding:"7px 11px",textAlign:"right",color:S.text,whiteSpace:"nowrap"}}>{fmtEur(r.SalesBooking)}</td>
                           <td style={{padding:"7px 11px",textAlign:"right",color:S.text,whiteSpace:"nowrap"}}>{fmtEur(r.PurchaseCalculation)}</td>
@@ -999,8 +768,6 @@ function PurchaseTab({token}){
                           <td style={{padding:"7px 11px",textAlign:"right",fontWeight:700,color:margin>=0?S.success:S.danger,whiteSpace:"nowrap"}}>{fmtEur(r.Margin)}</td>
                           <td style={{padding:"7px 11px",textAlign:"right",color:S.muted,whiteSpace:"nowrap"}}>{fmtEur(r.Commission)}</td>
                           <td style={{padding:"7px 11px",textAlign:"right",fontWeight:700,color:margComm>=0?S.success:S.danger,whiteSpace:"nowrap"}}>{fmtEur(r.MarginIncludingCommission)}</td>
-                          <td style={{padding:"7px 11px",textAlign:"right",color:S.muted,whiteSpace:"nowrap"}}>{fmtEur(r.PaidPassed)}</td>
-                          <td style={{padding:"7px 11px",textAlign:"right",fontWeight:600,color:outstanding>0?S.warn:S.muted,whiteSpace:"nowrap"}}>{fmtEur(r.Outstanding)}</td>
                         </tr>
                       );
                     })}
@@ -1015,7 +782,6 @@ function PurchaseTab({token}){
   );
 }
 
-// ── Settings ──────────────────────────────────────────────────────────────────
 function SettingsTab({token,session,onLogout,theme,setTheme}){
   const[tab,setTab]=useState("users");
   const[users,setUsers]=useState([]);
@@ -1218,7 +984,6 @@ function SettingsTab({token,session,onLogout,theme,setTheme}){
   );
 }
 
-// ── App Shell ─────────────────────────────────────────────────────────────────
 export default function App(){
   const[session,setSession]=useState(()=>loadAuth());
   const[tab,setTab]=useState("overview");
