@@ -662,16 +662,11 @@ function PurchaseTab({token}){
   const[err,setErr]=useState(null);
   const[search,setSearch]=useState("");
 
+  function buildParams(p){const out={};if(p.departureFrom)out.departureFrom=p.departureFrom;if(p.departureTo)out.departureTo=p.departureTo;if(p.status&&p.status!=="all")out.status=p.status;if(p.label)out.label=p.label;if(p.travelType)out.travelType=p.travelType;return out;}
   function load(params){
     setLoading(true);
     setErr(null);
-    const p=params||f;
-    const apiParams={};
-    if(p.departureFrom)apiParams.departureFrom=p.departureFrom;
-    if(p.departureTo)apiParams.departureTo=p.departureTo;
-    if(p.status&&p.status!=="all")apiParams.status=p.status;
-    if(p.label)apiParams.label=p.label;
-    if(p.travelType)apiParams.travelType=p.travelType;
+    const apiParams=params!==undefined?params:buildParams(f);
     api("/api/dashboard/margin-overview",apiParams,token)
       .then(d=>{
         setKpis(d?.kpis||null);
@@ -683,14 +678,12 @@ function PurchaseTab({token}){
       .finally(()=>setLoading(false));
   }
   useEffect(()=>{load({});},[token]);
-  function reset(){setF({departureFrom:"",departureTo:"",status:"all",label:"",travelType:""});setSearch("");load({});}
-
-  const isConfirmed=code=>code==="ok"||code==="DEF";
-  const filtered=data.filter(r=>{if(!search)return true;const s=search.toLowerCase();return String(r.BookingID||"").includes(search)||String(r.StatusCode||"").toLowerCase().includes(s)||(r.DepartureDate||"").includes(search)||(r.Label||"").toLowerCase().includes(s);});
-  const inpS={background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"5px 8px",color:S.text,fontSize:12};
+  function reset(){const empty={departureFrom:"",departureTo:"",status:"all",label:"",travelType:""};setF(empty);setSearch("");load({});}
 
   const confirmedCount=data.filter(r=>r.StatusCode==="DEF").length;
   const cancelledCount=data.filter(r=>r.StatusCode==="DEF-GEANNULEERD").length;
+  const filtered=data.filter(r=>{if(!search)return true;const s=search.toLowerCase();return String(r.BookingID||"").includes(search)||String(r.StatusCode||"").toLowerCase().includes(s)||(r.DepartureDate||"").includes(search)||(r.Label||"").toLowerCase().includes(s);});
+  const inpS={background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"5px 8px",color:S.text,fontSize:12};
   const KPI_CARDS=[
     {l:"Total Bookings",v:fmtN(kpis?.totalBookings),c:S.accent},
     {l:"Confirmed",v:fmtN(confirmedCount),c:S.success},
@@ -749,7 +742,7 @@ function PurchaseTab({token}){
             </select>
           </div>
           <button onClick={reset} style={{padding:"6px 12px",background:"transparent",border:`1px solid ${S.border2}`,borderRadius:6,color:S.muted,fontSize:12,cursor:"pointer",alignSelf:"flex-end"}}>Reset</button>
-          <button onClick={()=>load(f)} style={{padding:"6px 16px",background:S.accent,border:"none",borderRadius:6,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",alignSelf:"flex-end"}}>Apply</button>
+          <button onClick={()=>load(buildParams(f))} style={{padding:"6px 16px",background:S.accent,border:"none",borderRadius:6,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",alignSelf:"flex-end"}}>Apply</button>
         </div>
         <div style={{fontSize:10,color:S.muted2,marginTop:6}}>Filters only apply on click · data does not auto-refresh</div>
       </div>
