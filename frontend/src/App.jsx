@@ -23,7 +23,7 @@ async function api(path,params={},token){
   return r.json();
 }
 
-const fmtM=v=>{const n=parseFloat(v)||0;if(Math.abs(n)>=1e6)return`€${(n/1e6).toFixed(2)}M`;if(Math.abs(n)>=1e3)return`€${(n/1e3).toFixed(1)}K`;return`€${Math.round(n).toLocaleString("nl-BE")}`;};
+const fmtM=v=>{const n=parseFloat(v)||0;return`€${n.toLocaleString("nl-BE",{minimumFractionDigits:2,maximumFractionDigits:2})}`;};
 const fmtN=v=>v==null?"—":Number(v).toLocaleString("nl-BE");
 const fmtPct=v=>v==null?"—":`${v>=0?"+":""}${parseFloat(v).toFixed(1)}%`;
 const fmtEur=v=>{const n=parseFloat(v)||0;return`€${n.toLocaleString("nl-BE",{minimumFractionDigits:2,maximumFractionDigits:2})}`;};
@@ -581,9 +581,9 @@ function BusTab({token}){
           <div style={{marginBottom:9}}>{lbl("Label")}
             <select value={f.label||""} onChange={e=>setF({...f,label:e.target.value})} style={{width:"100%",background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"5px 7px",color:S.text,fontSize:11}}>
               <option value="">All Labels</option>
-              <option value="Solmar">Solmar</option>
-              <option value="Solmar DE">Solmar DE</option>
-              <option value="Interbus">Interbus</option>
+              <option value="STANDAARD">STANDAARD</option>
+              <option value="DEU">DEU</option>
+              <option value="ITB">ITB</option>
             </select>
           </div>
           <div style={{marginBottom:9}}>{lbl("Status")}
@@ -687,9 +687,9 @@ function PurchaseTab({token}){
             <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em"}}>Label</label>
             <select value={f.label} onChange={e=>setF({...f,label:e.target.value})} style={inpS}>
               <option value="">All</option>
-              <option value="Solmar">Solmar</option>
-              <option value="Solmar DE">Solmar DE</option>
-              <option value="Interbus">Interbus</option>
+              <option value="STANDAARD">STANDAARD</option>
+              <option value="DEU">DEU</option>
+              <option value="ITB">ITB</option>
             </select>
           </div>
           <div>
