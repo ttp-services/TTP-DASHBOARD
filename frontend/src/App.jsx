@@ -4,7 +4,7 @@ const BASE = import.meta.env?.VITE_API_URL || "https://ttp-dashboard-api.azurewe
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const DATASETS = ["Solmar","Interbus","Solmar DE","Snowtravel"];
-const YEARS = [2022,2023,2024,2025,2026];
+const YEARS = [2023,2024,2025,2026];
 const YC = {2022:"#f59e0b",2023:"#10b981",2024:"#8b5cf6",2025:"#f97316",2026:"#3b82f6"};
 const AUTH_KEY = "ttp_auth_v3";
 
@@ -616,9 +616,9 @@ function BusTab({token}){
           <div style={{marginBottom:9}}>{lbl("Label")}
             <select value={f.label||""} onChange={e=>setF({...f,label:e.target.value})} style={{width:"100%",background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"5px 7px",color:S.text,fontSize:11}}>
               <option value="">All Labels</option>
-              <option value="Solmar">Solmar</option>
-              <option value="Solmar DE">Solmar DE</option>
-              <option value="Interbus">Interbus</option>
+              <option value="STANDAARD">STANDAARD</option>
+              <option value="DEU">DEU</option>
+              <option value="ITB">ITB</option>
             </select>
           </div>
           <div style={{marginBottom:9}}>{lbl("Status")}
@@ -722,9 +722,9 @@ function PurchaseTab({token}){
             <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em"}}>Label</label>
             <select value={f.label} onChange={e=>setF({...f,label:e.target.value})} style={inpS}>
               <option value="">All</option>
-              <option value="Solmar">Solmar</option>
-              <option value="Solmar DE">Solmar DE</option>
-              <option value="Interbus">Interbus</option>
+              <option value="STANDAARD">STANDAARD</option>
+              <option value="DEU">DEU</option>
+              <option value="ITB">ITB</option>
             </select>
           </div>
           <div>
