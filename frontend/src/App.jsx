@@ -661,24 +661,29 @@ function PurchaseTab({token}){
   const[loading,setLoading]=useState(false);
   const[err,setErr]=useState(null);
   const[search,setSearch]=useState("");
+  const[page,setPage]=useState(1);
+  const[totalRows,setTotalRows]=useState(0);
+  const PAGE_SIZE=200;
 
-  function buildParams(p){const out={};if(p.departureFrom)out.departureFrom=p.departureFrom;if(p.departureTo)out.departureTo=p.departureTo;if(p.status&&p.status!=="all")out.status=p.status;if(p.label)out.label=p.label;if(p.travelType)out.travelType=p.travelType;return out;}
-  function load(params){
+  function buildParams(p,pg=1){const out={};if(p.departureFrom)out.departureFrom=p.departureFrom;if(p.departureTo)out.departureTo=p.departureTo;if(p.status&&p.status!=="all")out.status=p.status;if(p.label)out.label=p.label;if(p.travelType)out.travelType=p.travelType;out.page=pg;out.limit=PAGE_SIZE;return out;}
+  function load(params,pg=1){
     setLoading(true);
     setErr(null);
-    const apiParams=params!==undefined?params:buildParams(f);
+    const apiParams=params!==undefined?{...params,page:pg,limit:PAGE_SIZE}:buildParams(f,pg);
     api("/api/dashboard/margin-overview",apiParams,token)
       .then(d=>{
         setKpis(d?.kpis||null);
         const rows=Array.isArray(d?.data)?d.data:[];
         setData(rows);
+        setTotalRows(Number(d?.totalRows||rows.length));
         setTotalPax(rows.reduce((s,r)=>s+(Number(r.PAX)||0),0));
+        setPage(pg);
       })
       .catch(e=>{setErr(e.message);setData([]);setKpis(null);setTotalPax(0);})
       .finally(()=>setLoading(false));
   }
-  useEffect(()=>{load({});},[token]);
-  function reset(){const empty={departureFrom:"",departureTo:"",status:"all",label:"",travelType:""};setF(empty);setSearch("");load({});}
+  useEffect(()=>{},[token]);
+  function reset(){const empty={departureFrom:"",departureTo:"",status:"all",label:"",travelType:""};setF(empty);setSearch("");setData([]);setKpis(null);setTotalPax(0);setPage(1);setTotalRows(0);}
 
   const confirmedCount=data.filter(r=>r.StatusCode==="DEF").length;
   const cancelledCount=data.filter(r=>r.StatusCode==="DEF-GEANNULEERD").length;
@@ -773,6 +778,15 @@ function PurchaseTab({token}){
               const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download="purchase-obligations.csv";a.click();
             }} style={{padding:"5px 12px",background:"transparent",border:`1px solid ${S.border2}`,borderRadius:6,color:S.muted,fontSize:11,cursor:"pointer"}}>↓ CSV</button>
           </div>
+          {totalRows>PAGE_SIZE&&(
+            <div style={{padding:"8px 14px",borderBottom:`1px solid ${S.border}`,display:"flex",alignItems:"center",gap:8,fontSize:12}}>
+              <span style={{color:S.muted}}>Page {page} of {Math.ceil(totalRows/PAGE_SIZE)} · {fmtN(totalRows)} total rows</span>
+              <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+                <button disabled={page<=1} onClick={()=>load(buildParams(f,page-1),page-1)} style={{padding:"3px 10px",background:"transparent",border:`1px solid ${S.border2}`,borderRadius:6,color:page<=1?S.muted:S.text,fontSize:11,cursor:page<=1?"default":"pointer"}}>← Prev</button>
+                <button disabled={page>=Math.ceil(totalRows/PAGE_SIZE)} onClick={()=>load(buildParams(f,page+1),page+1)} style={{padding:"3px 10px",background:"transparent",border:`1px solid ${S.border2}`,borderRadius:6,color:page>=Math.ceil(totalRows/PAGE_SIZE)?S.muted:S.text,fontSize:11,cursor:page>=Math.ceil(totalRows/PAGE_SIZE)?"default":"pointer"}}>Next →</button>
+              </div>
+            </div>
+          )}
           <div style={{maxHeight:500,overflowY:"auto",overflowX:"auto"}}>
             {!loading&&filtered.length===0
               ?<div style={{padding:40,textAlign:"center",color:S.muted}}>No matching records</div>
