@@ -685,8 +685,8 @@ function PurchaseTab({token}){
   useEffect(()=>{},[token]);
   function reset(){const empty={departureFrom:"",departureTo:"",status:"all",label:"",travelType:""};setF(empty);setSearch("");setData([]);setKpis(null);setTotalPax(0);setPage(1);setTotalRows(0);}
 
-  const confirmedCount=data.filter(r=>r.StatusCode==="DEF").length;
-  const cancelledCount=data.filter(r=>r.StatusCode==="DEF-GEANNULEERD").length;
+  const confirmedCount=kpis?.confirmedCount??data.filter(r=>r.StatusCode==="DEF").length;
+  const cancelledCount=kpis?.cancelledCount??data.filter(r=>r.StatusCode==="DEF-GEANNULEERD").length;
   const filtered=data.filter(r=>{if(!search)return true;const s=search.toLowerCase();return String(r.BookingID||"").includes(search)||String(r.StatusCode||"").toLowerCase().includes(s)||(r.DepartureDate||"").includes(search)||(r.Label||"").toLowerCase().includes(s);});
   const inpS={background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"5px 8px",color:S.text,fontSize:12};
   const KPI_CARDS=[
