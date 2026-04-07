@@ -30,9 +30,9 @@ const fmtEur=v=>{const n=parseFloat(v)||0;return`€${n.toLocaleString("nl-BE",{
 const dc=v=>v==null?"#94a3b8":v>=0?"#10b981":"#ef4444";
 
 const S={
-  bg:"#0f172a",side:"#1a2540",card:"#1e293b",border:"#253352",border2:"#2e3f60",
-  accent:"#3b82f6",accent2:"#60a5fa",text:"#f1f5f9",muted:"#64748b",muted2:"#475569",
-  success:"#10b981",danger:"#ef4444",warn:"#f59e0b",purple:"#8b5cf6",orange:"#f97316"
+  bg:"#f0f5ff",side:"#ffffff",card:"#ffffff",border:"#dbe8ff",border2:"#c5d8ff",
+  accent:"#1a56db",accent2:"#1e40af",text:"#1e293b",muted:"#64748b",muted2:"#94a3b8",
+  success:"#059669",danger:"#dc2626",warn:"#d97706",purple:"#7c3aed",orange:"#ea580c"
 };
 
 const cy=new Date().getFullYear();
@@ -80,8 +80,8 @@ function LineChart({data}){
             <path d={d} fill="none" stroke={YC[yr]||S.accent} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round"/>
             {validIdx.map(i=>(
               <circle key={i} cx={mx(i)} cy={my(pts[i])} r={4} fill={YC[yr]||S.accent} style={{cursor:"pointer"}}
-                onMouseEnter={e=>{const svg=e.target.closest("svg");const rect=svg.getBoundingClientRect();const scaleX=rect.width/W;setTooltip({x:mx(i)*scaleX,y:(my(pts[i])-8)*scaleX,year:yr,month:i+1,value:pts[i]});}}
-                onClick={e=>{const svg=e.target.closest("svg");const rect=svg.getBoundingClientRect();const scaleX=rect.width/W;setTooltip({x:mx(i)*scaleX,y:(my(pts[i])-8)*scaleX,year:yr,month:i+1,value:pts[i]});}}
+                onMouseEnter={e=>{const svg=e.target.closest("svg");const rc=svg.getBoundingClientRect();const sx=rc.width/W;const sy=rc.height/H;setTooltip({x:mx(i)*sx,y:(my(pts[i])-8)*sy,year:yr,month:i+1,value:pts[i]});}}
+                onClick={e=>{const svg=e.target.closest("svg");const rc=svg.getBoundingClientRect();const sx=rc.width/W;const sy=rc.height/H;setTooltip({x:mx(i)*sx,y:(my(pts[i])-8)*sy,year:yr,month:i+1,value:pts[i]});}}
               />
             ))}
           </g>;
@@ -137,8 +137,8 @@ function LineChart({data}){
               const y=PT+CH-bh;
               const color=YC[yr]||S.accent;
               return<rect key={yr} x={x} y={y} width={bw} height={Math.max(bh,0)} fill={color} rx={1} opacity={0.85} style={{cursor:"pointer"}}
-                onMouseEnter={e=>{const svg=e.target.closest("svg");const rc=svg.getBoundingClientRect();const sx=rc.width/W;setTooltip({x:(x+bw/2)*sx,y:y*sx,year:yr,month:mo,value:v});}}
-                onClick={e=>{const svg=e.target.closest("svg");const rc=svg.getBoundingClientRect();const sx=rc.width/W;setTooltip({x:(x+bw/2)*sx,y:y*sx,year:yr,month:mo,value:v});}}
+              onMouseEnter={e=>{const svg=e.target.closest("svg");const rect=svg.getBoundingClientRect();const scaleX=rect.width/W;setTooltip({x:mx(i)*scaleX,y:(my(pts[i])-8)*scaleX,year:yr,month:i+1,value:pts[i]});}}
+              onClick={e=>{const svg=e.target.closest("svg");const rect=svg.getBoundingClientRect();const scaleX=rect.width/W;setTooltip({x:mx(i)*scaleX,y:(my(pts[i])-8)*scaleX,year:yr,month:i+1,value:pts[i]});}}
               />;
             })}
             {/* Month label centered under group */}
@@ -154,15 +154,20 @@ function LineChart({data}){
     </div>
   );
 }
-function KpiCard({label,current,previous,pct,prevLabel,fmt="num",color=S.accent}){
-  const f=fmt==="eur"?fmtM:fmtN,arrow=pct==null?"":pct>=0?"↑":"↓";
+function KpiCard({label,current,previous,pct,fmt="num",color=S.accent}){
+  const f=fmt==="eur"?fmtM:fmtN;
+  const dif=current!=null&&previous!=null?current-previous:null;
   return(
-    <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:"16px 18px",display:"flex",flexDirection:"column",gap:6}}>
+    <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:"16px 18px",display:"flex",flexDirection:"column",gap:8}}>
       <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.08em"}}>{label}</div>
-      <div style={{fontSize:26,fontWeight:800,color:S.text,letterSpacing:"-0.02em"}}>{f(current)}</div>
-      <div style={{fontSize:11,color:S.muted,display:"flex",alignItems:"center",gap:6}}>
-        <span>{prevLabel||"prev"}: {f(previous)}</span>
-        {pct!=null&&<span style={{fontWeight:700,color:dc(pct)}}>{arrow} {Math.abs(pct).toFixed(1)}%</span>}
+      <div style={{fontSize:26,fontWeight:800,color,letterSpacing:"-0.02em"}}>{f(current)}</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4,fontSize:11}}>
+        <div style={{color:S.muted}}>Previous</div>
+        <div style={{color:S.muted,textAlign:"right"}}>{f(previous)}</div>
+        <div style={{color:S.muted}}>Difference</div>
+        <div style={{color:dc(dif),fontWeight:600,textAlign:"right"}}>{dif!=null?(dif>=0?"+":"")+f(Math.abs(dif)):"—"}</div>
+        <div style={{color:S.muted}}>Diff %</div>
+        <div style={{color:dc(pct),fontWeight:700,textAlign:"right"}}>{pct!=null?fmtPct(pct):"—"}</div>
       </div>
     </div>
   );
@@ -232,7 +237,7 @@ function OverviewTab({token}){
     }).finally(()=>setLoading(false));
   },[token]);
 
-  useEffect(()=>{loadData({years:[2023,2024,2025,2026]});},[loadData]);
+  useEffect(()=>{loadData({datasets:[],statuses:[],years:[],bookingFrom:"",bookingTo:"",depFrom:"",depTo:"",quickLabel:""});},[loadData]);
 
   function apply(){
     const cs=[];
@@ -269,38 +274,45 @@ function OverviewTab({token}){
 
   return(
     <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden"}}>
-      <div style={{background:S.side,borderBottom:`1px solid ${S.border}`,padding:"12px 18px",flexShrink:0}}>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:8}}>
-          <span style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.07em"}}>Dataset</span>
-          {DATASETS.map(d=>btn(f.datasets.includes(d),()=>setF({...f,datasets:tog(f.datasets,d)}),d,S.accent))}
-          <span style={{marginLeft:4,fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.07em"}}>Status</span>
-          {btn(f.statuses.includes("ok"),()=>setF({...f,statuses:tog(f.statuses,"ok")}),"Confirmed",S.success)}
-          {btn(f.statuses.includes("cancelled"),()=>setF({...f,statuses:tog(f.statuses,"cancelled")}),"Cancelled",S.danger)}
-          <span style={{marginLeft:4,fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.07em"}}>Year</span>
-          {YEARS.map(y=>btn(f.years.includes(y),()=>setF({...f,years:tog(f.years,y)}),y,YC[y]))}
-        </div>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:8}}>
-          <span style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.07em"}}>Departure</span>
-          {inp(f.depFrom,v=>setF({...f,depFrom:v}))}
-          <span style={{fontSize:11,color:S.muted}}>–</span>
-          {inp(f.depTo,v=>setF({...f,depTo:v}))}
-          <span style={{marginLeft:6,fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.07em"}}>Booked</span>
-          {inp(f.bookingFrom,v=>setF({...f,bookingFrom:v}))}
-          <span style={{fontSize:11,color:S.muted}}>–</span>
-          {inp(f.bookingTo,v=>setF({...f,bookingTo:v}))}
-        </div>
+      <div style={{background:S.side,borderBottom:`1px solid ${S.border}`,padding:"8px 14px",flexShrink:0}}>
         <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+          {/* Dataset chips */}
+          <span style={{fontSize:9,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.07em"}}>Dataset</span>
+          {DATASETS.map(d=>btn(f.datasets.includes(d),()=>setF({...f,datasets:tog(f.datasets,d)}),d,S.accent))}
+          <div style={{width:1,height:16,background:S.border2,margin:"0 2px"}}/>
+          {/* Status */}
+          <span style={{fontSize:9,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.07em"}}>Status</span>
+          {btn(f.statuses.includes("ok"),()=>setF({...f,statuses:tog(f.statuses,"ok")}),"✓ Confirmed",S.success)}
+          {btn(f.statuses.includes("cancelled"),()=>setF({...f,statuses:tog(f.statuses,"cancelled")}),"✗ Cancelled",S.danger)}
+          <div style={{width:1,height:16,background:S.border2,margin:"0 2px"}}/>
+          {/* Year */}
+          <span style={{fontSize:9,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.07em"}}>Year</span>
+          {YEARS.map(y=>btn(f.years.includes(y),()=>setF({...f,years:tog(f.years,y)}),y,YC[y]))}
+          <div style={{width:1,height:16,background:S.border2,margin:"0 2px"}}/>
+          {/* Departure date range — compact */}
+          <span style={{fontSize:9,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.07em"}}>Dep</span>
+          {inp(f.depFrom,v=>setF({...f,depFrom:v}))}
+          <span style={{fontSize:10,color:S.muted}}>–</span>
+          {inp(f.depTo,v=>setF({...f,depTo:v}))}
+          <div style={{width:1,height:16,background:S.border2,margin:"0 2px"}}/>
+          {/* Booked date range — compact */}
+          <span style={{fontSize:9,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.07em"}}>Booked</span>
+          {inp(f.bookingFrom,v=>setF({...f,bookingFrom:v}))}
+          <span style={{fontSize:10,color:S.muted}}>–</span>
+          {inp(f.bookingTo,v=>setF({...f,bookingTo:v}))}
+          <div style={{width:1,height:16,background:S.border2,margin:"0 2px"}}/>
+          {/* Quick date presets */}
           {QUICK_DATES.map(q=>(
-            <button key={q.l} onClick={()=>quick(q)} style={{padding:"3px 9px",borderRadius:6,fontSize:11,cursor:"pointer",border:`1px solid ${f.quickLabel===q.l?S.orange:S.border2}`,background:f.quickLabel===q.l?"rgba(249,115,22,0.15)":"transparent",color:f.quickLabel===q.l?S.orange:S.muted}}>{q.l}</button>
+            <button key={q.l} onClick={()=>quick(q)} style={{padding:"2px 7px",borderRadius:5,fontSize:10,cursor:"pointer",border:`1px solid ${f.quickLabel===q.l?S.orange:S.border2}`,background:f.quickLabel===q.l?"rgba(249,115,22,0.15)":"transparent",color:f.quickLabel===q.l?S.orange:S.muted,whiteSpace:"nowrap"}}>{q.l}</button>
           ))}
-          <div style={{marginLeft:"auto",display:"flex",gap:6}}>
-            <button onClick={reset} style={{padding:"5px 12px",background:"transparent",border:`1px solid ${S.border2}`,borderRadius:6,color:S.muted,fontSize:12,cursor:"pointer"}}>Reset</button>
-            <button onClick={apply} style={{padding:"5px 18px",background:S.accent,border:"none",borderRadius:6,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>Apply Filters</button>
+          <div style={{marginLeft:"auto",display:"flex",gap:5}}>
+            <button onClick={reset} style={{padding:"4px 10px",background:"transparent",border:`1px solid ${S.border2}`,borderRadius:6,color:S.muted,fontSize:11,cursor:"pointer"}}>Reset</button>
+            <button onClick={apply} style={{padding:"4px 14px",background:S.accent,border:"none",borderRadius:6,color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer"}}>Apply Filters</button>
           </div>
         </div>
         {chips.length>0&&(
-          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:8}}>
-            {chips.map(c=><span key={c.k} style={{background:"rgba(59,130,246,0.15)",color:S.accent2,borderRadius:12,padding:"2px 9px",fontSize:11,fontWeight:600}}>{c.l}</span>)}
+          <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:5}}>
+            {chips.map(c=><span key={c.k} style={{background:"rgba(59,130,246,0.15)",color:S.accent2,borderRadius:10,padding:"1px 7px",fontSize:10,fontWeight:600}}>{c.l}</span>)}
           </div>
         )}
       </div>
@@ -372,7 +384,7 @@ function OverviewTab({token}){
               </thead>
               <tbody>
                 {sortedYm.length===0&&!loading&&(
-                  <tr><td colSpan={7} style={{padding:32,textAlign:"center",color:S.muted}}>No data — apply filters and click Apply</td></tr>
+                  <tr><td colSpan={7} style={{padding:32,textAlign:"center",color:S.muted}}>No data</td></tr>
                 )}
                 {sortedYm.map((r,i)=>{
                   const cur=ymMetric==="revenue"?r.currentRevenue:ymMetric==="pax"?r.currentPax:r.currentBookings;
@@ -387,6 +399,8 @@ function OverviewTab({token}){
                         <span style={{display:"inline-block",width:7,height:7,borderRadius:"50%",background:YC[cy_]||S.accent,marginRight:7,verticalAlign:"middle"}}/>
                         {MONTHS[r.month-1]}-{cy_}
                       </td>
+                      <td style={{padding:"8px 12px",textAlign:"center",color:S.accent2,fontWeight:600}}>{cy_}</td>
+                      <td style={{padding:"8px 12px",textAlign:"center",color:S.muted}}>{r.previousYear||(cy_-1)}</td>
                       <td style={{padding:"8px 12px",textAlign:"right",color:S.text,fontWeight:600}}>{fmt(cur)}</td>
                       <td style={{padding:"8px 12px",textAlign:"right",color:S.muted}}>{fmt(prv)}</td>
                       <td style={{padding:"8px 12px",textAlign:"right",fontWeight:600,color:dc(dif)}}>{dif!=null?(parseFloat(dif)>=0?"+":"")+fmt(Math.abs(dif)):"—"}</td>
@@ -1163,7 +1177,9 @@ export default function App(){
     <div style={{display:"flex",height:"100vh",background:S.bg,color:S.text,fontFamily:"Inter,system-ui,sans-serif",letterSpacing:"0.01em",overflow:"hidden"}}>
       <div style={{width:compactNav||navCollapsed?72:220,background:S.side,borderRight:`1px solid ${S.border}`,display:"flex",flexDirection:"column",flexShrink:0,transition:"width 0.2s",position:"relative"}}>
         <div style={{padding:"18px 14px 14px",borderBottom:`1px solid ${S.border}`,display:"flex",alignItems:"center",gap:10}}>
-          <div style={{width:34,height:34,background:S.accent,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:"#fff",flexShrink:0,cursor:"pointer"}} onClick={()=>setNavCollapsed(p=>!p)}>TTP</div>
+          <div style={{width:36,height:36,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,cursor:"pointer",overflow:"hidden",background:"transparent"}} onClick={()=>setNavCollapsed(p=>!p)}>
+            <img src="/assets/logo.png" alt="TTP" style={{width:32,height:32,objectFit:"contain"}} onError={e=>{e.target.style.display="none";e.target.parentNode.innerHTML='<div style="width:34px;height:34px;background:#1a56db;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff">TTP</div>';}}/>
+          </div>
           {!compactNav&&!navCollapsed&&<div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:S.text}}>TTP Analytics</div><div style={{fontSize:10,color:S.muted}}>Data Engine v2.0</div></div>}
           {!compactNav&&!navCollapsed&&<button onClick={()=>setNavCollapsed(true)} title="Collapse" style={{background:"none",border:"none",color:S.muted,cursor:"pointer",padding:2,fontSize:14,lineHeight:1}}>‹</button>}
           {!compactNav&&navCollapsed&&<button onClick={()=>setNavCollapsed(false)} title="Expand" style={{background:"none",border:"none",color:S.muted,cursor:"pointer",padding:2,fontSize:14,lineHeight:1,position:"absolute",left:50}}>›</button>}
