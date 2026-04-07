@@ -669,7 +669,7 @@ function PurchaseTab({token}){
   function load(params,pg=1){
     setLoading(true);
     setErr(null);
-    const apiParams=params!==undefined?{...params,page:pg,limit:PAGE_SIZE}:buildParams(f,pg);
+    const apiParams={...buildParams(params!==undefined?params:f,pg)};
     api("/api/dashboard/margin-overview",apiParams,token)
       .then(d=>{
         setKpis(d?.kpis||null);
@@ -747,7 +747,7 @@ function PurchaseTab({token}){
             </select>
           </div>
           <button onClick={reset} style={{padding:"6px 12px",background:"transparent",border:`1px solid ${S.border2}`,borderRadius:6,color:S.muted,fontSize:12,cursor:"pointer",alignSelf:"flex-end"}}>Reset</button>
-          <button onClick={()=>load(buildParams(f))} style={{padding:"6px 16px",background:S.accent,border:"none",borderRadius:6,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",alignSelf:"flex-end"}}>Apply</button>
+          <button onClick={()=>{setPage(1);load(buildParams(f,1));}} style={{padding:"6px 16px",background:S.accent,border:"none",borderRadius:6,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",alignSelf:"flex-end"}}>Apply</button>
         </div>
         <div style={{fontSize:10,color:S.muted2,marginTop:6}}>Filters only apply on click · data does not auto-refresh</div>
       </div>
