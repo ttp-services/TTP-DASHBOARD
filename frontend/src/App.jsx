@@ -353,7 +353,7 @@ function BusTab({token}){
   const[feeder,setFeeder]=useState([]);
   const[deck,setDeck]=useState([]);
   const[loading,setLoading]=useState(false);
-  const[f,setF]=useState({dateFrom:`${cy}-01-01`,dateTo:`${cy}-12-31`,pendel:"",region:"",label:"",feederLine:"",weekday:"",status:"DEF"});
+  const[f,setF]=useState({dateFrom:`${cy}-01-01`,dateTo:`${cy}-12-31`,pendel:"",region:"",label:"",feederLine:"",weekday:"",status:""});
 
   useEffect(()=>{
     api("/api/dashboard/bus-slicers",{},token).then(d=>{if(d&&!d.error)setSl(d);}).catch(()=>{});
@@ -387,7 +387,7 @@ function BusTab({token}){
   useEffect(()=>{applyLoad();},[token]);
 
   function resetFilters(){
-    const def={dateFrom:`${cy}-01-01`,dateTo:`${cy}-12-31`,pendel:"",region:"",label:"",feederLine:"",weekday:"",status:"DEF"};
+    const def={dateFrom:`${cy}-01-01`,dateTo:`${cy}-12-31`,pendel:"",region:"",label:"",feederLine:"",weekday:"",status:""};
     setF(def);
   }
 
