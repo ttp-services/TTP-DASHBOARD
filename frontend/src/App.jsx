@@ -91,37 +91,7 @@ function LineChart({data}){
     </div>
   );
 }
-  if(!data?.length)return<div style={{color:S.muted,textAlign:"center",padding:32,fontSize:12}}>No data</div>;
-  const sorted=[...data].sort((a,b)=>a.year!==b.year?a.year-b.year:a.month-b.month);
-  const yrs=[...new Set(sorted.map(r=>r.year))];
-  const byYear={};
-  yrs.forEach(y=>{byYear[y]=Array(12).fill(null);});
-  sorted.forEach(r=>{if(byYear[r.year])byYear[r.year][r.month-1]=Number(r.revenue)||0;});
-  const allVals=sorted.map(r=>Number(r.revenue)||0);
-  const maxV=Math.max(...allVals,1);
-  const W=500,H=220,PL=72,PR=16,PT=12,PB=48,CW=W-PL-PR,CH=H-PT-PB;
-  const mx=(mo)=>PL+(mo/11)*CW;
-  const my=(v)=>PT+CH-(v/maxV)*CH;
-  const fmtAxis=v=>{if(v>=1e6)return`€${(v/1e6).toFixed(1)}M`;if(v>=1e3)return`€${(v/1e3).toFixed(0)}K`;return`€${v}`;};
-  return(
-    <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:"auto"}}>
-      {[0,1,2,3,4].map(i=>{const y=PT+(CH/4)*i,v=maxV*(1-i/4);return<g key={i}><line x1={PL} x2={W-PR} y1={y} y2={y} stroke={S.border} strokeWidth={0.5}/><text x={PL-4} y={y+4} textAnchor="end" fontSize={8} fill={S.muted}>{fmtAxis(v)}</text></g>;})}
-      {MONTHS.map((m,i)=><text key={i} x={mx(i)} y={H-PB+14} textAnchor="middle" fontSize={8} fill={S.muted}>{m}</text>)}
-      {yrs.map(yr=>{
-        const pts=byYear[yr];
-        const validIdx=pts.map((v,i)=>v!==null?i:-1).filter(i=>i>=0);
-        if(!validIdx.length)return null;
-        const d=validIdx.map((i,j)=>`${j===0?'M':'L'}${mx(i).toFixed(1)},${my(pts[i]).toFixed(1)}`).join(' ');
-        return<g key={yr}>
-          <path d={d} fill="none" stroke={YC[yr]||S.accent} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round"/>
-          {validIdx.map(i=><circle key={i} cx={mx(i)} cy={my(pts[i])} r={2.5} fill={YC[yr]||S.accent}/>)}
-        </g>;
-      })}
-      {yrs.map((yr,i)=><g key={yr} transform={`translate(${PL+i*55},${H-8})`}><rect width={8} height={8} fill={YC[yr]||S.accent} rx={1}/><text x={11} y={8} fontSize={8} fill={S.muted}>{yr}</text></g>)}
-    </svg>
-  );
-
-function BarChart({data,metric}){
+  function BarChart({data,metric}){
   const[tooltip,setTooltip]=useState(null);
   if(!data?.length)return<div style={{color:S.muted,textAlign:"center",padding:32,fontSize:12}}>No chart data available</div>;
   const sorted=[...data].filter(r=>r.year>=2023&&r.year<=2026).sort((a,b)=>a.year!==b.year?a.year-b.year:a.month-b.month);
