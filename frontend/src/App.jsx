@@ -537,31 +537,62 @@ function BusTab({token}){
               {deck.length>0&&(
                 <>
                   <div style={{padding:"10px 14px",borderTop:`1px solid ${S.border}`,borderBottom:`1px solid ${S.border}`,fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.06em"}}>By Departure Date</div>
-                  <div style={{overflowX:"auto",maxHeight:350,overflowY:"auto"}}>
+                  <div style={{overflowX:"auto",maxHeight:420,overflowY:"auto"}}>
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
-                      <thead style={{position:"sticky",top:0,background:S.bg,zIndex:5}}><tr>
-                        <th style={THL}>Date</th>
-                        <th style={TH}>Total</th>
-                        <th style={{...TH,color:S.accent}}>Lower</th>
-                        <th style={{...TH,color:S.success}}>Upper</th>
-                        <th style={{...TH,color:S.muted}}>No Deck</th>
-                        <th style={{...TH,color:S.warn}}>Royal</th>
-                        <th style={{...TH,color:S.success}}>First</th>
-                        <th style={{...TH,color:S.purple}}>Premium</th>
-                        <th style={{...TH,color:S.orange}}>Comfort</th>
-                      </tr></thead>
+                      <thead style={{position:"sticky",top:0,background:S.bg,zIndex:5}}>
+                        {/* Row 1 — group headers */}
+                        <tr>
+                          <th rowSpan={2} style={{...THL,verticalAlign:"bottom",borderRight:`1px solid ${S.border2}`}}>Date</th>
+                          <th colSpan={4} style={{...TH,textAlign:"center",color:S.text,borderBottom:`1px solid ${S.border2}`,borderRight:`1px solid ${S.border2}`,background:S.bg}}>Total</th>
+                          <th colSpan={4} style={{...TH,textAlign:"center",color:S.warn,borderBottom:`1px solid ${S.border2}`,borderRight:`1px solid ${S.border2}`,background:"rgba(245,158,11,0.08)"}}>Royal Class</th>
+                          <th colSpan={4} style={{...TH,textAlign:"center",color:S.success,borderBottom:`1px solid ${S.border2}`,borderRight:`1px solid ${S.border2}`,background:"rgba(16,185,129,0.08)"}}>First Class</th>
+                          <th colSpan={4} style={{...TH,textAlign:"center",color:S.purple,borderBottom:`1px solid ${S.border2}`,borderRight:`1px solid ${S.border2}`,background:"rgba(139,92,246,0.08)"}}>Premium Class</th>
+                          <th colSpan={4} style={{...TH,textAlign:"center",color:S.orange,borderBottom:`1px solid ${S.border2}`,background:"rgba(249,115,22,0.08)"}}>Comfort Class</th>
+                        </tr>
+                        {/* Row 2 — sub-column headers */}
+                        <tr>
+                          {[S.text,S.text,S.text,S.text].map((_,gi)=>{
+                            const cols=[["Total",""],["Lower",S.accent],["Upper",S.success],["No Deck",S.muted]];
+                            const borderR=gi<3?`1px solid ${S.border2}`:"none";
+                            return cols.map(([label,c],ci)=>(
+                              <th key={`${gi}-${ci}`} style={{...TH,color:c||S.muted,fontSize:9,borderRight:ci===3?borderR:"none",background:gi===0?S.bg:gi===1?"rgba(245,158,11,0.05)":gi===2?"rgba(16,185,129,0.05)":gi===3?"rgba(139,92,246,0.05)":"rgba(249,115,22,0.05)"}}>{label}</th>
+                            ));
+                          })}
+                          {/* Comfort cols */}
+                          {[["Total",""],["Lower",S.accent],["Upper",S.success],["No Deck",S.muted]].map(([label,c],ci)=>(
+                            <th key={`c4-${ci}`} style={{...TH,color:c||S.muted,fontSize:9,background:"rgba(249,115,22,0.05)"}}>{label}</th>
+                          ))}
+                        </tr>
+                      </thead>
                       <tbody>
                         {deck.map((r,i)=>(
                           <tr key={i} style={{borderBottom:`1px solid ${S.border}`,background:i%2===0?"transparent":"rgba(255,255,255,0.018)"}}>
-                            <td style={{...TDL,fontSize:11}}>{r.dateDeparture}</td>
+                            <td style={{...TDL,fontSize:11,fontWeight:600,borderRight:`1px solid ${S.border2}`}}>{r.dateDeparture}</td>
+                            {/* Total group */}
                             <td style={{...TD,fontWeight:700}}>{fmtN(r.Total)}</td>
                             <td style={{...TD,color:S.accent}}>{fmtN(r.Total_Lower)}</td>
                             <td style={{...TD,color:S.success}}>{fmtN(r.Total_Upper)}</td>
-                            <td style={{...TD,color:S.muted}}>{fmtN(r.Total_NoDeck)}</td>
-                            <td style={{...TD,color:S.warn}}>{fmtN(r.Royal_Total)}</td>
-                            <td style={{...TD,color:S.success}}>{fmtN(r.First_Total)}</td>
-                            <td style={{...TD,color:S.purple}}>{fmtN(r.Premium_Total)}</td>
-                            <td style={{...TD,color:S.orange}}>{fmtN(r.Comfort_Total)}</td>
+                            <td style={{...TD,color:S.muted,borderRight:`1px solid ${S.border2}`}}>{fmtN(r.Total_NoDeck)}</td>
+                            {/* Royal group */}
+                            <td style={{...TD,color:S.warn,fontWeight:600}}>{fmtN(r.Royal_Total)}</td>
+                            <td style={{...TD,color:S.accent}}>{fmtN(r.Royal_Lower)}</td>
+                            <td style={{...TD,color:S.success}}>{fmtN(r.Royal_Upper)}</td>
+                            <td style={{...TD,color:S.muted,borderRight:`1px solid ${S.border2}`}}>{fmtN(r.Royal_NoDeck)}</td>
+                            {/* First group */}
+                            <td style={{...TD,color:S.success,fontWeight:600}}>{fmtN(r.First_Total)}</td>
+                            <td style={{...TD,color:S.accent}}>{fmtN(r.First_Lower)}</td>
+                            <td style={{...TD,color:S.success}}>{fmtN(r.First_Upper)}</td>
+                            <td style={{...TD,color:S.muted,borderRight:`1px solid ${S.border2}`}}>{fmtN(r.First_NoDeck)}</td>
+                            {/* Premium group */}
+                            <td style={{...TD,color:S.purple,fontWeight:600}}>{fmtN(r.Premium_Total)}</td>
+                            <td style={{...TD,color:S.accent}}>{fmtN(r.Premium_Lower)}</td>
+                            <td style={{...TD,color:S.success}}>{fmtN(r.Premium_Upper)}</td>
+                            <td style={{...TD,color:S.muted,borderRight:`1px solid ${S.border2}`}}>{fmtN(r.Premium_NoDeck)}</td>
+                            {/* Comfort group */}
+                            <td style={{...TD,color:S.orange,fontWeight:600}}>{fmtN(r.Comfort_Total)}</td>
+                            <td style={{...TD,color:S.accent}}>{fmtN(r.Comfort_Lower)}</td>
+                            <td style={{...TD,color:S.success}}>{fmtN(r.Comfort_Upper)}</td>
+                            <td style={{...TD,color:S.muted}}>{fmtN(r.Comfort_NoDeck)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -609,9 +640,12 @@ function BusTab({token}){
       </div>
 
       {/* ── Filter sidebar RIGHT ── */}
-      <div style={{width:230,background:S.side,borderLeft:`1px solid ${S.border}`,display:"flex",flexDirection:"column",flexShrink:0}}>
-        <div style={{padding:"12px 14px",borderBottom:`1px solid ${S.border}`,fontSize:11,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.08em"}}>Filters</div>
-        <div style={{flex:1,padding:12,overflowY:"auto"}}>
+      <div style={{width:f._collapsed?40:230,background:S.side,borderLeft:`1px solid ${S.border}`,display:"flex",flexDirection:"column",flexShrink:0,transition:"width 0.2s"}}>
+        <div style={{padding:"12px 14px",borderBottom:`1px solid ${S.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer"}} onClick={()=>setF(p=>({...p,_collapsed:!p._collapsed}))}>
+          {!f._collapsed&&<span style={{fontSize:11,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.08em"}}>Filters</span>}
+          <span style={{marginLeft:"auto",color:S.muted,fontSize:14,lineHeight:1}}>{f._collapsed?"›":"‹"}</span>
+        </div>
+        <div style={{flex:1,padding:f._collapsed?0:12,overflowY:"auto",display:f._collapsed?"none":"flex",flexDirection:"column"}}>
           <div style={{marginBottom:9}}>{lbl("Date From")}{di(f.dateFrom,v=>setF({...f,dateFrom:v}))}</div>
           <div style={{marginBottom:9}}>{lbl("Date To")}{di(f.dateTo,v=>setF({...f,dateTo:v}))}</div>
           <div style={{marginBottom:9}}>{lbl("Label")}
@@ -643,10 +677,10 @@ function BusTab({token}){
             <div style={{marginBottom:9}}>{lbl("Feeder Line")}{sel(f.feederLine,v=>setF({...f,feederLine:v}),sl.feederLines)}</div>
           </>}
         </div>
-        <div style={{padding:12,borderTop:`1px solid ${S.border}`,display:"flex",flexDirection:"column",gap:8}}>
+        {!f._collapsed&&<div style={{padding:12,borderTop:`1px solid ${S.border}`,display:"flex",flexDirection:"column",gap:8}}>
           <button onClick={applyLoad} style={{padding:"8px",background:S.accent,border:"none",borderRadius:8,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>Apply Filters</button>
           <button onClick={resetFilters} style={{padding:"8px",background:"transparent",border:`1px solid ${S.border2}`,borderRadius:8,color:S.muted,fontSize:12,cursor:"pointer"}}>Reset</button>
-        </div>
+        </div>}
       </div>
 
     </div>
@@ -1043,6 +1077,7 @@ export default function App(){
   const[tab,setTab]=useState("overview");
   const[theme,setTheme]=useState(()=>localStorage.getItem("ttp_theme")||"dark");
   const[compactNav,setCompactNav]=useState(()=>window.innerWidth<768);
+  const[navCollapsed,setNavCollapsed]=useState(false);
 
   useEffect(()=>{
     localStorage.setItem("ttp_theme",theme);
@@ -1068,22 +1103,24 @@ export default function App(){
 
   return(
     <div style={{display:"flex",height:"100vh",background:S.bg,color:S.text,fontFamily:"Inter,system-ui,sans-serif",letterSpacing:"0.01em",overflow:"hidden"}}>
-      <div style={{width:compactNav?72:220,background:S.side,borderRight:`1px solid ${S.border}`,display:"flex",flexDirection:"column",flexShrink:0}}>
+      <div style={{width:compactNav||navCollapsed?72:220,background:S.side,borderRight:`1px solid ${S.border}`,display:"flex",flexDirection:"column",flexShrink:0,transition:"width 0.2s",position:"relative"}}>
         <div style={{padding:"18px 14px 14px",borderBottom:`1px solid ${S.border}`,display:"flex",alignItems:"center",gap:10}}>
-          <div style={{width:34,height:34,background:S.accent,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:"#fff",flexShrink:0}}>TTP</div>
-          {!compactNav&&<div><div style={{fontSize:13,fontWeight:700,color:S.text}}>TTP Analytics</div><div style={{fontSize:10,color:S.muted}}>Data Engine v2.0</div></div>}
+          <div style={{width:34,height:34,background:S.accent,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:"#fff",flexShrink:0,cursor:"pointer"}} onClick={()=>setNavCollapsed(p=>!p)}>TTP</div>
+          {!compactNav&&!navCollapsed&&<div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:S.text}}>TTP Analytics</div><div style={{fontSize:10,color:S.muted}}>Data Engine v2.0</div></div>}
+          {!compactNav&&!navCollapsed&&<button onClick={()=>setNavCollapsed(true)} title="Collapse" style={{background:"none",border:"none",color:S.muted,cursor:"pointer",padding:2,fontSize:14,lineHeight:1}}>‹</button>}
+          {!compactNav&&navCollapsed&&<button onClick={()=>setNavCollapsed(false)} title="Expand" style={{background:"none",border:"none",color:S.muted,cursor:"pointer",padding:2,fontSize:14,lineHeight:1,position:"absolute",left:50}}>›</button>}
         </div>
         <div style={{flex:1,padding:"10px",overflowY:"auto"}}>
           {NAV.map(n=>(
             <div key={n.id} onClick={()=>setTab(n.id)} style={{display:"flex",alignItems:"center",justifyContent:compactNav?"center":"flex-start",gap:10,padding:compactNav?"10px":"10px 12px",cursor:"pointer",borderRadius:10,background:tab===n.id?"rgba(59,130,246,0.15)":"transparent",color:tab===n.id?S.accent2:S.muted,borderLeft:tab===n.id?`3px solid ${S.accent}`:"3px solid transparent",marginBottom:3,fontSize:13,fontWeight:tab===n.id?600:400}}>
-              {n.ic}{!compactNav&&<span>{n.l}</span>}
+              {n.ic}{!compactNav&&!navCollapsed&&<span>{n.l}</span>}
             </div>
           ))}
         </div>
         <div style={{padding:"11px 13px",borderTop:`1px solid ${S.border}`,display:"flex",alignItems:"center",gap:9,justifyContent:compactNav?"center":"flex-start"}}>
           <div style={{width:28,height:28,borderRadius:"50%",background:S.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:"#fff",flexShrink:0}}>{(session.username||"U")[0].toUpperCase()}</div>
-          {!compactNav&&<div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:600,color:S.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{session.username||"User"}</div><div style={{fontSize:10,color:S.muted}}>{session.role||"viewer"}</div></div>}
-          <button onClick={()=>{clearAuth();setSession(null);}} title="Sign out" style={{background:"none",border:"none",color:S.muted,cursor:"pointer",padding:4,flexShrink:0,display:compactNav?"none":"block"}}>
+          {!compactNav&&!navCollapsed&&<div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:600,color:S.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{session.username||"User"}</div><div style={{fontSize:10,color:S.muted}}>{session.role||"viewer"}</div></div>}
+          <button onClick={()=>{clearAuth();setSession(null);}} title="Sign out" style={{background:"none",border:"none",color:S.muted,cursor:"pointer",padding:4,flexShrink:0,display:compactNav||navCollapsed?"none":"block"}}>
             <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
           </button>
         </div>
