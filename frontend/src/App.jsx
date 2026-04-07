@@ -94,12 +94,20 @@ function LineChart({data}){
   function BarChart({data,metric}){
   const[tooltip,setTooltip]=useState(null);
   if(!data?.length)return<div style={{color:S.muted,textAlign:"center",padding:32,fontSize:12}}>No chart data available</div>;
-  const sorted=[...data].filter(r=>r.year>=2023&&r.year<=2026).sort((a,b)=>a.year!==b.year?a.year-b.year:a.month-b.month);
-  const vals=sorted.map(r=>metric==="pax"?Number(r.pax)||0:Number(r.bookings)||0);
-  const maxV=Math.max(...vals,1);
-  const W=500,H=220,PL=55,PR=10,PT=12,PB=48,CW=W-PL-PR,CH=H-PT-PB;
-  const bw=Math.max(4,Math.floor(CW/sorted.length)-2);
-  const yrs=[...new Set(sorted.map(r=>r.year))];
+  const filtered=[...data].filter(r=>r.year>=2023&&r.year<=2026);
+  const yrs=[...new Set(filtered.map(r=>r.year))].sort((a,b)=>a-b);
+  // Build grid: 12 months × N years
+  const grid={};
+  for(let m=1;m<=12;m++){grid[m]={};yrs.forEach(y=>{grid[m][y]=0;});}
+  filtered.forEach(r=>{if(grid[r.month]&&r.year>=2023&&r.year<=2026)grid[r.month][r.year]=metric==="pax"?Number(r.pax)||0:Number(r.bookings)||0;});
+  const allVals=Object.values(grid).flatMap(mv=>Object.values(mv));
+  const maxV=Math.max(...allVals,1);
+  const W=520,H=220,PL=55,PR=10,PT=12,PB=48,CW=W-PL-PR,CH=H-PT-PB;
+  const MONTHS_COUNT=12;
+  const groupW=CW/MONTHS_COUNT;
+  const gap=2;
+  const bw=Math.max(3,Math.floor((groupW-gap*(yrs.length+1))/yrs.length));
+  const groupPad=(groupW-(bw*yrs.length+gap*(yrs.length-1)))/2;
   return(
     <div style={{position:"relative"}}>
       {tooltip&&(
@@ -109,16 +117,39 @@ function LineChart({data}){
         </div>
       )}
       <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:"auto"}} onMouseLeave={()=>setTooltip(null)}>
-        {[0,1,2,3,4].map(i=>{const y=PT+(CH/4)*i,v=maxV*(1-i/4);return<g key={i}><line x1={PL} x2={W-PR} y1={y} y2={y} stroke={S.border} strokeWidth={0.5}/><text x={PL-4} y={y+4} textAnchor="end" fontSize={8} fill={S.muted}>{fmtN(Math.round(v))}</text></g>;})}
-        {sorted.map((r,i)=>{
-          const v=vals[i],bh=(v/maxV)*CH,x=PL+(i/sorted.length)*CW+(CW/sorted.length-bw)/2,y=PT+CH-bh,color=YC[r.year]||S.accent;
-          return<rect key={i} x={x} y={y} width={bw} height={bh} fill={color} rx={2} opacity={0.85} style={{cursor:"pointer"}}
-            onMouseEnter={e=>{const svg=e.target.closest("svg");const rect=svg.getBoundingClientRect();const scaleX=rect.width/W;setTooltip({x:(x+bw/2)*scaleX,y:y*scaleX,year:r.year,month:r.month,value:v});}}
-            onClick={e=>{const svg=e.target.closest("svg");const rect=svg.getBoundingClientRect();const scaleX=rect.width/W;setTooltip({x:(x+bw/2)*scaleX,y:y*scaleX,year:r.year,month:r.month,value:v});}}
-          />;
+        {/* Y axis gridlines */}
+        {[0,1,2,3,4].map(i=>{
+          const y=PT+(CH/4)*i,v=maxV*(1-i/4);
+          return<g key={i}>
+            <line x1={PL} x2={W-PR} y1={y} y2={y} stroke={S.border} strokeWidth={0.5}/>
+            <text x={PL-4} y={y+4} textAnchor="end" fontSize={8} fill={S.muted}>{fmtN(Math.round(v))}</text>
+          </g>;
         })}
-        {[...new Set(sorted.map(r=>r.month))].sort((a,b)=>a-b).map(mo=>{const indices=sorted.reduce((acc,r,i)=>{if(r.month===mo)acc.push(i);return acc;},[]);if(!indices.length)return null;const firstX=PL+(indices[0]/sorted.length)*CW+(CW/sorted.length-bw)/2;const lastX=PL+(indices[indices.length-1]/sorted.length)*CW+(CW/sorted.length+bw)/2;const cx=(firstX+lastX)/2;return<text key={mo} x={cx} y={H-PB+14} textAnchor="middle" fontSize={9} fill={S.muted}>{MONTHS[mo-1]}</text>;})}
-        {yrs.map((yr,i)=><g key={yr} transform={`translate(${PL+i*55},${H-8})`}><rect width={8} height={8} fill={YC[yr]||S.accent} rx={1}/><text x={11} y={8} fontSize={8} fill={S.muted}>{yr}</text></g>)}
+        {/* Grouped bars — 12 month groups, each group has 1 bar per year */}
+        {Array.from({length:12},(_,mi)=>{
+          const mo=mi+1;
+          const groupX=PL+mi*groupW;
+          return<g key={mo}>
+            {yrs.map((yr,yi)=>{
+              const v=grid[mo][yr]||0;
+              const bh=(v/maxV)*CH;
+              const x=groupX+groupPad+yi*(bw+gap);
+              const y=PT+CH-bh;
+              const color=YC[yr]||S.accent;
+              return<rect key={yr} x={x} y={y} width={bw} height={Math.max(bh,0)} fill={color} rx={1} opacity={0.85} style={{cursor:"pointer"}}
+                onMouseEnter={e=>{const svg=e.target.closest("svg");const rc=svg.getBoundingClientRect();const sx=rc.width/W;setTooltip({x:(x+bw/2)*sx,y:y*sx,year:yr,month:mo,value:v});}}
+                onClick={e=>{const svg=e.target.closest("svg");const rc=svg.getBoundingClientRect();const sx=rc.width/W;setTooltip({x:(x+bw/2)*sx,y:y*sx,year:yr,month:mo,value:v});}}
+              />;
+            })}
+            {/* Month label centered under group */}
+            <text x={groupX+groupW/2} y={H-PB+14} textAnchor="middle" fontSize={8} fill={S.muted}>{MONTHS[mi]}</text>
+          </g>;
+        })}
+        {/* Legend */}
+        {yrs.map((yr,i)=><g key={yr} transform={`translate(${PL+i*55},${H-8})`}>
+          <rect width={8} height={8} fill={YC[yr]||S.accent} rx={1}/>
+          <text x={11} y={8} fontSize={8} fill={S.muted}>{yr}</text>
+        </g>)}
       </svg>
     </div>
   );
