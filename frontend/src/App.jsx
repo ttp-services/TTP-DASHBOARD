@@ -676,7 +676,7 @@ function PurchaseTab({token}){
         const rows=Array.isArray(d?.data)?d.data:[];
         setData(rows);
         setTotalRows(Number(d?.totalRows||rows.length));
-        setTotalPax(rows.reduce((s,r)=>s+(Number(r.PAX)||0),0));
+        setTotalPax(Number(d?.kpis?.totalPax||0));
         setPage(pg);
       })
       .catch(e=>{setErr(e.message);setData([]);setKpis(null);setTotalPax(0);})
