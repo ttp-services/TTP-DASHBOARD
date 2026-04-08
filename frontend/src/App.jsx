@@ -818,7 +818,7 @@ function ElementMarginChart({trend}){
 
 function PurchaseTab({token}){
   const[subTab,setSubTab]=useState("summary");
-  const[f,setF]=useState({departureFrom:"",departureTo:"",status:"all",label:"",dataset:"",year:""});
+  const[f,setF]=useState({departureFrom:"",departureTo:"",status:"all",label:"",dataset:"",year:"",travelType:""});
 
   const[sumData,setSumData]=useState([]);
   const[sumKpis,setSumKpis]=useState(null);
@@ -839,7 +839,7 @@ function PurchaseTab({token}){
   const[elTotal,setElTotal]=useState(0);
   const[elSearch,setElSearch]=useState("");
 
-  function buildSumParams(p,pg=1){const out={page:pg,limit:PAGE_SIZE};if(p.departureFrom)out.departureFrom=p.departureFrom;if(p.departureTo)out.departureTo=p.departureTo;if(p.status&&p.status!=="all")out.status=p.status;if(p.label)out.label=p.label;return out;}
+  function buildSumParams(p,pg=1){const out={page:pg,limit:PAGE_SIZE};if(p.departureFrom)out.departureFrom=p.departureFrom;if(p.departureTo)out.departureTo=p.departureTo;if(p.status&&p.status!=="all")out.status=p.status;if(p.label)out.label=p.label;if(p.travelType)out.travelType=p.travelType;return out;}
   function buildElParams(p,pg=1){const out={page:pg,limit:PAGE_SIZE};if(p.departureFrom)out.departureFrom=p.departureFrom;if(p.departureTo)out.departureTo=p.departureTo;if(p.status&&p.status!=="all")out.status=p.status;if(p.label)out.label=p.label;if(p.dataset)out.dataset=p.dataset;if(p.year)out.year=p.year;return out;}
 
   function loadSummary(params,pg=1){
@@ -866,7 +866,7 @@ function PurchaseTab({token}){
   }
 
   function reset(){
-    const e={departureFrom:"",departureTo:"",status:"all",label:"",dataset:"",year:""};
+    const e={departureFrom:"",departureTo:"",status:"all",label:"",dataset:"",year:"",travelType:""};
     setF(e);setSumData([]);setSumKpis(null);setSumPage(1);setSumTotal(0);setSumSearch("");
     setElData([]);setElKpis(null);setElCats([]);setElTrend([]);setElPage(1);setElTotal(0);setElSearch("");
   }
@@ -900,8 +900,8 @@ function PurchaseTab({token}){
           <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Status</label>
           <select value={f.status} onChange={e=>setF({...f,status:e.target.value})} style={selStyle}>
             <option value="all">All Statuses</option>
-            <option value="ok">✓ Confirmed (DEF)</option>
-            <option value="cancelled">✗ Cancelled</option>
+            <option value="ok">DEF (Confirmed)</option>
+            <option value="cancelled">DEF-GEANNULEERD</option>
           </select>
         </div>
         <div>
@@ -913,11 +913,24 @@ function PurchaseTab({token}){
             <option value="Interbus">Interbus</option>
           </select>
         </div>
+        {subTab==="summary"&&(
+          <div>
+            <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Travel Type</label>
+            <select value={f.travelType||""} onChange={e=>setF({...f,travelType:e.target.value})} style={selStyle}>
+              <option value="">All Types</option>
+              <option value="BUS">BUS</option>
+              <option value="OWN TRANSPORT">OWN TRANSPORT</option>
+              <option value="FLIGHT">FLIGHT</option>
+              <option value="ENKEL">ENKEL</option>
+              <option value="UNKNOWN">UNKNOWN</option>
+            </select>
+          </div>
+        )}
         {subTab==="elements"&&<>
           <div>
-            <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Dataset</label>
+            <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Category (Dataset)</label>
             <select value={f.dataset} onChange={e=>setF({...f,dataset:e.target.value})} style={selStyle}>
-              <option value="">All</option>
+              <option value="">All Categories</option>
               <option value="Solmar">Solmar</option>
               <option value="Interbus">Interbus</option>
               <option value="Snowtravel">Snowtravel</option>
@@ -1001,12 +1014,12 @@ function PurchaseTab({token}){
                 {l:"Obligations",v:fmtM(sumKpis.totalObligation),c:S.orange,icon:"📌"},
                 {l:"Margin+Comm",v:fmtM(sumKpis.totalMarginIncludingCommission),c:parseFloat(sumKpis.totalMarginIncludingCommission||0)>=0?S.success:S.danger,icon:"💎"},
               ].map(k=>(
-                <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:"14px 16px",boxShadow:S.shadow,display:"flex",alignItems:"center",gap:12}}>
-                  <div style={{width:38,height:38,borderRadius:10,background:`${k.c}12`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,flexShrink:0}}>{k.icon}</div>
-                  <div><div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>{k.l}</div><div style={{fontSize:18,fontWeight:800,color:k.c}}>{k.v}</div></div>
-                </div>
-              ))}
-            </div>
+                 <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:"14px 16px",boxShadow:S.shadow,display:"flex",alignItems:"center",gap:12}}>
+                    <div style={{width:38,height:38,borderRadius:10,background:`${k.c}12`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,flexShrink:0}}>{k.icon}</div>
+                    <div><div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>{k.l}</div><div style={{fontSize:18,fontWeight:800,color:k.c}}>{k.v}</div></div>
+                  </div>
+                ))}
+              </div>
           )}
           {sumData.length>0&&(
             <Card p="0">
@@ -1040,7 +1053,7 @@ function PurchaseTab({token}){
                           <td style={{...TDL,color:S.accent,fontWeight:600,fontFamily:"monospace",fontSize:11}}>{r.BookingID||"—"}</td>
                           <td style={{...TDL,fontWeight:500}}>{r.DepartureDate||"—"}</td>
                           <td style={{...TDL,color:S.muted}}>{r.ReturnDate||"—"}</td>
-                          <td style={TDL}><span style={{background:confirmed?S.successBg:S.dangerBg,color:confirmed?S.success:S.danger,padding:"2px 7px",borderRadius:5,fontSize:10,fontWeight:700}}>{confirmed?"✓ DEF":"✗ GEANN."}</span></td>
+                          <td style={TDL}><span style={{background:confirmed?S.successBg:S.dangerBg,color:confirmed?S.success:S.danger,padding:"2px 7px",borderRadius:5,fontSize:10,fontWeight:700}}>{confirmed?"DEF":"DEF-GEANNULEERD"}</span></td>
                           <td style={{...TDL,color:S.textLight,fontSize:11}}>{r.Label||"—"}</td>
                           <td style={TD}>{fmtN(r.PAX)}</td>
                           <td style={TD}>{fmtEur(r.SalesBooking)}</td>
@@ -1076,13 +1089,18 @@ function PurchaseTab({token}){
           {elLoading&&<div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"60px 20px"}}><span style={{color:S.muted,fontSize:13}}>Loading element data…</span></div>}
           {elKpis&&(
             <>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
-                {[
-                  {l:"Total Bookings",v:fmtN(elKpis.totalBookings),c:S.accent,icon:"📋"},
-                  {l:"Total PAX",v:fmtN(elKpis.totalPax),c:S.purple,icon:"👥"},
-                  {l:"Total Sales",v:fmtM(elKpis.totalSales),c:S.success,icon:"💰"},
-                  {l:"Net Margin",v:fmtM(elKpis.totalMargin),c:parseFloat(elKpis.totalMargin||0)>=0?S.success:S.danger,icon:"📈"},
-                ].map(k=>(
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
+                {(()=>{
+                  const commPct=parseFloat(elKpis.totalSales||0)>0?((parseFloat(elKpis.totalCommission||0)/parseFloat(elKpis.totalSales))*100):null;
+                  return[
+                    {l:"Total Bookings",v:fmtN(elKpis.totalBookings),c:S.accent,icon:"📋"},
+                    {l:"Total PAX",v:fmtN(elKpis.totalPax),c:S.purple,icon:"👥"},
+                    {l:"Total Sales",v:fmtM(elKpis.totalSales),c:S.success,icon:"💰"},
+                    {l:"Net Margin",v:fmtM(elKpis.totalMargin),c:parseFloat(elKpis.totalMargin||0)>=0?S.success:S.danger,icon:"📈"},
+                    {l:"Commission",v:fmtM(elKpis.totalCommission),c:S.warn,icon:"🤝"},
+                    {l:"Commission %",v:commPct!=null?`${commPct.toFixed(2)}%`:"—",c:S.warn,icon:"📊"},
+                  ];
+                })().map(k=>(
                   <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:"14px 16px",boxShadow:S.shadow,display:"flex",alignItems:"center",gap:12}}>
                     <div style={{width:38,height:38,borderRadius:10,background:`${k.c}12`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,flexShrink:0}}>{k.icon}</div>
                     <div><div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>{k.l}</div><div style={{fontSize:18,fontWeight:800,color:k.c}}>{k.v}</div></div>
@@ -1123,21 +1141,80 @@ function PurchaseTab({token}){
                 </div>
               )}
               {elTrend.length>0&&(
-                <Card>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                <Card p="0">
+                  <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                     <div>
-                      <div style={{fontSize:13,fontWeight:700,color:S.text}}>Margin by Category — Monthly</div>
-                      <div style={{fontSize:11,color:S.muted,marginTop:1}}>Stacked by element category</div>
-                    </div>
-                    <div style={{display:"flex",gap:8}}>
-                      {Object.entries(CAT_COLORS).map(([cat,c])=>(
-                        <span key={cat} style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:S.muted}}>
-                          <span style={{width:8,height:8,borderRadius:2,background:c,display:"inline-block"}}/>{cat}
-                        </span>
-                      ))}
+                      <div style={{fontSize:13,fontWeight:700,color:S.text}}>Margin by Category — Monthly Pivot</div>
+                      <div style={{fontSize:11,color:S.muted,marginTop:1}}>Rows = months · Columns = categories</div>
                     </div>
                   </div>
-                  <ElementMarginChart trend={elTrend}/>
+                  <div style={{overflowX:"auto",maxHeight:400,overflowY:"auto"}}>
+                    {(()=>{
+                      const months=[...new Set(elTrend.map(r=>r.year*100+r.month))].sort();
+                      const cats=[...new Set(elTrend.map(r=>r.category))].sort();
+                      const grid={};
+                      months.forEach(ym=>{grid[ym]={};cats.forEach(c=>{grid[ym][c]={margin:0,sales:0,bookings:0};});});
+                      elTrend.forEach(r=>{const ym=r.year*100+r.month;if(grid[ym]&&grid[ym][r.category]){grid[ym][r.category]={margin:parseFloat(r.margin)||0,sales:parseFloat(r.sales)||0,bookings:Number(r.bookings)||0};}});
+                      const totals={};cats.forEach(c=>{totals[c]={margin:0,sales:0};});
+                      months.forEach(ym=>cats.forEach(c=>{totals[c].margin+=grid[ym][c].margin;totals[c].sales+=grid[ym][c].sales;}));
+                      const grandTotal={margin:cats.reduce((s,c)=>s+totals[c].margin,0),sales:cats.reduce((s,c)=>s+totals[c].sales,0)};
+                      const THP={padding:"8px 12px",textAlign:"right",fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.04em",whiteSpace:"nowrap",borderBottom:`1px solid ${S.border}`,background:"#f8faff",borderRight:`1px solid ${S.border}`};
+                      const TDP={padding:"7px 12px",textAlign:"right",fontSize:11,whiteSpace:"nowrap",borderBottom:`1px solid ${S.border}`,borderRight:`1px solid ${S.border}`};
+                      return(
+                        <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                          <thead style={{position:"sticky",top:0,zIndex:5}}>
+                            <tr>
+                              <th style={{...THP,textAlign:"left",minWidth:80}}>Period</th>
+                              {cats.map(c=>(
+                                <th key={c} colSpan={2} style={{...THP,textAlign:"center",color:CAT_COLORS[c]||S.accent,borderRight:`2px solid ${S.border2}`}}>{CAT_ICONS[c]||""} {c}</th>
+                              ))}
+                              <th colSpan={2} style={{...THP,textAlign:"center",color:S.text,borderRight:"none"}}>TOTAL</th>
+                            </tr>
+                            <tr>
+                              <th style={{...THP,textAlign:"left",background:"#f0f4ff"}}>Month</th>
+                              {cats.map(c=>[
+                                <th key={c+"s"} style={{...THP,fontSize:9,background:"#f0f4ff"}}>Sales</th>,
+                                <th key={c+"m"} style={{...THP,fontSize:9,background:"#f0f4ff",borderRight:`2px solid ${S.border2}`}}>Margin</th>
+                              ])}
+                              <th style={{...THP,fontSize:9,background:"#f0f4ff"}}>Sales</th>
+                              <th style={{...THP,fontSize:9,background:"#f0f4ff",borderRight:"none"}}>Margin</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {months.map((ym,mi)=>{
+                              const yr=Math.floor(ym/100),mo=ym%100;
+                              const rowSales=cats.reduce((s,c)=>s+(grid[ym][c].sales||0),0);
+                              const rowMargin=cats.reduce((s,c)=>s+(grid[ym][c].margin||0),0);
+                              return(
+                                <tr key={ym} style={{background:mi%2===0?"transparent":"#f8faff"}}>
+                                  <td style={{...TDP,textAlign:"left",fontWeight:600,color:S.text}}>{MONTHS[mo-1]} {yr}</td>
+                                  {cats.map(c=>{
+                                    const m=grid[ym][c].margin||0;
+                                    const s=grid[ym][c].sales||0;
+                                    return[
+                                      <td key={c+"s"} style={{...TDP,color:S.textLight}}>{s?fmtM(s):"—"}</td>,
+                                      <td key={c+"m"} style={{...TDP,fontWeight:600,color:m>=0?S.success:S.danger,borderRight:`2px solid ${S.border2}`}}>{s||m?fmtM(m):"—"}</td>
+                                    ];
+                                  })}
+                                  <td style={{...TDP,fontWeight:700,color:S.text}}>{fmtM(rowSales)}</td>
+                                  <td style={{...TDP,fontWeight:700,color:rowMargin>=0?S.success:S.danger,borderRight:"none"}}>{fmtM(rowMargin)}</td>
+                                </tr>
+                              );
+                            })}
+                            <tr style={{background:"#f0f4ff",borderTop:`2px solid ${S.border2}`}}>
+                              <td style={{...TDP,textAlign:"left",fontWeight:800,color:S.text}}>TOTAL</td>
+                              {cats.map(c=>[
+                                <td key={c+"s"} style={{...TDP,fontWeight:700,color:S.text}}>{fmtM(totals[c].sales)}</td>,
+                                <td key={c+"m"} style={{...TDP,fontWeight:800,color:totals[c].margin>=0?S.success:S.danger,borderRight:`2px solid ${S.border2}`}}>{fmtM(totals[c].margin)}</td>
+                              ])}
+                              <td style={{...TDP,fontWeight:800,color:S.text}}>{fmtM(grandTotal.sales)}</td>
+                              <td style={{...TDP,fontWeight:800,color:grandTotal.margin>=0?S.success:S.danger,borderRight:"none"}}>{fmtM(grandTotal.margin)}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      );
+                    })()}
+                  </div>
                 </Card>
               )}
               {elData.length>0&&(
