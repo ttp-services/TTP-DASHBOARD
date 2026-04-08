@@ -443,7 +443,7 @@ function OverviewTab({token}){
                         {MONTHS[r.month-1]}-{cy_}
                       </td>
                       <td style={{padding:"9px 14px",textAlign:"right",color:S.text,fontWeight:600}}>{fmt(cur)}</td>
-                      <td style={{padding:"9px 14px",textAlign:"right",color:S.muted}}>{prv==null||Number(prv)===0?"—":fmt(prv)}</td>
+                      <td style={{padding:"9px 14px",textAlign:"right",color:S.muted}}>{fmt(prv)}</td>
                       <td style={{padding:"9px 14px",textAlign:"right",fontWeight:600,color:dc(dif)}}>
                         {dif!=null?(parseFloat(dif)>=0?"+":"")+fmt(Math.abs(dif)):"—"}
                       </td>
@@ -722,27 +722,19 @@ function BusTab({token}){
                   <option value="ITB">ITB</option>
                 </select>
               </div>
-              {view==="pendel"?(
-                <div style={{background:S.warnBg,border:`1px solid ${S.warn}33`,borderRadius:6,padding:"8px 10px",fontSize:10,color:S.warn,lineHeight:1.5}}>
-                  ⚠ Pendel data comes from <code>BUStrips</code> (ETL pre-filtered).<br/>
-                  Default: DEF only · VERV &amp; DEF-GEANNULEERD excluded.<br/>
-                  Ask Samir to run:<br/>
-                  <code style={{fontSize:9}}>EXEC etl.usp_LoadBUStrips;</code>
-                </div>
-              ):(
-                <div>{lbl("Status")}
-                  <select multiple value={f.status?f.status.split(",").filter(Boolean):[]} onChange={e=>setF({...f,status:[...e.target.selectedOptions].map(o=>o.value).join(",")})} style={{width:"100%",background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"4px 6px",color:S.text,fontSize:11,outline:"none",height:100}}>
-                    <option value="DEF">✓ Confirmed</option>
-                    <option value="TIJD">Timed</option>
-                    <option value="VERV">Replaced</option>
-                    <option value="DEF-GEANNULEERD">✗ Cancelled</option>
-                    <option value="ACC AV NIET OK">Accom. Not OK</option>
-                    <option value="CTRL">Control</option>
-                    <option value="IN_AANVRAAG">Requested</option>
-                  </select>
-                  <div style={{fontSize:9,color:S.muted2,marginTop:3}}>Hold Ctrl to select multiple</div>
-                </div>
-              )}
+              <div>{lbl("Status")}
+                <select multiple value={f.status?f.status.split(",").filter(Boolean):[]} onChange={e=>setF({...f,status:[...e.target.selectedOptions].map(o=>o.value).join(",")})} style={{width:"100%",background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"4px 6px",color:S.text,fontSize:11,outline:"none",height:90}}>
+                  <option value="DEF">DEF (Confirmed)</option>
+                  <option value="TIJD">TIJD (Timed)</option>
+                  <option value="VERV">VERV (Replaced)</option>
+                  <option value="DEF-GEANNULEERD">DEF-GEANNULEERD</option>
+                  <option value="ACC AV NIET OK">ACC AV NIET OK</option>
+                  <option value="CTRL">CTRL</option>
+                  <option value="IN_AANVRAAG">IN_AANVRAAG</option>
+                </select>
+                <div style={{fontSize:9,color:S.muted2,marginTop:3}}>Hold Ctrl · Applies to KPI cards &amp; Deck view</div>
+                <div style={{fontSize:9,color:S.warn,marginTop:2}}>⚠ Pendel uses BUStrips (ETL-filtered, DEF only)</div>
+              </div>
               {view!=="feeder"&&<>
                 <div>{lbl("Pendel")}{sel(f.pendel,v=>setF({...f,pendel:v}),sl.pendels)}</div>
                 <div>{lbl("Region")}{sel(f.region,v=>setF({...f,region:v}),sl.regions)}</div>
@@ -819,7 +811,7 @@ function ElementMarginChart({trend}){
 
 function PurchaseTab({token}){
   const[subTab,setSubTab]=useState("summary");
-  const[f,setF]=useState({departureFrom:"",departureTo:"",status:"all",label:"",dataset:"",year:"",travelType:""});
+  const[f,setF]=useState({departureFrom:"",departureTo:"",status:[],label:[],dataset:"",year:[],travelType:[]});
 
   const[sumData,setSumData]=useState([]);
   const[sumKpis,setSumKpis]=useState(null);
@@ -840,8 +832,8 @@ function PurchaseTab({token}){
   const[elTotal,setElTotal]=useState(0);
   const[elSearch,setElSearch]=useState("");
 
-  function buildSumParams(p,pg=1){const out={page:pg,limit:PAGE_SIZE};if(p.departureFrom)out.departureFrom=p.departureFrom;if(p.departureTo)out.departureTo=p.departureTo;if(p.status&&p.status!=="all")out.status=p.status;if(p.label)out.label=p.label;if(p.travelType)out.travelType=p.travelType;return out;}
-  function buildElParams(p,pg=1){const out={page:pg,limit:PAGE_SIZE};if(p.departureFrom)out.departureFrom=p.departureFrom;if(p.departureTo)out.departureTo=p.departureTo;if(p.status&&p.status!=="all")out.status=p.status;if(p.label)out.label=p.label;if(p.dataset)out.dataset=p.dataset;if(p.year)out.year=p.year;return out;}
+  function buildSumParams(p,pg=1){const out={page:pg,limit:PAGE_SIZE};if(p.departureFrom)out.departureFrom=p.departureFrom;if(p.departureTo)out.departureTo=p.departureTo;if(p.status?.length)out.status=p.status;if(p.label?.length)out.label=p.label;if(p.travelType?.length)out.travelType=p.travelType;return out;}
+  function buildElParams(p,pg=1){const out={page:pg,limit:PAGE_SIZE};if(p.departureFrom)out.departureFrom=p.departureFrom;if(p.departureTo)out.departureTo=p.departureTo;if(p.status?.length)out.status=p.status;if(p.label?.length)out.label=p.label;if(p.dataset)out.dataset=p.dataset;if(p.year?.length)out.year=p.year;return out;}
 
   function loadSummary(params,pg=1){
     setSumLoading(true);setSumErr(null);
@@ -867,7 +859,7 @@ function PurchaseTab({token}){
   }
 
   function reset(){
-    const e={departureFrom:"",departureTo:"",status:"all",label:"",dataset:"",year:"",travelType:""};
+    const e={departureFrom:"",departureTo:"",status:[],label:[],dataset:"",year:[],travelType:[]};
     setF(e);setSumData([]);setSumKpis(null);setSumPage(1);setSumTotal(0);setSumSearch("");
     setElData([]);setElKpis(null);setElCats([]);setElTrend([]);setElPage(1);setElTotal(0);setElSearch("");
   }
@@ -888,60 +880,63 @@ function PurchaseTab({token}){
 
   const selStyle={background:S.bg,border:`1.5px solid ${S.border2}`,borderRadius:7,padding:"6px 10px",color:S.text,fontSize:12,outline:"none",fontFamily:"inherit"};
 
+  const msStyle={background:S.bg,border:`1.5px solid ${S.border2}`,borderRadius:7,padding:"4px 6px",color:S.text,fontSize:11,outline:"none",fontFamily:"inherit",height:80};
+  const togArr=(arr,v)=>arr.includes(v)?arr.filter(x=>x!==v):[...arr,v];
+  const chipSel=(arr,opts,onChange,clr=S.accent)=>(
+    <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+      {opts.map(({v,l})=>{
+        const active=arr.includes(v);
+        return<button key={v} type="button" onClick={()=>onChange(togArr(arr,v))} style={{padding:"3px 9px",borderRadius:12,fontSize:11,cursor:"pointer",border:`1.5px solid ${active?clr:S.border2}`,background:active?`${clr}18`:"transparent",color:active?clr:S.textLight,fontWeight:active?700:400,transition:"all 0.12s"}}>{l}</button>;
+      })}
+    </div>
+  );
+
   const FilterBar=(
     <div style={{background:S.card,borderBottom:`1px solid ${S.border}`,padding:"12px 20px",flexShrink:0,boxShadow:S.shadow}}>
-      <div style={{display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
-        {[["Departure From","departureFrom"],["Departure To","departureTo"]].map(([l,k])=>(
-          <div key={k}>
-            <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>{l}</label>
-            <input type="date" value={f[k]} onChange={e=>setF({...f,[k]:e.target.value})} style={selStyle}/>
-          </div>
-        ))}
+      <div style={{display:"flex",gap:14,alignItems:"flex-start",flexWrap:"wrap"}}>
+        <div style={{display:"flex",gap:10,alignItems:"flex-end"}}>
+          {[["Departure From","departureFrom"],["Departure To","departureTo"]].map(([l,k])=>(
+            <div key={k}>
+              <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>{l}</label>
+              <input type="date" value={f[k]} onChange={e=>setF({...f,[k]:e.target.value})} style={selStyle}/>
+            </div>
+          ))}
+        </div>
         <div>
           <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Status</label>
-          <select value={f.status} onChange={e=>setF({...f,status:e.target.value})} style={selStyle}>
-            <option value="all">All Statuses</option>
-            <option value="ok">DEF (Confirmed)</option>
-            <option value="cancelled">DEF-GEANNULEERD</option>
-          </select>
+          {chipSel(f.status,[{v:"ok",l:"DEF"},{v:"cancelled",l:"DEF-GEANNULEERD"}],v=>setF({...f,status:v}),S.success)}
         </div>
         <div>
           <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Label</label>
-          <select value={f.label} onChange={e=>setF({...f,label:e.target.value})} style={selStyle}>
-            <option value="">All Labels</option>
-            <option value="Solmar">Solmar</option>
-            <option value="Solmar DE">Solmar DE</option>
-            <option value="Interbus">Interbus</option>
-          </select>
+          {chipSel(f.label,[{v:"Solmar",l:"Solmar"},{v:"Solmar DE",l:"Solmar DE"},{v:"Interbus",l:"Interbus"}],v=>setF({...f,label:v}),S.purple)}
         </div>
         {subTab==="summary"&&(
           <div>
             <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Travel Type</label>
-            <select value={f.travelType||""} onChange={e=>setF({...f,travelType:e.target.value})} style={selStyle}>
-              <option value="">All Types</option>
-              <option value="BUS">BUS</option>
-              <option value="OWN TRANSPORT">OWN TRANSPORT</option>
-              <option value="FLIGHT">FLIGHT</option>
-              <option value="ENKEL">ENKEL</option>
-              <option value="UNKNOWN">UNKNOWN</option>
-            </select>
+            {chipSel(f.travelType,[{v:"BUS",l:"BUS"},{v:"OWN TRANSPORT",l:"OWN TRANSPORT"},{v:"FLIGHT",l:"FLIGHT"},{v:"ENKEL",l:"ENKEL"},{v:"UNKNOWN",l:"UNKNOWN"}],v=>setF({...f,travelType:v}),S.orange)}
           </div>
         )}
-        {subTab==="elements"&&<>
+        {subTab==="elements"&&(
           <div>
             <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Year</label>
-            <select value={f.year} onChange={e=>setF({...f,year:e.target.value})} style={selStyle}>
-              <option value="">All Years</option>
-              {[2022,2023,2024,2025,2026].map(y=><option key={y} value={y}>{y}</option>)}
-            </select>
+            {chipSel(f.year,[2022,2023,2024,2025,2026].map(y=>({v:y,l:String(y)})),v=>setF({...f,year:v}),S.accent)}
           </div>
-        </>}
+        )}
         <div style={{marginLeft:"auto",display:"flex",gap:6,alignSelf:"flex-end"}}>
           <Btn onClick={reset} variant="secondary" size="sm">Reset</Btn>
           <Btn onClick={applyFilters} variant="primary" size="sm">Apply Filters</Btn>
         </div>
       </div>
-      <div style={{fontSize:10,color:S.muted2,marginTop:6}}>Click Apply to load · Large dataset may take a moment</div>
+      {(f.status.length>0||f.label.length>0||f.travelType.length>0||f.year.length>0)&&(
+        <div style={{marginTop:8,display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
+          <span style={{fontSize:10,color:S.muted2}}>Active:</span>
+          {f.status.map(v=><span key={v} style={{background:S.successBg,color:S.success,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>{v==="ok"?"DEF":"DEF-GEANNULEERD"}</span>)}
+          {f.label.map(v=><span key={v} style={{background:`${S.purple}15`,color:S.purple,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>{v}</span>)}
+          {f.travelType.map(v=><span key={v} style={{background:`${S.orange}15`,color:S.orange,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>{v}</span>)}
+          {f.year.map(v=><span key={v} style={{background:S.accentLight,color:S.accent,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>{v}</span>)}
+        </div>
+      )}
+      <div style={{fontSize:10,color:S.muted2,marginTop:4}}>Click chips to select · Click Apply to load</div>
     </div>
   );
 
