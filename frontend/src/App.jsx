@@ -768,7 +768,486 @@ function BusTab({token}){
 }
 
 // ── Purchase Obligations Tab ──────────────────────────────────────────────────
+const CAT_COLORS = {
+  "Coach":        "#3b82f6",
+  "Hotel":        "#f97316",
+  "Other":        "#8b5cf6",
+  "Service Line": "#10b981",
+};
+const CAT_ICONS = {
+  "Coach":"🚌","Hotel":"🏨","Other":"📦","Service Line":"🛎",
+};
+
+function ElementMarginChart({trend}){
+  const[tooltip,setTooltip]=useState(null);
+  if(!trend?.length)return<div style={{color:S.muted,textAlign:"center",padding:32,fontSize:12}}>No trend data</div>;
+
+  const months=[...new Set(trend.map(r=>r.year*100+r.month))].sort();
+  const cats=[...new Set(trend.map(r=>r.category))].sort();
+  const grid={};
+  months.forEach(ym=>{grid[ym]={};cats.forEach(c=>{grid[ym][c]=0;});});
+  trend.forEach(r=>{const ym=r.year*100+r.month;if(grid[ym])grid[ym][r.category]=parseFloat(r.margin)||0;});
+
+  const allVals=months.map(ym=>cats.reduce((s,c)=>s+(grid[ym][c]||0),0));
+  const maxV=Math.max(...allVals,1);
+  const W=580,H=200,PL=70,PR=10,PT=12,PB=44,CW=W-PL-PR,CH=H-PT-PB;
+  const bw=Math.max(4,Math.floor(CW/months.length)-3);
+  const fmtA=v=>v>=1e6?`€${(v/1e6).toFixed(1)}M`:v>=1e3?`€${(v/1e3).toFixed(0)}K`:`€${Math.round(v)}`;
+
+  return(
+    <div style={{position:"relative"}}>
+      {tooltip&&(
+        <div style={{position:"absolute",left:tooltip.x,top:tooltip.y,background:S.text,borderRadius:8,padding:"8px 12px",fontSize:11,color:"#fff",pointerEvents:"none",zIndex:10,whiteSpace:"nowrap",transform:"translate(-50%,-110%)",boxShadow:S.shadowLg}}>
+          <div style={{fontWeight:700,marginBottom:4}}>{MONTHS[tooltip.month-1]} {tooltip.year}</div>
+          {tooltip.cats.map(c=><div key={c.cat} style={{color:CAT_COLORS[c.cat]||S.accent}}>{CAT_ICONS[c.cat]||"•"} {c.cat}: <strong>{fmtA(c.v)}</strong></div>)}
+        </div>
+      )}
+      <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:"auto"}} onMouseLeave={()=>setTooltip(null)}>
+        {[0,1,2,3,4].map(i=>{const y=PT+(CH/4)*i,v=maxV*(1-i/4);return<g key={i}><line x1={PL} x2={W-PR} y1={y} y2={y} stroke={S.border} strokeWidth={0.7}/><text x={PL-5} y={y+4} textAnchor="end" fontSize={8} fill={S.muted2}>{fmtA(v)}</text></g>;})}
+        {months.map((ym,mi)=>{
+          const x=PL+(mi/months.length)*CW+(CW/months.length-bw)/2;
+          const yr=Math.floor(ym/100),mo=ym%100;
+          let stackY=PT+CH;
+          const catData=cats.map(c=>({cat:c,v:grid[ym][c]||0})).filter(c=>c.v!==0);
+          return<g key={ym}
+            onMouseEnter={e=>{const sv=e.target.closest("svg");const rc=sv.getBoundingClientRect();const sx=rc.width/W;const sy=rc.height/H;setTooltip({x:(x+bw/2)*sx,y:stackY*sy,year:yr,month:mo,cats:catData});}}
+            onClick={e=>{const sv=e.target.closest("svg");const rc=sv.getBoundingClientRect();const sx=rc.width/W;const sy=rc.height/H;setTooltip({x:(x+bw/2)*sx,y:stackY*sy,year:yr,month:mo,cats:catData});}}
+          >
+            {cats.map(c=>{
+              const v=grid[ym][c]||0;if(!v)return null;
+              const bh=Math.max(0,(v/maxV)*CH);stackY-=bh;
+              return<rect key={c} x={x} y={stackY} width={bw} height={bh} fill={CAT_COLORS[c]||S.accent} rx={1} opacity={0.88} style={{cursor:"pointer"}}/>;
+            })}
+            <text x={x+bw/2} y={H-PB+13} textAnchor="middle" fontSize={6.5} fill={S.muted2}>{MONTHS[mo-1].slice(0,3)}{String(yr).slice(2)}</text>
+          </g>;
+        })}
+        {cats.map((c,i)=><g key={c} transform={`translate(${PL+i*90},${H-6})`}><rect width={8} height={8} fill={CAT_COLORS[c]||S.accent} rx={2}/><text x={12} y={8} fontSize={8} fill={S.muted}>{c}</text></g>)}
+      </svg>
+    </div>
+  );
+}
+
 function PurchaseTab({token}){
+  const[subTab,setSubTab]=useState("summary");
+
+  // ── Shared filters ──
+  const[f,setF]=useState({departureFrom:"",departureTo:"",status:"all",label:"",dataset:"",year:""});
+
+  // ── Summary state (solmar.MarginOverview) ──
+  const[sumData,setSumData]=useState([]);
+  const[sumKpis,setSumKpis]=useState(null);
+  const[sumLoading,setSumLoading]=useState(false);
+  const[sumErr,setSumErr]=useState(null);
+  const[sumPage,setSumPage]=useState(1);
+  const[sumTotal,setSumTotal]=useState(0);
+  const[sumSearch,setSumSearch]=useState("");
+  const PAGE_SIZE=200;
+
+  // ── Element state (dbo.BookingElementMarginOverview) ──
+  const[elData,setElData]=useState([]);
+  const[elKpis,setElKpis]=useState(null);
+  const[elCats,setElCats]=useState([]);
+  const[elTrend,setElTrend]=useState([]);
+  const[elLoading,setElLoading]=useState(false);
+  const[elErr,setElErr]=useState(null);
+  const[elPage,setElPage]=useState(1);
+  const[elTotal,setElTotal]=useState(0);
+  const[elSearch,setElSearch]=useState("");
+
+  function buildSumParams(p,pg=1){const out={page:pg,limit:PAGE_SIZE};if(p.departureFrom)out.departureFrom=p.departureFrom;if(p.departureTo)out.departureTo=p.departureTo;if(p.status&&p.status!=="all")out.status=p.status;if(p.label)out.label=p.label;return out;}
+  function buildElParams(p,pg=1){const out={page:pg,limit:PAGE_SIZE};if(p.departureFrom)out.departureFrom=p.departureFrom;if(p.departureTo)out.departureTo=p.departureTo;if(p.status&&p.status!=="all")out.status=p.status;if(p.label)out.label=p.label;if(p.dataset)out.dataset=p.dataset;if(p.year)out.year=p.year;return out;}
+
+  function loadSummary(params,pg=1){
+    setSumLoading(true);setSumErr(null);
+    const ap=params!==undefined?{...params,page:pg,limit:PAGE_SIZE}:buildSumParams(f,pg);
+    api("/api/dashboard/margin-overview",ap,token)
+      .then(d=>{setSumKpis(d?.kpis||null);setSumData(Array.isArray(d?.data)?d.data:[]);setSumTotal(Number(d?.totalRows||0));setSumPage(pg);})
+      .catch(e=>{setSumErr(e.message);setSumData([]);setSumKpis(null);})
+      .finally(()=>setSumLoading(false));
+  }
+
+  function loadElements(params,pg=1){
+    setElLoading(true);setElErr(null);
+    const ap=params!==undefined?{...params,page:pg,limit:PAGE_SIZE}:buildElParams(f,pg);
+    api("/api/dashboard/element-margin-overview",ap,token)
+      .then(d=>{setElKpis(d?.kpis||null);setElCats(Array.isArray(d?.byCategory)?d.byCategory:[]);setElTrend(Array.isArray(d?.trend)?d.trend:[]);setElData(Array.isArray(d?.data)?d.data:[]);setElTotal(Number(d?.totalRows||0));setElPage(pg);})
+      .catch(e=>{setElErr(e.message);setElData([]);setElKpis(null);}
+      ).finally(()=>setElLoading(false));
+  }
+
+  function applyFilters(){
+    if(subTab==="summary")loadSummary(buildSumParams(f,1),1);
+    else loadElements(buildElParams(f,1),1);
+  }
+
+  function reset(){
+    const e={departureFrom:"",departureTo:"",status:"all",label:"",dataset:"",year:""};
+    setF(e);setSumData([]);setSumKpis(null);setSumPage(1);setSumTotal(0);setSumSearch("");
+    setElData([]);setElKpis(null);setElCats([]);setElTrend([]);setElPage(1);setElTotal(0);setElSearch("");
+  }
+
+  function exportSumCsv(){
+    const cols=["BookingID","StatusCode","Label","TravelType","BookingDate","DepartureDate","ReturnDate","PAX","SalesBooking","PurchaseCalculation","PurchaseObligation","Margin","Commission","MarginIncludingCommission"];
+    const filt=sumData.filter(r=>!sumSearch||String(r.BookingID||"").includes(sumSearch)||(r.Label||"").toLowerCase().includes(sumSearch.toLowerCase())||(r.DepartureDate||"").includes(sumSearch));
+    const rows=filt.map(r=>cols.map(c=>{const v=r[c];if(v==null)return"";if(typeof v==="number")return v;return`"${String(v).replace(/"/g,'""')}"`;}).join(","));
+    const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\uFEFF"+[cols.join(","),...rows].join("\n")],{type:"text/csv;charset=utf-8"}));a.download=`booking-summary-${new Date().toISOString().split("T")[0]}.csv`;a.click();
+  }
+
+  function exportElCsv(){
+    const cols=["BookingId","MarginCategory","Dataset","Status","LabelName","BookingDate","DepartureDate","ReturnDate","PAXCount","ElementCount","BasePriceTotal","SoldAmount","PaidAmount","DepositAmount","CommissionAmount","Margin","MarginIncludingCommission"];
+    const filt=elData.filter(r=>!elSearch||String(r.BookingId||"").includes(elSearch)||(r.MarginCategory||"").toLowerCase().includes(elSearch.toLowerCase())||(r.LabelName||"").toLowerCase().includes(elSearch.toLowerCase()));
+    const rows=filt.map(r=>cols.map(c=>{const v=r[c];if(v==null)return"";if(typeof v==="number")return v;return`"${String(v).replace(/"/g,'""')}"`;}).join(","));
+    const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\uFEFF"+[cols.join(","),...rows].join("\n")],{type:"text/csv;charset=utf-8"}));a.download=`element-margin-${new Date().toISOString().split("T")[0]}.csv`;a.click();
+  }
+
+  const selStyle={background:S.bg,border:`1.5px solid ${S.border2}`,borderRadius:7,padding:"6px 10px",color:S.text,fontSize:12,outline:"none",fontFamily:"inherit"};
+
+  // Shared filter bar
+  const FilterBar=(
+    <div style={{background:S.card,borderBottom:`1px solid ${S.border}`,padding:"12px 20px",flexShrink:0,boxShadow:S.shadow}}>
+      <div style={{display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
+        {[["Departure From","departureFrom"],["Departure To","departureTo"]].map(([l,k])=>(
+          <div key={k}>
+            <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>{l}</label>
+            <input type="date" value={f[k]} onChange={e=>setF({...f,[k]:e.target.value})} style={selStyle}/>
+          </div>
+        ))}
+        <div>
+          <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Status</label>
+          <select value={f.status} onChange={e=>setF({...f,status:e.target.value})} style={selStyle}>
+            <option value="all">All Statuses</option>
+            <option value="ok">✓ Confirmed (DEF)</option>
+            <option value="cancelled">✗ Cancelled</option>
+          </select>
+        </div>
+        <div>
+          <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Label</label>
+          <select value={f.label} onChange={e=>setF({...f,label:e.target.value})} style={selStyle}>
+            <option value="">All Labels</option>
+            <option value="Solmar">Solmar</option>
+            <option value="Solmar DE">Solmar DE</option>
+            <option value="Interbus">Interbus</option>
+          </select>
+        </div>
+        {subTab==="elements"&&<>
+          <div>
+            <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Dataset</label>
+            <select value={f.dataset} onChange={e=>setF({...f,dataset:e.target.value})} style={selStyle}>
+              <option value="">All</option>
+              <option value="Solmar">Solmar</option>
+              <option value="Interbus">Interbus</option>
+              <option value="Snowtravel">Snowtravel</option>
+            </select>
+          </div>
+          <div>
+            <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Year</label>
+            <select value={f.year} onChange={e=>setF({...f,year:e.target.value})} style={selStyle}>
+              <option value="">All Years</option>
+              {[2022,2023,2024,2025,2026].map(y=><option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+        </>}
+        <div style={{marginLeft:"auto",display:"flex",gap:6,alignSelf:"flex-end"}}>
+          <Btn onClick={reset} variant="secondary" size="sm">Reset</Btn>
+          <Btn onClick={applyFilters} variant="primary" size="sm">Apply Filters</Btn>
+        </div>
+      </div>
+      <div style={{fontSize:10,color:S.muted2,marginTop:6}}>Click Apply to load · Large dataset may take a moment</div>
+    </div>
+  );
+
+  // ── Summary KPI cards
+  const sumConfirmed=sumKpis?.confirmedCount??sumData.filter(r=>r.StatusCode==="DEF").length;
+  const sumCancelled=sumKpis?.cancelledCount??sumData.filter(r=>r.StatusCode==="DEF-GEANNULEERD").length;
+  const sumFiltered=sumData.filter(r=>!sumSearch||String(r.BookingID||"").includes(sumSearch)||(r.Label||"").toLowerCase().includes(sumSearch.toLowerCase())||(r.DepartureDate||"").includes(sumSearch));
+  const elFiltered=elData.filter(r=>!elSearch||String(r.BookingId||"").includes(elSearch)||(r.MarginCategory||"").toLowerCase().includes(elSearch.toLowerCase())||(r.LabelName||"").toLowerCase().includes(elSearch.toLowerCase()));
+
+  const SUM_TABLE_COLS=[
+    ["Booking ID","left"],["Departure","left"],["Return","left"],["Status","left"],["Label","left"],["Travel Type","left"],
+    ["PAX","right"],["Sales (€)","right"],["Purchase (€)","right"],["Obligation (€)","right"],
+    ["Margin (€)","right"],["Margin %","right"],["Commission (€)","right"],["Margin+Comm (€)","right"],
+  ];
+
+  const EL_TABLE_COLS=[
+    ["Booking ID","left"],["Category","left"],["Dataset","left"],["Status","left"],["Label","left"],
+    ["Departure","left"],["Return","left"],["PAX","right"],["Elements","right"],
+    ["Base Price (€)","right"],["Sold (€)","right"],["Paid (€)","right"],["Deposit (€)","right"],
+    ["Commission (€)","right"],["Margin (€)","right"],["Margin%","right"],["Margin+Comm (€)","right"],
+  ];
+
+  const TH={padding:"9px 12px",textAlign:"right",fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderBottom:`1px solid ${S.border}`,background:"#f8faff"};
+  const THL={...TH,textAlign:"left"};
+  const TD={padding:"8px 12px",textAlign:"right",fontSize:12,color:S.text,whiteSpace:"nowrap",borderBottom:`1px solid ${S.border}`};
+  const TDL={...TD,textAlign:"left"};
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden",background:S.bg}}>
+
+      {/* Sub-tab toggle */}
+      <div style={{background:S.card,borderBottom:`1px solid ${S.border}`,padding:"10px 20px",display:"flex",gap:6,flexShrink:0,boxShadow:S.shadow}}>
+        {[
+          ["summary","📋 Booking Summary","solmar.MarginOverview"],
+          ["elements","🔍 Element Breakdown","dbo.BookingElementMarginOverview"],
+        ].map(([id,label,source])=>(
+          <button key={id} onClick={()=>setSubTab(id)} style={{padding:"7px 16px",borderRadius:8,fontSize:12,cursor:"pointer",border:`1.5px solid ${subTab===id?S.accent:S.border2}`,background:subTab===id?S.accentLight:"transparent",color:subTab===id?S.accent:S.textLight,fontWeight:subTab===id?700:500,transition:"all 0.15s",display:"flex",flexDirection:"column",alignItems:"flex-start",gap:1}}>
+            <span>{label}</span>
+            <span style={{fontSize:9,color:subTab===id?S.accent:S.muted2,fontFamily:"monospace",fontWeight:400}}>{source}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Shared filter bar */}
+      {FilterBar}
+
+      {/* ── SUMMARY SUB-TAB ── */}
+      {subTab==="summary"&&(
+        <div style={{flex:1,overflowY:"auto",padding:"16px 20px",display:"flex",flexDirection:"column",gap:14}}>
+          {sumErr&&<div style={{background:S.dangerBg,border:`1px solid ${S.danger}33`,borderRadius:10,padding:"10px 14px",fontSize:12,color:S.danger}}>⚠ {sumErr}</div>}
+          {!sumKpis&&!sumLoading&&sumData.length===0&&(
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"60px 20px",color:S.muted}}>
+              <div style={{fontSize:48,marginBottom:16}}>📋</div>
+              <div style={{fontSize:16,fontWeight:600,color:S.textLight,marginBottom:8}}>Booking Summary</div>
+              <div style={{fontSize:13,color:S.muted,textAlign:"center",maxWidth:360}}>Select filters and click <strong>Apply Filters</strong> to load booking data from <code>solmar.MarginOverview</code>.</div>
+            </div>
+          )}
+          {sumLoading&&<div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"60px 20px"}}><span style={{color:S.muted,fontSize:13}}>Loading data…</span></div>}
+          {sumKpis&&(
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
+              {[
+                {l:"Total Bookings",v:fmtN(sumKpis.totalBookings),c:S.accent,icon:"📋"},
+                {l:"Confirmed",v:fmtN(sumConfirmed),c:S.success,icon:"✅"},
+                {l:"Cancelled",v:fmtN(sumCancelled),c:S.danger,icon:"❌"},
+                {l:"Total PAX",v:fmtN(sumKpis.totalPax),c:S.purple,icon:"👥"},
+                {l:"Total Sales",v:fmtM(sumKpis.totalSales),c:S.success,icon:"💰"},
+                {l:"Net Margin",v:fmtM(sumKpis.totalMargin),c:parseFloat(sumKpis.totalMargin||0)>=0?S.success:S.danger,icon:"📈"},
+                {l:"Commission",v:fmtM(sumKpis.totalCommission),c:S.warn,icon:"🤝"},
+                {l:"Obligations",v:fmtM(sumKpis.totalObligation),c:S.orange,icon:"📌"},
+                {l:"Margin+Comm",v:fmtM(sumKpis.totalMarginIncludingCommission),c:parseFloat(sumKpis.totalMarginIncludingCommission||0)>=0?S.success:S.danger,icon:"💎"},
+              ].map(k=>(
+                <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:"14px 16px",boxShadow:S.shadow,display:"flex",alignItems:"center",gap:12}}>
+                  <div style={{width:38,height:38,borderRadius:10,background:`${k.c}12`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,flexShrink:0}}>{k.icon}</div>
+                  <div><div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>{k.l}</div><div style={{fontSize:18,fontWeight:800,color:k.c}}>{k.v}</div></div>
+                </div>
+              ))}
+            </div>
+          )}
+          {sumData.length>0&&(
+            <Card p="0">
+              <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,display:"flex",gap:10,alignItems:"center"}}>
+                <div style={{fontSize:13,fontWeight:700,color:S.text,flex:1}}>Booking Summary <span style={{fontSize:11,color:S.muted,fontWeight:400}}>({fmtN(sumFiltered.length)} of {fmtN(sumTotal)} rows)</span></div>
+                <input value={sumSearch} onChange={e=>setSumSearch(e.target.value)} placeholder="Search booking / label…" style={{...selStyle,width:200,fontSize:11}}/>
+                <Btn onClick={exportSumCsv} variant="secondary" size="sm">↓ CSV</Btn>
+              </div>
+              {sumTotal>PAGE_SIZE&&(
+                <div style={{padding:"8px 16px",borderBottom:`1px solid ${S.border}`,display:"flex",alignItems:"center",gap:8,fontSize:12,background:"#f8faff"}}>
+                  <span style={{color:S.muted}}>Page {sumPage} of {Math.ceil(sumTotal/PAGE_SIZE)} · {fmtN(sumTotal)} rows</span>
+                  <div style={{marginLeft:"auto",display:"flex",gap:5}}>
+                    <Btn disabled={sumPage<=1} onClick={()=>loadSummary(buildSumParams(f,sumPage-1),sumPage-1)} variant="secondary" size="sm">← Prev</Btn>
+                    <Btn disabled={sumPage>=Math.ceil(sumTotal/PAGE_SIZE)} onClick={()=>loadSummary(buildSumParams(f,sumPage+1),sumPage+1)} variant="secondary" size="sm">Next →</Btn>
+                  </div>
+                </div>
+              )}
+              <div style={{maxHeight:460,overflowY:"auto",overflowX:"auto"}}>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:1400}}>
+                  <thead style={{position:"sticky",top:0,zIndex:5,background:"#f8faff"}}>
+                    <tr>{SUM_TABLE_COLS.map(([h,a],i)=><th key={i} style={{...TH,textAlign:a}}>{h}</th>)}</tr>
+                  </thead>
+                  <tbody>
+                    {sumFiltered.map((r,i)=>{
+                      const confirmed=r.StatusCode==="DEF";
+                      const margin=parseFloat(r.Margin||0);
+                      const margComm=parseFloat(r.MarginIncludingCommission||0);
+                      const mPct=parseFloat(r.SalesBooking||0)>0?((margin/parseFloat(r.SalesBooking))*100):null;
+                      return(
+                        <tr key={i} style={{borderBottom:`1px solid ${S.border}`,background:i%2===0?"transparent":"#f8faff"}}>
+                          <td style={{...TDL,color:S.accent,fontWeight:600,fontFamily:"monospace",fontSize:11}}>{r.BookingID||"—"}</td>
+                          <td style={{...TDL,fontWeight:500}}>{r.DepartureDate||"—"}</td>
+                          <td style={{...TDL,color:S.muted}}>{r.ReturnDate||"—"}</td>
+                          <td style={TDL}><span style={{background:confirmed?S.successBg:S.dangerBg,color:confirmed?S.success:S.danger,padding:"2px 7px",borderRadius:5,fontSize:10,fontWeight:700}}>{confirmed?"✓ DEF":"✗ GEANN."}</span></td>
+                          <td style={{...TDL,color:S.textLight,fontSize:11}}>{r.Label||"—"}</td>
+                          <td style={{...TDL,color:S.muted,fontSize:11}}>{r.TravelType||"—"}</td>
+                          <td style={TD}>{fmtN(r.PAX)}</td>
+                          <td style={TD}>{fmtEur(r.SalesBooking)}</td>
+                          <td style={TD}>{fmtEur(r.PurchaseCalculation)}</td>
+                          <td style={{...TD,color:S.warn,fontWeight:600}}>{fmtEur(r.PurchaseObligation)}</td>
+                          <td style={{...TD,fontWeight:700,color:margin>=0?S.success:S.danger}}>{fmtEur(r.Margin)}</td>
+                          <td style={{...TD,fontWeight:700,color:mPct!=null?(mPct>=0?S.success:S.danger):S.muted}}>{mPct!=null?`${mPct.toFixed(1)}%`:"—"}</td>
+                          <td style={{...TD,color:S.muted}}>{fmtEur(r.Commission)}</td>
+                          <td style={{...TD,fontWeight:700,color:margComm>=0?S.success:S.danger}}>{fmtEur(r.MarginIncludingCommission)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* ── ELEMENT BREAKDOWN SUB-TAB ── */}
+      {subTab==="elements"&&(
+        <div style={{flex:1,overflowY:"auto",padding:"16px 20px",display:"flex",flexDirection:"column",gap:14}}>
+          {elErr&&<div style={{background:S.dangerBg,border:`1px solid ${S.danger}33`,borderRadius:10,padding:"10px 14px",fontSize:12,color:S.danger}}>⚠ {elErr}</div>}
+          {!elKpis&&!elLoading&&elData.length===0&&(
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"60px 20px",color:S.muted}}>
+              <div style={{fontSize:48,marginBottom:16}}>🔍</div>
+              <div style={{fontSize:16,fontWeight:600,color:S.textLight,marginBottom:8}}>Element Breakdown</div>
+              <div style={{fontSize:13,color:S.muted,textAlign:"center",maxWidth:400}}>
+                Breaks down each booking by element category: <strong style={{color:CAT_COLORS["Coach"]}}>Coach</strong>, <strong style={{color:CAT_COLORS["Hotel"]}}>Hotel</strong>, <strong style={{color:CAT_COLORS["Other"]}}>Other</strong>, <strong style={{color:CAT_COLORS["Service Line"]}}>Service Line</strong>.<br/><br/>
+                Apply filters and click <strong>Apply Filters</strong>.
+              </div>
+            </div>
+          )}
+          {elLoading&&<div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"60px 20px"}}><span style={{color:S.muted,fontSize:13}}>Loading element data…</span></div>}
+
+          {elKpis&&(
+            <>
+              {/* Overall KPI row */}
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
+                {[
+                  {l:"Total Bookings",v:fmtN(elKpis.totalBookings),c:S.accent,icon:"📋"},
+                  {l:"Total PAX",v:fmtN(elKpis.totalPax),c:S.purple,icon:"👥"},
+                  {l:"Total Sales",v:fmtM(elKpis.totalSales),c:S.success,icon:"💰"},
+                  {l:"Net Margin",v:fmtM(elKpis.totalMargin),c:parseFloat(elKpis.totalMargin||0)>=0?S.success:S.danger,icon:"📈"},
+                ].map(k=>(
+                  <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:"14px 16px",boxShadow:S.shadow,display:"flex",alignItems:"center",gap:12}}>
+                    <div style={{width:38,height:38,borderRadius:10,background:`${k.c}12`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,flexShrink:0}}>{k.icon}</div>
+                    <div><div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>{k.l}</div><div style={{fontSize:18,fontWeight:800,color:k.c}}>{k.v}</div></div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Per-category cards */}
+              {elCats.length>0&&(
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
+                  {elCats.map(cat=>{
+                    const cc=CAT_COLORS[cat.MarginCategory]||S.accent;
+                    const ci=CAT_ICONS[cat.MarginCategory]||"📦";
+                    const margin=parseFloat(cat.margin||0);
+                    const mPct=parseFloat(cat.sales||0)>0?((margin/parseFloat(cat.sales))*100):null;
+                    return(
+                      <Card key={cat.MarginCategory} style={{borderTop:`3px solid ${cc}`,borderRadius:12}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                          <div style={{fontSize:13,fontWeight:800,color:cc}}>{ci} {cat.MarginCategory}</div>
+                          <span style={{background:`${cc}15`,color:cc,padding:"2px 8px",borderRadius:6,fontSize:10,fontWeight:700}}>{fmtN(cat.bookings)} bookings</span>
+                        </div>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,fontSize:11}}>
+                          {[
+                            ["PAX",fmtN(cat.pax)],
+                            ["Elements",fmtN(cat.elements)],
+                            ["Sales",fmtM(cat.sales)],
+                            ["Base Price",fmtM(cat.basePrice)],
+                            ["Paid",fmtM(cat.paid)],
+                            ["Commission",fmtM(cat.commission)],
+                          ].map(([l,v])=>(
+                            <div key={l}>
+                              <div style={{color:S.muted,fontSize:10,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.04em"}}>{l}</div>
+                              <div style={{color:S.text,fontWeight:600}}>{v}</div>
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{marginTop:12,paddingTop:10,borderTop:`1px solid ${S.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                          <div style={{fontSize:11,color:S.muted}}>Margin</div>
+                          <div>
+                            <span style={{fontSize:16,fontWeight:800,color:margin>=0?S.success:S.danger}}>{fmtM(cat.margin)}</span>
+                            {mPct!=null&&<span style={{fontSize:10,color:mPct>=0?S.success:S.danger,fontWeight:700,marginLeft:6}}>{mPct.toFixed(1)}%</span>}
+                          </div>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Stacked bar chart */}
+              {elTrend.length>0&&(
+                <Card>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:700,color:S.text}}>Margin by Category — Monthly</div>
+                      <div style={{fontSize:11,color:S.muted,marginTop:1}}>Stacked by element category</div>
+                    </div>
+                    <div style={{display:"flex",gap:8}}>
+                      {Object.entries(CAT_COLORS).map(([cat,c])=>(
+                        <span key={cat} style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:S.muted}}>
+                          <span style={{width:8,height:8,borderRadius:2,background:c,display:"inline-block"}}/>
+                          {cat}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <ElementMarginChart trend={elTrend}/>
+                </Card>
+              )}
+
+              {/* Element table */}
+              {elData.length>0&&(
+                <Card p="0">
+                  <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,display:"flex",gap:10,alignItems:"center"}}>
+                    <div style={{fontSize:13,fontWeight:700,color:S.text,flex:1}}>Element Detail <span style={{fontSize:11,color:S.muted,fontWeight:400}}>({fmtN(elFiltered.length)} of {fmtN(elTotal)} rows)</span></div>
+                    <input value={elSearch} onChange={e=>setElSearch(e.target.value)} placeholder="Search booking / category…" style={{...selStyle,width:210,fontSize:11}}/>
+                    <Btn onClick={exportElCsv} variant="secondary" size="sm">↓ CSV</Btn>
+                  </div>
+                  {elTotal>PAGE_SIZE&&(
+                    <div style={{padding:"8px 16px",borderBottom:`1px solid ${S.border}`,display:"flex",alignItems:"center",gap:8,fontSize:12,background:"#f8faff"}}>
+                      <span style={{color:S.muted}}>Page {elPage} of {Math.ceil(elTotal/PAGE_SIZE)} · {fmtN(elTotal)} rows</span>
+                      <div style={{marginLeft:"auto",display:"flex",gap:5}}>
+                        <Btn disabled={elPage<=1} onClick={()=>loadElements(buildElParams(f,elPage-1),elPage-1)} variant="secondary" size="sm">← Prev</Btn>
+                        <Btn disabled={elPage>=Math.ceil(elTotal/PAGE_SIZE)} onClick={()=>loadElements(buildElParams(f,elPage+1),elPage+1)} variant="secondary" size="sm">Next →</Btn>
+                      </div>
+                    </div>
+                  )}
+                  <div style={{maxHeight:460,overflowY:"auto",overflowX:"auto"}}>
+                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:1600}}>
+                      <thead style={{position:"sticky",top:0,zIndex:5,background:"#f8faff"}}>
+                        <tr>{EL_TABLE_COLS.map(([h,a],i)=><th key={i} style={{...TH,textAlign:a}}>{h}</th>)}</tr>
+                      </thead>
+                      <tbody>
+                        {elFiltered.map((r,i)=>{
+                          const cc=CAT_COLORS[r.MarginCategory]||S.accent;
+                          const margin=parseFloat(r.Margin||0);
+                          const margComm=parseFloat(r.MarginIncludingCommission||0);
+                          const mPct=parseFloat(r.SoldAmount||0)>0?((margin/parseFloat(r.SoldAmount))*100):null;
+                          const confirmed=r.Status==="DEF";
+                          return(
+                            <tr key={i} style={{borderBottom:`1px solid ${S.border}`,background:i%2===0?"transparent":"#f8faff"}}>
+                              <td style={{...TDL,color:S.accent,fontWeight:600,fontFamily:"monospace",fontSize:11}}>{r.BookingId||"—"}</td>
+                              <td style={TDL}>
+                                <span style={{background:`${cc}15`,color:cc,padding:"2px 8px",borderRadius:5,fontSize:11,fontWeight:700,display:"inline-flex",alignItems:"center",gap:3}}>
+                                  {CAT_ICONS[r.MarginCategory]||"📦"} {r.MarginCategory||"—"}
+                                </span>
+                              </td>
+                              <td style={{...TDL,color:S.textLight,fontSize:11}}>{r.Dataset||"—"}</td>
+                              <td style={TDL}><span style={{background:confirmed?S.successBg:S.dangerBg,color:confirmed?S.success:S.danger,padding:"2px 7px",borderRadius:5,fontSize:10,fontWeight:700}}>{confirmed?"✓ DEF":"✗"}</span></td>
+                              <td style={{...TDL,color:S.textLight,fontSize:11}}>{r.LabelName||"—"}</td>
+                              <td style={{...TDL,fontWeight:500}}>{r.DepartureDate||"—"}</td>
+                              <td style={{...TDL,color:S.muted}}>{r.ReturnDate||"—"}</td>
+                              <td style={TD}>{fmtN(r.PAXCount)}</td>
+                              <td style={{...TD,color:S.muted}}>{fmtN(r.ElementCount)}</td>
+                              <td style={TD}>{fmtEur(r.BasePriceTotal)}</td>
+                              <td style={TD}>{fmtEur(r.SoldAmount)}</td>
+                              <td style={TD}>{fmtEur(r.PaidAmount)}</td>
+                              <td style={{...TD,color:S.muted}}>{fmtEur(r.DepositAmount)}</td>
+                              <td style={{...TD,color:S.muted}}>{fmtEur(r.CommissionAmount)}</td>
+                              <td style={{...TD,fontWeight:700,color:margin>=0?S.success:S.danger}}>{fmtEur(r.Margin)}</td>
+                              <td style={{...TD,fontWeight:700,color:mPct!=null?(mPct>=0?S.success:S.danger):S.muted}}>{mPct!=null?`${mPct.toFixed(1)}%`:"—"}</td>
+                              <td style={{...TD,fontWeight:700,color:margComm>=0?S.success:S.danger}}>{fmtEur(r.MarginIncludingCommission)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
   const[f,setF]=useState({departureFrom:"",departureTo:"",status:"all",label:"",travelType:""});
   const[data,setData]=useState([]);
   const[kpis,setKpis]=useState(null);
