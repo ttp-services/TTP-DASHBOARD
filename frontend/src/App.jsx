@@ -118,8 +118,8 @@ function LineChart({data}){
             <path d={d} fill="none" stroke={YC[yr]||S.accent} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" opacity={0.9}/>
             {vi.map(i=>(
               <circle key={i} cx={mx(i)} cy={my(pts[i])} r={4.5} fill={YC[yr]||S.accent} stroke="#fff" strokeWidth={1.5} style={{cursor:"pointer"}}
-                onMouseEnter={e=>{const sv=e.target.closest("svg");const rc=sv.getBoundingClientRect();const sx=rc.width/W;const sy=rc.height/H;setTooltip({x:mx(i)*sx,y:my(pts[i])*sy,year:yr,month:i+1,value:pts[i]});}}
-                onClick={e=>{const sv=e.target.closest("svg");const rc=sv.getBoundingClientRect();const sx=rc.width/W;const sy=rc.height/H;setTooltip({x:mx(i)*sx,y:my(pts[i])*sy,year:yr,month:i+1,value:pts[i]});}}
+                onMouseEnter={e=>{try{const sv=e.currentTarget.closest("svg")||e.target.closest("svg");if(!sv)return;const rc=sv.getBoundingClientRect();const sx=rc.width/W;const sy=rc.height/H;setTooltip({x:mx(i)*sx,y:my(pts[i])*sy,year:yr,month:i+1,value:pts[i]});}catch{}}}
+                onClick={e=>{try{const sv=e.currentTarget.closest("svg")||e.target.closest("svg");if(!sv)return;const rc=sv.getBoundingClientRect();const sx=rc.width/W;const sy=rc.height/H;setTooltip({x:mx(i)*sx,y:my(pts[i])*sy,year:yr,month:i+1,value:pts[i]});}catch{}}}
               />
             ))}
           </g>;
@@ -162,8 +162,8 @@ function BarChart({data,metric}){
               const v=grid[mo][yr]||0;const bh=(v/maxV)*CH;
               const x=gx+groupPad+yi*(bw+gap);const y=PT+CH-bh;const color=YC[yr]||S.accent;
               return<rect key={yr} x={x} y={y} width={bw} height={Math.max(bh,0)} fill={color} rx={1.5} opacity={0.88} style={{cursor:"pointer"}}
-                onMouseEnter={e=>{const sv=e.target.closest("svg");const rc=sv.getBoundingClientRect();const sx=rc.width/W;const sy=rc.height/H;setTooltip({x:(x+bw/2)*sx,y:y*sy,year:yr,month:mo,value:v});}}
-                onClick={e=>{const sv=e.target.closest("svg");const rc=sv.getBoundingClientRect();const sx=rc.width/W;const sy=rc.height/H;setTooltip({x:(x+bw/2)*sx,y:y*sy,year:yr,month:mo,value:v});}}
+                onMouseEnter={e=>{try{const sv=e.currentTarget.closest("svg")||e.target.closest("svg");if(!sv)return;const rc=sv.getBoundingClientRect();const sx=rc.width/W;const sy=rc.height/H;setTooltip({x:(x+bw/2)*sx,y:y*sy,year:yr,month:mo,value:v});}catch{}}}
+                onClick={e=>{try{const sv=e.currentTarget.closest("svg")||e.target.closest("svg");if(!sv)return;const rc=sv.getBoundingClientRect();const sx=rc.width/W;const sy=rc.height/H;setTooltip({x:(x+bw/2)*sx,y:y*sy,year:yr,month:mo,value:v});}catch{}}}
               />;
             })}
             <text x={gx+groupW/2} y={H-PB+13} textAnchor="middle" fontSize={7.5} fill={S.muted2}>{MONTHS[mi]}</text>
@@ -443,7 +443,7 @@ function OverviewTab({token}){
                         {MONTHS[r.month-1]}-{cy_}
                       </td>
                       <td style={{padding:"9px 14px",textAlign:"right",color:S.text,fontWeight:600}}>{fmt(cur)}</td>
-                      <td style={{padding:"9px 14px",textAlign:"right",color:S.muted}}>{fmt(prv)}</td>
+                      <td style={{padding:"9px 14px",textAlign:"right",color:S.muted}}>{prv==null||Number(prv)===0?"—":fmt(prv)}</td>
                       <td style={{padding:"9px 14px",textAlign:"right",fontWeight:600,color:dc(dif)}}>
                         {dif!=null?(parseFloat(dif)>=0?"+":"")+fmt(Math.abs(dif)):"—"}
                       </td>
@@ -483,7 +483,8 @@ function BusTab({token}){
     const p={};
     if(f.dateFrom)p.dateFrom=f.dateFrom;if(f.dateTo)p.dateTo=f.dateTo;
     if(f.pendel)p.pendel=f.pendel;if(f.region)p.region=f.region;
-    if(f.weekday)p.weekday=f.weekday;if(f.status)p.status=f.status;
+    if(f.weekday)p.weekday=f.weekday;
+    if(f.status){const statuses=f.status.split(",").filter(Boolean);if(statuses.length===1)p.status=statuses[0];else if(statuses.length>1)p.status=statuses;}
     if(f.label)p.label=f.label;
     const fp={...p};if(f.feederLine)fp.feederLine=f.feederLine;
     Promise.all([
@@ -928,15 +929,6 @@ function PurchaseTab({token}){
         )}
         {subTab==="elements"&&<>
           <div>
-            <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Category (Dataset)</label>
-            <select value={f.dataset} onChange={e=>setF({...f,dataset:e.target.value})} style={selStyle}>
-              <option value="">All Categories</option>
-              <option value="Solmar">Solmar</option>
-              <option value="Interbus">Interbus</option>
-              <option value="Snowtravel">Snowtravel</option>
-            </select>
-          </div>
-          <div>
             <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Year</label>
             <select value={f.year} onChange={e=>setF({...f,year:e.target.value})} style={selStyle}>
               <option value="">All Years</option>
@@ -1250,7 +1242,7 @@ function PurchaseTab({token}){
                               <td style={{...TDL,color:S.accent,fontWeight:600,fontFamily:"monospace",fontSize:11}}>{r.BookingId||"—"}</td>
                               <td style={TDL}><span style={{background:`${cc}15`,color:cc,padding:"2px 8px",borderRadius:5,fontSize:11,fontWeight:700,display:"inline-flex",alignItems:"center",gap:3}}>{CAT_ICONS[r.MarginCategory]||"📦"} {r.MarginCategory||"—"}</span></td>
                               <td style={{...TDL,color:S.textLight,fontSize:11}}>{r.Dataset||"—"}</td>
-                              <td style={TDL}><span style={{background:confirmed?S.successBg:S.dangerBg,color:confirmed?S.success:S.danger,padding:"2px 7px",borderRadius:5,fontSize:10,fontWeight:700}}>{confirmed?"✓ DEF":"✗"}</span></td>
+                              <td style={TDL}><span style={{background:confirmed?S.successBg:S.dangerBg,color:confirmed?S.success:S.danger,padding:"2px 7px",borderRadius:5,fontSize:10,fontWeight:700}}>{confirmed?"DEF":"DEF-GEANNULEERD"}</span></td>
                               <td style={{...TDL,color:S.textLight,fontSize:11}}>{r.LabelName||"—"}</td>
                               <td style={{...TDL,fontWeight:500}}>{r.DepartureDate||"—"}</td>
                               <td style={{...TDL,color:S.muted}}>{r.ReturnDate||"—"}</td>
