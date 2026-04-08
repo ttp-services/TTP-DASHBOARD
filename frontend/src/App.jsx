@@ -488,7 +488,7 @@ function BusTab({token}){
   const[feeder,setFeeder]=useState([]);
   const[deck,setDeck]=useState([]);
   const[loading,setLoading]=useState(false);
-  const[f,setF]=useState({dateFrom:`${cy}-01-01`,dateTo:`${cy}-12-31`,pendel:"",region:"",label:"",feederLine:"",weekday:"",status:"",_collapsed:false});
+  const[f,setF]=useState({dateFrom:`2020-01-01`,dateTo:`${cy}-12-31`,pendel:"",region:"",label:"",feederLine:"",weekday:"",status:"",_collapsed:false});
 
   useEffect(()=>{api("/api/dashboard/bus-slicers",{},token).then(d=>{if(d&&!d.error)setSl(d);}).catch(()=>{});},[token]);
 
@@ -510,7 +510,7 @@ function BusTab({token}){
   }
   useEffect(()=>{applyLoad();},[token]);
 
-  function resetFilters(){setF({dateFrom:`${cy}-01-01`,dateTo:`${cy}-12-31`,pendel:"",region:"",label:"",feederLine:"",weekday:"",status:"DEF",_collapsed:false});}
+  function resetFilters(){setF({dateFrom:`2020-01-01`,dateTo:`${cy}-12-31`,pendel:"",region:"",label:"",feederLine:"",weekday:"",status:"",_collapsed:false});}
 
   const fdates=[...new Set(feeder.map(r=>r.DepartureDate))].sort();
   const froutes={};
@@ -1254,7 +1254,7 @@ function PurchaseTab({token}){
                               <td style={TDL}><span style={{background:`${cc}15`,color:cc,padding:"2px 8px",borderRadius:5,fontSize:11,fontWeight:700,display:"inline-flex",alignItems:"center",gap:3}}>{CAT_ICONS[r.MarginCategory]||"📦"} {r.MarginCategory||"—"}</span></td>
                               <td style={{...TDL,color:S.textLight,fontSize:11}}>{r.Dataset||"—"}</td>
                               <td style={TDL}><span style={{background:confirmed?S.successBg:S.dangerBg,color:confirmed?S.success:S.danger,padding:"2px 7px",borderRadius:5,fontSize:10,fontWeight:700}}>{confirmed?"DEF":"DEF-GEANNULEERD"}</span></td>
-                              <td style={{...TDL,color:S.textLight,fontSize:11}}>{r.LabelName||"—"}</td>
+                              <td style={{...TDL,color:S.textLight,fontSize:11}}>{r.LabelCode||"—"}</td>
                               <td style={{...TDL,fontWeight:500}}>{r.DepartureDate||"—"}</td>
                               <td style={{...TDL,color:S.muted}}>{r.ReturnDate||"—"}</td>
                               <td style={TD}>{fmtN(r.PAXCount)}</td>
