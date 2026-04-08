@@ -440,7 +440,7 @@ function OverviewTab({token}){
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
               <thead style={{position:"sticky",top:0,zIndex:5,background:"#f8faff"}}>
                 <tr>
-                  {[["Period","left"],["Curr. Year","center"],["Prev. Year","center"],["Current","right"],["Previous","right"],["Difference","right"],["Diff %","right"]].map(([h,a],i)=>(
+                  {[["Period","left"],["Current","right"],["Previous","right"],["Difference","right"],["Diff %","right"]].map(([h,a],i)=>(
                     <th key={i} style={{padding:"10px 14px",textAlign:a,color:S.muted,fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderBottom:`1px solid ${S.border}`}}>{h}</th>
                   ))}
                 </tr>
@@ -463,10 +463,6 @@ function OverviewTab({token}){
                         <span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:YC[cy_]||S.accent,marginRight:8,verticalAlign:"middle"}}/>
                         {MONTHS[r.month-1]}-{cy_}
                       </td>
-                      <td style={{padding:"9px 14px",textAlign:"center"}}>
-                        <span style={{background:`${YC[cy_]||S.accent}18`,color:YC[cy_]||S.accent,padding:"2px 8px",borderRadius:5,fontSize:11,fontWeight:700}}>{cy_}</span>
-                      </td>
-                      <td style={{padding:"9px 14px",textAlign:"center",color:S.muted,fontSize:11}}>{py_}</td>
                       <td style={{padding:"9px 14px",textAlign:"right",color:S.text,fontWeight:600}}>{fmt(cur)}</td>
                       <td style={{padding:"9px 14px",textAlign:"right",color:S.muted}}>{fmt(prv)}</td>
                       <td style={{padding:"9px 14px",textAlign:"right",fontWeight:600,color:dc(dif)}}>
@@ -649,28 +645,48 @@ function BusTab({token}){
               </div>
               {deck.length>0&&(
                 <>
-                  <div style={{padding:"8px 16px",borderTop:`1px solid ${S.border}`,borderBottom:`1px solid ${S.border}`,fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.06em",background:"#f8faff"}}>By Departure Date</div>
-                  <div style={{overflowX:"auto",maxHeight:350,overflowY:"auto"}}>
+                  <div style={{padding:"8px 16px",borderTop:`1px solid ${S.border}`,borderBottom:`1px solid ${S.border}`,fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.06em",background:"#f8faff"}}>By Departure Date — Pivot</div>
+                  <div style={{overflowX:"auto",maxHeight:400,overflowY:"auto"}}>
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
-                      <thead style={{position:"sticky",top:0,background:"#f8faff",zIndex:5}}><tr>
-                        <th style={THL}>Date</th><th style={TH}>Total</th>
-                        <th style={{...TH,color:S.accent}}>Lower</th><th style={{...TH,color:S.success}}>Upper</th>
-                        <th style={{...TH,color:S.muted}}>No Deck</th><th style={{...TH,color:S.warn}}>Royal</th>
-                        <th style={{...TH,color:S.success}}>First</th><th style={{...TH,color:S.purple}}>Premium</th>
-                        <th style={{...TH,color:S.orange}}>Comfort</th>
-                      </tr></thead>
+                      <thead style={{position:"sticky",top:0,background:"#f8faff",zIndex:5}}>
+                        <tr>
+                          <th style={{...THL,borderRight:`2px solid ${S.border2}`}} rowSpan={2}>Date</th>
+                          <th style={{...TH,textAlign:"center",borderRight:`1px solid ${S.border2}`,color:S.text}} colSpan={4}>Total</th>
+                          <th style={{...TH,textAlign:"center",borderRight:`1px solid ${S.border2}`,color:S.warn}} colSpan={4}>Royal Class</th>
+                          <th style={{...TH,textAlign:"center",borderRight:`1px solid ${S.border2}`,color:S.success}} colSpan={4}>First Class</th>
+                          <th style={{...TH,textAlign:"center",borderRight:`1px solid ${S.border2}`,color:S.purple}} colSpan={4}>Premium Class</th>
+                          <th style={{...TH,textAlign:"center",color:S.orange}} colSpan={4}>Comfort Class</th>
+                        </tr>
+                        <tr>
+                          {["Total","Lower","Upper","No Deck","Total","Lower","Upper","No Deck","Total","Lower","Upper","No Deck","Total","Lower","Upper","No Deck","Total","Lower","Upper","No Deck"].map((h,i)=>(
+                            <th key={i} style={{...TH,fontSize:9,borderRight:i===3||i===7||i===11||i===15?`1px solid ${S.border2}`:"none"}}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
                       <tbody>
                         {deck.map((r,i)=>(
                           <tr key={i} style={{borderBottom:`1px solid ${S.border}`,background:i%2===0?"transparent":"#f8faff"}}>
-                            <td style={{...TDL,fontSize:11,fontWeight:600}}>{r.dateDeparture}</td>
+                            <td style={{...TDL,fontSize:11,fontWeight:600,borderRight:`2px solid ${S.border2}`}}>{r.dateDeparture}</td>
                             <td style={{...TD,fontWeight:700}}>{fmtN(r.Total)}</td>
                             <td style={{...TD,color:S.accent}}>{fmtN(r.Total_Lower)}</td>
                             <td style={{...TD,color:S.success}}>{fmtN(r.Total_Upper)}</td>
-                            <td style={{...TD,color:S.muted}}>{fmtN(r.Total_NoDeck)}</td>
-                            <td style={{...TD,color:S.warn}}>{fmtN(r.Royal_Total)}</td>
-                            <td style={{...TD,color:S.success}}>{fmtN(r.First_Total)}</td>
-                            <td style={{...TD,color:S.purple}}>{fmtN(r.Premium_Total)}</td>
-                            <td style={{...TD,color:S.orange}}>{fmtN(r.Comfort_Total)}</td>
+                            <td style={{...TD,color:S.muted,borderRight:`1px solid ${S.border2}`}}>{fmtN(r.Total_NoDeck)}</td>
+                            <td style={{...TD,fontWeight:600,color:S.warn}}>{fmtN(r.Royal_Total)}</td>
+                            <td style={TD}>{fmtN(r.Royal_Lower)}</td>
+                            <td style={TD}>{fmtN(r.Royal_Upper)}</td>
+                            <td style={{...TD,borderRight:`1px solid ${S.border2}`}}>{fmtN(r.Royal_NoDeck)}</td>
+                            <td style={{...TD,fontWeight:600,color:S.success}}>{fmtN(r.First_Total)}</td>
+                            <td style={TD}>{fmtN(r.First_Lower)}</td>
+                            <td style={TD}>{fmtN(r.First_Upper)}</td>
+                            <td style={{...TD,borderRight:`1px solid ${S.border2}`}}>{fmtN(r.First_NoDeck)}</td>
+                            <td style={{...TD,fontWeight:600,color:S.purple}}>{fmtN(r.Premium_Total)}</td>
+                            <td style={TD}>{fmtN(r.Premium_Lower)}</td>
+                            <td style={TD}>{fmtN(r.Premium_Upper)}</td>
+                            <td style={{...TD,borderRight:`1px solid ${S.border2}`}}>{fmtN(r.Premium_NoDeck)}</td>
+                            <td style={{...TD,fontWeight:600,color:S.orange}}>{fmtN(r.Comfort_Total)}</td>
+                            <td style={TD}>{fmtN(r.Comfort_Lower)}</td>
+                            <td style={TD}>{fmtN(r.Comfort_Upper)}</td>
+                            <td style={TD}>{fmtN(r.Comfort_NoDeck)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -781,19 +797,16 @@ const CAT_ICONS = {
 function ElementMarginChart({trend}){
   const[tooltip,setTooltip]=useState(null);
   if(!trend?.length)return<div style={{color:S.muted,textAlign:"center",padding:32,fontSize:12}}>No trend data</div>;
-
   const months=[...new Set(trend.map(r=>r.year*100+r.month))].sort();
   const cats=[...new Set(trend.map(r=>r.category))].sort();
   const grid={};
   months.forEach(ym=>{grid[ym]={};cats.forEach(c=>{grid[ym][c]=0;});});
   trend.forEach(r=>{const ym=r.year*100+r.month;if(grid[ym])grid[ym][r.category]=parseFloat(r.margin)||0;});
-
   const allVals=months.map(ym=>cats.reduce((s,c)=>s+(grid[ym][c]||0),0));
   const maxV=Math.max(...allVals,1);
   const W=580,H=200,PL=70,PR=10,PT=12,PB=44,CW=W-PL-PR,CH=H-PT-PB;
   const bw=Math.max(4,Math.floor(CW/months.length)-3);
   const fmtA=v=>v>=1e6?`€${(v/1e6).toFixed(1)}M`:v>=1e3?`€${(v/1e3).toFixed(0)}K`:`€${Math.round(v)}`;
-
   return(
     <div style={{position:"relative"}}>
       {tooltip&&(
@@ -1248,17 +1261,8 @@ function PurchaseTab({token}){
     </div>
   );
 }
-  const[f,setF]=useState({departureFrom:"",departureTo:"",status:"all",label:"",travelType:""});
-  const[data,setData]=useState([]);
-  const[kpis,setKpis]=useState(null);
-  const[loading,setLoading]=useState(false);
-  const[err,setErr]=useState(null);
-  const[search,setSearch]=useState("");
-  const[page,setPage]=useState(1);
-  const[totalRows,setTotalRows]=useState(0);
-  const PAGE_SIZE=200;
-
-  function buildParams(p,pg=1){
+  // ── Settings Tab ──────────────────────────────────────────────────────────────
+function SettingsTab({token,session,onLogout}){
     const out={page:pg,limit:PAGE_SIZE};
     if(p.departureFrom)out.departureFrom=p.departureFrom;
     if(p.departureTo)out.departureTo=p.departureTo;
@@ -1315,7 +1319,7 @@ function PurchaseTab({token}){
   ];
 
   const TABLE_COLS=[
-    ["Booking ID","left"],["Departure","left"],["Return","left"],["Status","left"],["Label","left"],["Travel Type","left"],
+    ["Booking ID","left"],["Departure","left"],["Return","left"],["Status","left"],["Label","left"],
     ["PAX","right"],["Sales (€)","right"],["Purchase (€)","right"],
     ["Obligation (€)","right"],["Margin (€)","right"],["Margin %","right"],["Commission (€)","right"],["Margin+Comm (€)","right"],
   ];
@@ -1447,7 +1451,6 @@ function PurchaseTab({token}){
                           </span>
                         </td>
                         <td style={{padding:"8px 12px",color:S.textLight,whiteSpace:"nowrap",fontSize:11}}>{r.Label||"—"}</td>
-                        <td style={{padding:"8px 12px",color:S.muted,whiteSpace:"nowrap",fontSize:11}}>{r.TravelType||"—"}</td>
                         <td style={{padding:"8px 12px",textAlign:"right",color:S.text,whiteSpace:"nowrap"}}>{fmtN(r.PAX)}</td>
                         <td style={{padding:"8px 12px",textAlign:"right",color:S.text,whiteSpace:"nowrap"}}>{fmtEur(r.SalesBooking)}</td>
                         <td style={{padding:"8px 12px",textAlign:"right",color:S.text,whiteSpace:"nowrap"}}>{fmtEur(r.PurchaseCalculation)}</td>
