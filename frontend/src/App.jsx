@@ -1472,7 +1472,7 @@ function SettingsTab({token,session,onLogout}){
       </div>
     </div>
   );
-}
+
 
 // ── Settings Tab ──────────────────────────────────────────────────────────────
 function SettingsTab({token,session,onLogout}){
