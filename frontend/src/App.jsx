@@ -968,7 +968,7 @@ function PurchaseTab({token}){
   ];
 
   const EL_TABLE_COLS=[
-    ["Booking ID","left"],["Category","left"],["Dataset","left"],["Status","left"],["Label","left"],
+    ["Booking ID","left"],["Category","left"],["Dataset","left"],["Status","left"],["LabelCode","left"],
     ["Departure","left"],["Return","left"],["PAX","right"],["Elements","right"],
     ["Base Price (€)","right"],["Sold (€)","right"],["Paid (€)","right"],["Deposit (€)","right"],
     ["Commission (€)","right"],["Margin (€)","right"],["Margin%","right"],["Margin+Comm (€)","right"],
