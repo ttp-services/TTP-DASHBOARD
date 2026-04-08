@@ -517,7 +517,7 @@ function BusTab({token}){
   }
   useEffect(()=>{applyLoad();},[token]);
 
-  function resetFilters(){setF({dateFrom:`${cy}-01-01`,dateTo:`${cy}-12-31`,pendel:"",region:"",label:"",feederLine:"",weekday:"",status:"",_collapsed:false});}
+  function resetFilters(){setF({dateFrom:`${cy}-01-01`,dateTo:`${cy}-12-31`,pendel:"",region:"",label:"",feederLine:"",weekday:"",status:"DEF",_collapsed:false});}
 
   const fdates=[...new Set(feeder.map(r=>r.DepartureDate))].sort();
   const froutes={};
@@ -754,8 +754,7 @@ function BusTab({token}){
                 </select>
               </div>
               <div>{lbl("Status")}
-                <select value={f.status} onChange={e=>setF({...f,status:e.target.value})} style={{width:"100%",background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"6px 8px",color:S.text,fontSize:11,outline:"none"}}>
-                  <option value="">All Statuses</option>
+                <select multiple value={f.status?f.status.split(",").filter(Boolean):[]} onChange={e=>setF({...f,status:[...e.target.selectedOptions].map(o=>o.value).join(",")})} style={{width:"100%",background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"4px 6px",color:S.text,fontSize:11,outline:"none",height:100}}>
                   <option value="DEF">✓ Confirmed</option>
                   <option value="TIJD">Timed</option>
                   <option value="VERV">Replaced</option>
@@ -764,6 +763,7 @@ function BusTab({token}){
                   <option value="CTRL">Control</option>
                   <option value="IN_AANVRAAG">Requested</option>
                 </select>
+                <div style={{fontSize:9,color:S.muted2,marginTop:3}}>Hold Ctrl to select multiple</div>
               </div>
               {view!=="feeder"&&<>
                 <div>{lbl("Pendel")}{sel(f.pendel,v=>setF({...f,pendel:v}),sl.pendels)}</div>
