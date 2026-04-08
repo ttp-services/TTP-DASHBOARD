@@ -21,14 +21,12 @@ async function api(path,params={},token){
   return r.json();
 }
 
-// ── Formatters ────────────────────────────────────────────────────────────────
 const fmtM=v=>{const n=parseFloat(v)||0;if(Math.abs(n)>=1e6)return`€${(n/1e6).toFixed(2)}M`;if(Math.abs(n)>=1e3)return`€${(n/1e3).toFixed(1)}K`;return`€${Math.round(n).toLocaleString("nl-BE")}`;};
 const fmtN=v=>v==null?"—":Number(v).toLocaleString("nl-BE");
 const fmtPct=v=>v==null?"—":`${v>=0?"+":""}${parseFloat(v).toFixed(1)}%`;
 const fmtEur=v=>{const n=parseFloat(v)||0;return`€${n.toLocaleString("nl-BE",{minimumFractionDigits:2,maximumFractionDigits:2})}`;};
 const dc=v=>v==null?"#94a3b8":parseFloat(v)>=0?"#059669":"#dc2626";
 
-// ── Design Tokens ─────────────────────────────────────────────────────────────
 const S={
   bg:"#f0f5ff",
   side:"#ffffff",
@@ -67,7 +65,6 @@ const QUICK_DATES=[
   {l:`Snow FY${cy}/${cy+1}`,from:`${cy}-07-01`,  to:`${cy+1}-06-30`},
 ];
 
-// ── Shared UI primitives ──────────────────────────────────────────────────────
 function Badge({children,color=S.accent,bg=S.accentLight}){
   return<span style={{background:bg,color,padding:"2px 8px",borderRadius:20,fontSize:11,fontWeight:600,display:"inline-flex",alignItems:"center",gap:3}}>{children}</span>;
 }
@@ -76,8 +73,8 @@ function Card({children,style={},p="18px 20px"}){
   return<div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:p,boxShadow:S.shadow,...style}}>{children}</div>;
 }
 
-function Btn({children,onClick,variant="secondary",size="sm",style={}}){
-  const base={cursor:"pointer",borderRadius:7,fontWeight:600,display:"inline-flex",alignItems:"center",gap:5,transition:"all 0.15s",fontFamily:"inherit",...style};
+function Btn({children,onClick,variant="secondary",size="sm",style={},disabled=false}){
+  const base={cursor:disabled?"not-allowed":"pointer",borderRadius:7,fontWeight:600,display:"inline-flex",alignItems:"center",gap:5,transition:"all 0.15s",fontFamily:"inherit",opacity:disabled?0.5:1,...style};
   const sizes={sm:{padding:"5px 12px",fontSize:12},md:{padding:"7px 16px",fontSize:13},lg:{padding:"9px 20px",fontSize:14}};
   const variants={
     primary:{background:S.accent,color:"#fff",border:"none",boxShadow:"0 1px 3px rgba(26,86,219,0.3)"},
@@ -85,10 +82,9 @@ function Btn({children,onClick,variant="secondary",size="sm",style={}}){
     danger:{background:S.dangerBg,color:S.danger,border:`1px solid ${S.danger}44`},
     ghost:{background:"transparent",color:S.muted,border:"none"},
   };
-  return<button onClick={onClick} style={{...base,...sizes[size],...variants[variant]}}>{children}</button>;
+  return<button onClick={onClick} disabled={disabled} style={{...base,...sizes[size],...variants[variant]}}>{children}</button>;
 }
 
-// ── Line Chart ────────────────────────────────────────────────────────────────
 function LineChart({data}){
   const[tooltip,setTooltip]=useState(null);
   if(!data?.length)return<div style={{color:S.muted,textAlign:"center",padding:32,fontSize:12}}>No data</div>;
@@ -134,7 +130,6 @@ function LineChart({data}){
   );
 }
 
-// ── Grouped Bar Chart ─────────────────────────────────────────────────────────
 function BarChart({data,metric}){
   const[tooltip,setTooltip]=useState(null);
   if(!data?.length)return<div style={{color:S.muted,textAlign:"center",padding:32,fontSize:12}}>No chart data</div>;
@@ -180,7 +175,6 @@ function BarChart({data,metric}){
   );
 }
 
-// ── KPI Card ──────────────────────────────────────────────────────────────────
 function KpiCard({label,current,previous,pct,fmt="num",color=S.accent,icon}){
   const f=fmt==="eur"?fmtM:fmtN;
   const dif=current!=null&&previous!=null?(parseFloat(current)-parseFloat(previous)):null;
@@ -210,7 +204,6 @@ function KpiCard({label,current,previous,pct,fmt="num",color=S.accent,icon}){
   );
 }
 
-// ── Login ─────────────────────────────────────────────────────────────────────
 function Login({onLogin}){
   const[u,setU]=useState(""),[ pw,setPw]=useState(""),[ show,setShow]=useState(false),[err,setErr]=useState(""),[busy,setBusy]=useState(false);
   async function submit(e){
@@ -227,11 +220,8 @@ function Login({onLogin}){
   const inpStyle={width:"100%",background:S.bg,border:`1.5px solid ${S.border2}`,borderRadius:8,padding:"10px 14px",color:S.text,fontSize:13,boxSizing:"border-box",outline:"none",fontFamily:"inherit"};
   return(
     <div style={{display:"flex",height:"100vh",background:`linear-gradient(135deg, #e0f0ff 0%, #f0f5ff 40%, #e8f4ff 100%)`,alignItems:"center",justifyContent:"center",fontFamily:"system-ui,sans-serif",position:"relative",overflow:"hidden"}}>
-      {/* Decorative circles */}
       <div style={{position:"absolute",top:-80,left:-80,width:300,height:300,borderRadius:"50%",background:"rgba(26,86,219,0.06)",pointerEvents:"none"}}/>
       <div style={{position:"absolute",bottom:-60,right:-60,width:250,height:250,borderRadius:"50%",background:"rgba(26,86,219,0.04)",pointerEvents:"none"}}/>
-      <div style={{position:"absolute",top:"30%",right:"15%",width:120,height:120,borderRadius:"50%",background:"rgba(26,86,219,0.03)",pointerEvents:"none"}}/>
-
       <div style={{width:400,background:S.card,borderRadius:20,padding:40,boxShadow:"0 20px 60px rgba(0,0,0,0.1)",border:`1px solid ${S.border}`,position:"relative",zIndex:1}}>
         <div style={{textAlign:"center",marginBottom:32}}>
           <div style={{width:64,height:64,background:`linear-gradient(135deg,${S.accent},#3b82f6)`,borderRadius:16,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:22,fontWeight:900,color:"#fff",marginBottom:16,boxShadow:"0 8px 24px rgba(26,86,219,0.35)"}}>TTP</div>
@@ -261,7 +251,6 @@ function Login({onLogin}){
   );
 }
 
-// ── Overview Tab ──────────────────────────────────────────────────────────────
 function OverviewTab({token}){
   const[f,setF]=useState({datasets:[],statuses:[],years:[],bookingFrom:"",bookingTo:"",depFrom:"",depTo:"",quickLabel:""});
   const[kpis,setKpis]=useState(null);
@@ -305,7 +294,6 @@ function OverviewTab({token}){
   function tog(arr,v){return arr.includes(v)?arr.filter(x=>x!==v):[...arr,v];}
   function quick(q){setF(prev=>({...prev,depFrom:q.from,depTo:q.to,quickLabel:q.l}));}
 
-  const prevLabel=kpis?.prevLabel||String(cy-1);
   const sortedYm=[...ym].sort((a,b)=>b.currentYear!==a.currentYear?b.currentYear-a.currentYear:b.month-a.month);
 
   const chipBtn=(active,onClick,children,clr=S.accent)=>(
@@ -319,10 +307,8 @@ function OverviewTab({token}){
 
   return(
     <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden",background:S.bg}}>
-      {/* Compact filter bar */}
       <div style={{background:S.card,borderBottom:`1px solid ${S.border}`,flexShrink:0,boxShadow:S.shadow}}>
         <div style={{padding:"8px 16px",display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-          {/* Toggle */}
           <button onClick={()=>setFiltersOpen(p=>!p)} style={{padding:"4px 8px",borderRadius:6,fontSize:11,cursor:"pointer",border:`1px solid ${S.border2}`,background:"transparent",color:S.muted,display:"flex",alignItems:"center",gap:4}}>
             <span>⚙</span><span>{filtersOpen?"Hide":"Filters"}</span>
           </button>
@@ -366,8 +352,6 @@ function OverviewTab({token}){
 
       <div style={{flex:1,overflowY:"auto",padding:"16px 20px",display:"flex",flexDirection:"column",gap:16}}>
         {loading&&<div style={{color:S.muted,textAlign:"center",padding:40,fontSize:13}}>Loading data…</div>}
-
-        {/* KPI Cards */}
         {kpis&&(
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
             <KpiCard label="Total Bookings" current={kpis.currentBookings} previous={kpis.previousBookings} pct={kpis.percentBookings} color={S.accent} icon="📋"/>
@@ -375,8 +359,6 @@ function OverviewTab({token}){
             <KpiCard label="Gross Revenue" fmt="eur" current={kpis.currentRevenue} previous={kpis.previousRevenue} pct={kpis.percentRevenue} color={S.warn} icon="💶"/>
           </div>
         )}
-
-        {/* Two charts side by side */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
           <Card>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
@@ -405,8 +387,6 @@ function OverviewTab({token}){
             <BarChart data={chart} metric={metric}/>
           </Card>
         </div>
-
-        {/* Year-on-Year Table */}
         <Card p="0">
           <div style={{padding:"14px 18px",borderBottom:`1px solid ${S.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <div>
@@ -424,12 +404,12 @@ function OverviewTab({token}){
               <button onClick={()=>{
                 const cols=["Period","Current Year","Previous Year","Current Value","Previous Value","Difference","Diff %"];
                 const rows=sortedYm.map(r=>{
-                  const cy_=r.currentYear||r.year;const py_=r.previousYear||(cy_-1);
+                  const cy_=r.currentYear||r.year;
                   const cur=ymMetric==="revenue"?r.currentRevenue:ymMetric==="pax"?r.currentPax:r.currentBookings;
                   const prv=ymMetric==="revenue"?r.previousRevenue:ymMetric==="pax"?r.previousPax:r.previousBookings;
                   const dif=ymMetric==="revenue"?r.diffRevenue:ymMetric==="pax"?r.diffPax:r.diffBookings;
                   const pct=ymMetric==="revenue"?r.diffPctRevenue:ymMetric==="pax"?r.diffPctPax:r.diffPctBookings;
-                  return[`${MONTHS[r.month-1]}-${cy_}`,cy_,py_,cur,prv,dif,pct??''].join(",");
+                  return[`${MONTHS[r.month-1]}-${cy_}`,cy_,cy_-1,cur,prv,dif,pct??''].join(",");
                 });
                 const csv=[cols.join(","),...rows].join("\n");
                 const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));a.download="yoy.csv";a.click();
@@ -447,11 +427,10 @@ function OverviewTab({token}){
               </thead>
               <tbody>
                 {sortedYm.length===0&&!loading&&(
-                  <tr><td colSpan={7} style={{padding:32,textAlign:"center",color:S.muted}}>No data — click Apply Filters</td></tr>
+                  <tr><td colSpan={5} style={{padding:32,textAlign:"center",color:S.muted}}>No data — click Apply Filters</td></tr>
                 )}
                 {sortedYm.map((r,i)=>{
                   const cy_=r.currentYear||r.year;
-                  const py_=r.previousYear||(cy_-1);
                   const cur=ymMetric==="revenue"?r.currentRevenue:ymMetric==="pax"?r.currentPax:r.currentBookings;
                   const prv=ymMetric==="revenue"?r.previousRevenue:ymMetric==="pax"?r.previousPax:r.previousBookings;
                   const dif=ymMetric==="revenue"?r.diffRevenue:ymMetric==="pax"?r.diffPax:r.diffBookings;
@@ -487,7 +466,6 @@ function OverviewTab({token}){
   );
 }
 
-// ── Bus Occupancy Tab ─────────────────────────────────────────────────────────
 function BusTab({token}){
   const[view,setView]=useState("pendel");
   const[sl,setSl]=useState({pendels:[],regions:[],statuses:[],feederLines:[]});
@@ -537,7 +515,6 @@ function BusTab({token}){
 
   return(
     <div style={{display:"flex",flexDirection:"row",height:"100%",overflow:"hidden",background:S.bg}}>
-      {/* Main content */}
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
         <div style={{background:S.card,borderBottom:`1px solid ${S.border}`,padding:"10px 16px",display:"flex",gap:6,flexShrink:0,boxShadow:S.shadow}}>
           {[["pendel","🚌 Pendel Overview"],["deck","🪑 Deck & Class"],["feeder","🗺 Feeder Routes"]].map(([v,l])=>(
@@ -545,7 +522,6 @@ function BusTab({token}){
           ))}
           {loading&&<span style={{marginLeft:"auto",fontSize:11,color:S.muted,alignSelf:"center"}}>Loading…</span>}
         </div>
-
         <div style={{flex:1,overflowY:"auto",padding:18,display:"flex",flexDirection:"column",gap:14}}>
           {busK&&(
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
@@ -569,8 +545,6 @@ function BusTab({token}){
               ))}
             </div>
           )}
-
-          {/* Pendel */}
           {view==="pendel"&&(
             <Card p="0">
               <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,fontSize:13,fontWeight:700,color:S.text}}>🚌 Pendel Overview</div>
@@ -606,8 +580,6 @@ function BusTab({token}){
               </div>
             </Card>
           )}
-
-          {/* Deck */}
           {view==="deck"&&(
             <Card p="0">
               <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,fontSize:13,fontWeight:700,color:S.text}}>🪑 Deck & Class Distribution</div>
@@ -696,8 +668,6 @@ function BusTab({token}){
               )}
             </Card>
           )}
-
-          {/* Feeder */}
           {view==="feeder"&&(
             <Card p="0">
               <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,fontSize:13,fontWeight:700,color:S.text}}>🗺 Feeder Routes</div>
@@ -733,8 +703,6 @@ function BusTab({token}){
           )}
         </div>
       </div>
-
-      {/* Right filter sidebar — collapsible */}
       <div style={{width:f._collapsed?40:230,background:S.card,borderLeft:`1px solid ${S.border}`,display:"flex",flexDirection:"column",flexShrink:0,transition:"width 0.2s",boxShadow:"-2px 0 8px rgba(0,0,0,0.04)"}}>
         <div style={{padding:"12px 10px",borderBottom:`1px solid ${S.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer"}} onClick={()=>setF(p=>({...p,_collapsed:!p._collapsed}))}>
           {!f._collapsed&&<span style={{fontSize:11,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.08em"}}>Filters</span>}
@@ -768,7 +736,7 @@ function BusTab({token}){
               {view!=="feeder"&&<>
                 <div>{lbl("Pendel")}{sel(f.pendel,v=>setF({...f,pendel:v}),sl.pendels)}</div>
                 <div>{lbl("Region")}{sel(f.region,v=>setF({...f,region:v}),sl.regions)}</div>
-                <div>{lbl("Weekday")}{sel(f.weekday,v=>setF({...f,weekday:v}),WEEKDAYS)}</div>
+                <div>{lbl("Weekday")}{sel(f.weekday,v=>setF({...f,weekday:v}),["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"])}</div>
               </>}
               {view==="feeder"&&<div>{lbl("Feeder Line")}{sel(f.feederLine,v=>setF({...f,feederLine:v}),sl.feederLines)}</div>}
             </div>
@@ -783,14 +751,13 @@ function BusTab({token}){
   );
 }
 
-// ── Purchase Obligations Tab ──────────────────────────────────────────────────
-const CAT_COLORS = {
-  "Coach":        "#3b82f6",
-  "Hotel":        "#f97316",
-  "Other":        "#8b5cf6",
-  "Service Line": "#10b981",
+const CAT_COLORS={
+  "Coach":"#3b82f6",
+  "Hotel":"#f97316",
+  "Other":"#8b5cf6",
+  "Service Line":"#10b981",
 };
-const CAT_ICONS = {
+const CAT_ICONS={
   "Coach":"🚌","Hotel":"🏨","Other":"📦","Service Line":"🛎",
 };
 
@@ -842,11 +809,8 @@ function ElementMarginChart({trend}){
 
 function PurchaseTab({token}){
   const[subTab,setSubTab]=useState("summary");
-
-  // ── Shared filters ──
   const[f,setF]=useState({departureFrom:"",departureTo:"",status:"all",label:"",dataset:"",year:""});
 
-  // ── Summary state (solmar.MarginOverview) ──
   const[sumData,setSumData]=useState([]);
   const[sumKpis,setSumKpis]=useState(null);
   const[sumLoading,setSumLoading]=useState(false);
@@ -856,7 +820,6 @@ function PurchaseTab({token}){
   const[sumSearch,setSumSearch]=useState("");
   const PAGE_SIZE=200;
 
-  // ── Element state (dbo.BookingElementMarginOverview) ──
   const[elData,setElData]=useState([]);
   const[elKpis,setElKpis]=useState(null);
   const[elCats,setElCats]=useState([]);
@@ -884,8 +847,8 @@ function PurchaseTab({token}){
     const ap=params!==undefined?{...params,page:pg,limit:PAGE_SIZE}:buildElParams(f,pg);
     api("/api/dashboard/element-margin-overview",ap,token)
       .then(d=>{setElKpis(d?.kpis||null);setElCats(Array.isArray(d?.byCategory)?d.byCategory:[]);setElTrend(Array.isArray(d?.trend)?d.trend:[]);setElData(Array.isArray(d?.data)?d.data:[]);setElTotal(Number(d?.totalRows||0));setElPage(pg);})
-      .catch(e=>{setElErr(e.message);setElData([]);setElKpis(null);}
-      ).finally(()=>setElLoading(false));
+      .catch(e=>{setElErr(e.message);setElData([]);setElKpis(null);})
+      .finally(()=>setElLoading(false));
   }
 
   function applyFilters(){
@@ -915,7 +878,6 @@ function PurchaseTab({token}){
 
   const selStyle={background:S.bg,border:`1.5px solid ${S.border2}`,borderRadius:7,padding:"6px 10px",color:S.text,fontSize:12,outline:"none",fontFamily:"inherit"};
 
-  // Shared filter bar
   const FilterBar=(
     <div style={{background:S.card,borderBottom:`1px solid ${S.border}`,padding:"12px 20px",flexShrink:0,boxShadow:S.shadow}}>
       <div style={{display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
@@ -969,14 +931,13 @@ function PurchaseTab({token}){
     </div>
   );
 
-  // ── Summary KPI cards
   const sumConfirmed=sumKpis?.confirmedCount??sumData.filter(r=>r.StatusCode==="DEF").length;
   const sumCancelled=sumKpis?.cancelledCount??sumData.filter(r=>r.StatusCode==="DEF-GEANNULEERD").length;
   const sumFiltered=sumData.filter(r=>!sumSearch||String(r.BookingID||"").includes(sumSearch)||(r.Label||"").toLowerCase().includes(sumSearch.toLowerCase())||(r.DepartureDate||"").includes(sumSearch));
   const elFiltered=elData.filter(r=>!elSearch||String(r.BookingId||"").includes(elSearch)||(r.MarginCategory||"").toLowerCase().includes(elSearch.toLowerCase())||(r.LabelName||"").toLowerCase().includes(elSearch.toLowerCase()));
 
   const SUM_TABLE_COLS=[
-    ["Booking ID","left"],["Departure","left"],["Return","left"],["Status","left"],["Label","left"],["Travel Type","left"],
+    ["Booking ID","left"],["Departure","left"],["Return","left"],["Status","left"],["Label","left"],
     ["PAX","right"],["Sales (€)","right"],["Purchase (€)","right"],["Obligation (€)","right"],
     ["Margin (€)","right"],["Margin %","right"],["Commission (€)","right"],["Margin+Comm (€)","right"],
   ];
@@ -995,8 +956,6 @@ function PurchaseTab({token}){
 
   return(
     <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden",background:S.bg}}>
-
-      {/* Sub-tab toggle */}
       <div style={{background:S.card,borderBottom:`1px solid ${S.border}`,padding:"10px 20px",display:"flex",gap:6,flexShrink:0,boxShadow:S.shadow}}>
         {[
           ["summary","📋 Booking Summary","solmar.MarginOverview"],
@@ -1008,11 +967,7 @@ function PurchaseTab({token}){
           </button>
         ))}
       </div>
-
-      {/* Shared filter bar */}
       {FilterBar}
-
-      {/* ── SUMMARY SUB-TAB ── */}
       {subTab==="summary"&&(
         <div style={{flex:1,overflowY:"auto",padding:"16px 20px",display:"flex",flexDirection:"column",gap:14}}>
           {sumErr&&<div style={{background:S.dangerBg,border:`1px solid ${S.danger}33`,borderRadius:10,padding:"10px 14px",fontSize:12,color:S.danger}}>⚠ {sumErr}</div>}
@@ -1078,7 +1033,6 @@ function PurchaseTab({token}){
                           <td style={{...TDL,color:S.muted}}>{r.ReturnDate||"—"}</td>
                           <td style={TDL}><span style={{background:confirmed?S.successBg:S.dangerBg,color:confirmed?S.success:S.danger,padding:"2px 7px",borderRadius:5,fontSize:10,fontWeight:700}}>{confirmed?"✓ DEF":"✗ GEANN."}</span></td>
                           <td style={{...TDL,color:S.textLight,fontSize:11}}>{r.Label||"—"}</td>
-                          <td style={{...TDL,color:S.muted,fontSize:11}}>{r.TravelType||"—"}</td>
                           <td style={TD}>{fmtN(r.PAX)}</td>
                           <td style={TD}>{fmtEur(r.SalesBooking)}</td>
                           <td style={TD}>{fmtEur(r.PurchaseCalculation)}</td>
@@ -1097,8 +1051,6 @@ function PurchaseTab({token}){
           )}
         </div>
       )}
-
-      {/* ── ELEMENT BREAKDOWN SUB-TAB ── */}
       {subTab==="elements"&&(
         <div style={{flex:1,overflowY:"auto",padding:"16px 20px",display:"flex",flexDirection:"column",gap:14}}>
           {elErr&&<div style={{background:S.dangerBg,border:`1px solid ${S.danger}33`,borderRadius:10,padding:"10px 14px",fontSize:12,color:S.danger}}>⚠ {elErr}</div>}
@@ -1113,10 +1065,8 @@ function PurchaseTab({token}){
             </div>
           )}
           {elLoading&&<div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"60px 20px"}}><span style={{color:S.muted,fontSize:13}}>Loading element data…</span></div>}
-
           {elKpis&&(
             <>
-              {/* Overall KPI row */}
               <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
                 {[
                   {l:"Total Bookings",v:fmtN(elKpis.totalBookings),c:S.accent,icon:"📋"},
@@ -1130,8 +1080,6 @@ function PurchaseTab({token}){
                   </div>
                 ))}
               </div>
-
-              {/* Per-category cards */}
               {elCats.length>0&&(
                 <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
                   {elCats.map(cat=>{
@@ -1146,14 +1094,7 @@ function PurchaseTab({token}){
                           <span style={{background:`${cc}15`,color:cc,padding:"2px 8px",borderRadius:6,fontSize:10,fontWeight:700}}>{fmtN(cat.bookings)} bookings</span>
                         </div>
                         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,fontSize:11}}>
-                          {[
-                            ["PAX",fmtN(cat.pax)],
-                            ["Elements",fmtN(cat.elements)],
-                            ["Sales",fmtM(cat.sales)],
-                            ["Base Price",fmtM(cat.basePrice)],
-                            ["Paid",fmtM(cat.paid)],
-                            ["Commission",fmtM(cat.commission)],
-                          ].map(([l,v])=>(
+                          {[["PAX",fmtN(cat.pax)],["Elements",fmtN(cat.elements)],["Sales",fmtM(cat.sales)],["Base Price",fmtM(cat.basePrice)],["Paid",fmtM(cat.paid)],["Commission",fmtM(cat.commission)]].map(([l,v])=>(
                             <div key={l}>
                               <div style={{color:S.muted,fontSize:10,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.04em"}}>{l}</div>
                               <div style={{color:S.text,fontWeight:600}}>{v}</div>
@@ -1172,8 +1113,6 @@ function PurchaseTab({token}){
                   })}
                 </div>
               )}
-
-              {/* Stacked bar chart */}
               {elTrend.length>0&&(
                 <Card>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
@@ -1184,8 +1123,7 @@ function PurchaseTab({token}){
                     <div style={{display:"flex",gap:8}}>
                       {Object.entries(CAT_COLORS).map(([cat,c])=>(
                         <span key={cat} style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:S.muted}}>
-                          <span style={{width:8,height:8,borderRadius:2,background:c,display:"inline-block"}}/>
-                          {cat}
+                          <span style={{width:8,height:8,borderRadius:2,background:c,display:"inline-block"}}/>{cat}
                         </span>
                       ))}
                     </div>
@@ -1193,8 +1131,6 @@ function PurchaseTab({token}){
                   <ElementMarginChart trend={elTrend}/>
                 </Card>
               )}
-
-              {/* Element table */}
               {elData.length>0&&(
                 <Card p="0">
                   <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,display:"flex",gap:10,alignItems:"center"}}>
@@ -1226,11 +1162,7 @@ function PurchaseTab({token}){
                           return(
                             <tr key={i} style={{borderBottom:`1px solid ${S.border}`,background:i%2===0?"transparent":"#f8faff"}}>
                               <td style={{...TDL,color:S.accent,fontWeight:600,fontFamily:"monospace",fontSize:11}}>{r.BookingId||"—"}</td>
-                              <td style={TDL}>
-                                <span style={{background:`${cc}15`,color:cc,padding:"2px 8px",borderRadius:5,fontSize:11,fontWeight:700,display:"inline-flex",alignItems:"center",gap:3}}>
-                                  {CAT_ICONS[r.MarginCategory]||"📦"} {r.MarginCategory||"—"}
-                                </span>
-                              </td>
+                              <td style={TDL}><span style={{background:`${cc}15`,color:cc,padding:"2px 8px",borderRadius:5,fontSize:11,fontWeight:700,display:"inline-flex",alignItems:"center",gap:3}}>{CAT_ICONS[r.MarginCategory]||"📦"} {r.MarginCategory||"—"}</span></td>
                               <td style={{...TDL,color:S.textLight,fontSize:11}}>{r.Dataset||"—"}</td>
                               <td style={TDL}><span style={{background:confirmed?S.successBg:S.dangerBg,color:confirmed?S.success:S.danger,padding:"2px 7px",borderRadius:5,fontSize:10,fontWeight:700}}>{confirmed?"✓ DEF":"✗"}</span></td>
                               <td style={{...TDL,color:S.textLight,fontSize:11}}>{r.LabelName||"—"}</td>
@@ -1261,220 +1193,7 @@ function PurchaseTab({token}){
     </div>
   );
 }
-  // ── Settings Tab ──────────────────────────────────────────────────────────────
-function SettingsTab({token,session,onLogout}){
-    const out={page:pg,limit:PAGE_SIZE};
-    if(p.departureFrom)out.departureFrom=p.departureFrom;
-    if(p.departureTo)out.departureTo=p.departureTo;
-    if(p.status&&p.status!=="all")out.status=p.status;
-    if(p.label)out.label=p.label;
-    if(p.travelType)out.travelType=p.travelType;
-    return out;
-  }
 
-  function load(params,pg=1){
-    setLoading(true);setErr(null);
-    const apiParams=params!==undefined?{...params,page:pg,limit:PAGE_SIZE}:buildParams(f,pg);
-    api("/api/dashboard/margin-overview",apiParams,token)
-      .then(d=>{
-        setKpis(d?.kpis||null);
-        const rows=Array.isArray(d?.data)?d.data:[];
-        setData(rows);
-        setTotalRows(Number(d?.totalRows||rows.length));
-        setPage(pg);
-      })
-      .catch(e=>{setErr(e.message);setData([]);setKpis(null);})
-      .finally(()=>setLoading(false));
-  }
-
-  function reset(){
-    const e={departureFrom:"",departureTo:"",status:"all",label:"",travelType:""};
-    setF(e);setSearch("");setData([]);setKpis(null);setPage(1);setTotalRows(0);
-  }
-
-  function exportCsv(){
-    const cols=["BookingID","StatusCode","Label","TravelType","BookingDate","DepartureDate","ReturnDate","PAX","SalesBooking","PurchaseCalculation","PurchaseObligation","Margin","Commission","MarginIncludingCommission"];
-    const rows=filtered.map(r=>cols.map(c=>{const v=r[c];if(v==null)return"";if(typeof v==="number")return v;return`"${String(v).replace(/"/g,'""')}"`; }).join(","));
-    const csv=[cols.join(","),...rows].join("\n");
-    const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"}));a.download=`purchase-obligations-${new Date().toISOString().split("T")[0]}.csv`;a.click();
-  }
-
-  const confirmedCount=kpis?.confirmedCount??data.filter(r=>r.StatusCode==="DEF").length;
-  const cancelledCount=kpis?.cancelledCount??data.filter(r=>r.StatusCode==="DEF-GEANNULEERD").length;
-  const filtered=data.filter(r=>{if(!search)return true;const s=search.toLowerCase();return String(r.BookingID||"").includes(search)||String(r.StatusCode||"").toLowerCase().includes(s)||(r.DepartureDate||"").includes(search)||(r.Label||"").toLowerCase().includes(s);});
-
-  const selStyle={background:S.bg,border:`1.5px solid ${S.border2}`,borderRadius:7,padding:"6px 10px",color:S.text,fontSize:12,outline:"none",fontFamily:"inherit"};
-  const inpDateStyle={...selStyle};
-
-  const KPI_CARDS=[
-    {l:"Total Bookings",v:fmtN(kpis?.totalBookings),c:S.accent,icon:"📋"},
-    {l:"Confirmed",v:fmtN(confirmedCount),c:S.success,icon:"✅"},
-    {l:"Cancelled",v:fmtN(cancelledCount),c:S.danger,icon:"❌"},
-    {l:"Total PAX",v:fmtN(kpis?.totalPax),c:S.purple,icon:"👥"},
-    {l:"Total Sales",v:fmtM(kpis?.totalSales),c:S.success,icon:"💰"},
-    {l:"Commission",v:fmtM(kpis?.totalCommission),c:S.warn,icon:"🤝"},
-    {l:"Obligations",v:fmtM(kpis?.totalObligation),c:S.orange,icon:"📌"},
-    {l:"Net Margin",v:fmtM(kpis?.totalMargin),c:parseFloat(kpis?.totalMargin||0)>=0?S.success:S.danger,icon:"📈"},
-    {l:"Margin+Comm",v:fmtM(kpis?.totalMarginIncludingCommission),c:parseFloat(kpis?.totalMarginIncludingCommission||0)>=0?S.success:S.danger,icon:"💎"},
-  ];
-
-  const TABLE_COLS=[
-    ["Booking ID","left"],["Departure","left"],["Return","left"],["Status","left"],["Label","left"],
-    ["PAX","right"],["Sales (€)","right"],["Purchase (€)","right"],
-    ["Obligation (€)","right"],["Margin (€)","right"],["Margin %","right"],["Commission (€)","right"],["Margin+Comm (€)","right"],
-  ];
-
-  return(
-    <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden",background:S.bg}}>
-      {/* Filter bar */}
-      <div style={{background:S.card,borderBottom:`1px solid ${S.border}`,padding:"12px 20px",flexShrink:0,boxShadow:S.shadow}}>
-        <div style={{display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap"}}>
-          <div>
-            <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Departure From</label>
-            <input type="date" value={f.departureFrom} onChange={e=>setF({...f,departureFrom:e.target.value})} style={inpDateStyle}/>
-          </div>
-          <div>
-            <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Departure To</label>
-            <input type="date" value={f.departureTo} onChange={e=>setF({...f,departureTo:e.target.value})} style={inpDateStyle}/>
-          </div>
-          <div>
-            <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Status</label>
-            <select value={f.status} onChange={e=>setF({...f,status:e.target.value})} style={selStyle}>
-              <option value="all">All Statuses</option>
-              <option value="ok">✓ Confirmed</option>
-              <option value="cancelled">✗ Cancelled</option>
-            </select>
-          </div>
-          <div>
-            <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Label</label>
-            <select value={f.label} onChange={e=>setF({...f,label:e.target.value})} style={selStyle}>
-              <option value="">All Labels</option>
-              <option value="STANDAARD">STANDAARD</option>
-              <option value="DEU">DEU</option>
-              <option value="ITB">ITB</option>
-            </select>
-          </div>
-          <div>
-            <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Travel Type</label>
-            <select value={f.travelType} onChange={e=>setF({...f,travelType:e.target.value})} style={selStyle}>
-              <option value="">All Types</option>
-              <option value="BUS">BUS</option>
-              <option value="OWN TRANSPORT">OWN TRANSPORT</option>
-              <option value="FLIGHT">FLIGHT</option>
-              <option value="ENKEL">ENKEL</option>
-              <option value="UNKNOWN">UNKNOWN</option>
-            </select>
-          </div>
-          <div style={{marginLeft:"auto",display:"flex",gap:6,alignSelf:"flex-end"}}>
-            <Btn onClick={reset} variant="secondary" size="sm">Reset</Btn>
-            <Btn onClick={()=>{const p=buildParams(f,1);setPage(1);load(p,1);}} variant="primary" size="sm">Apply</Btn>
-          </div>
-        </div>
-        <div style={{fontSize:10,color:S.muted2,marginTop:6}}>Click Apply to load data · Large dataset may take a moment</div>
-      </div>
-
-      <div style={{flex:1,overflowY:"auto",padding:"16px 20px",display:"flex",flexDirection:"column",gap:14}}>
-        {err&&<div style={{background:S.dangerBg,border:`1px solid ${S.danger}33`,borderRadius:10,padding:"10px 14px",fontSize:12,color:S.danger,fontWeight:500}}>⚠ Error: {err}</div>}
-
-        {!kpis&&!loading&&data.length===0&&(
-          <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"60px 20px",color:S.muted}}>
-            <div style={{fontSize:48,marginBottom:16}}>📊</div>
-            <div style={{fontSize:16,fontWeight:600,color:S.textLight,marginBottom:8}}>No data loaded yet</div>
-            <div style={{fontSize:13,color:S.muted,textAlign:"center",maxWidth:360}}>Use the filters above to select a date range and click <strong>Apply</strong> to load purchase obligations data.</div>
-          </div>
-        )}
-
-        {loading&&(
-          <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"60px 20px",color:S.muted}}>
-            <div style={{fontSize:13,color:S.muted}}>Loading data, please wait…</div>
-          </div>
-        )}
-
-        {kpis&&(
-          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
-            {KPI_CARDS.map(k=>(
-              <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:"14px 16px",boxShadow:S.shadow,display:"flex",alignItems:"center",gap:12}}>
-                <div style={{width:40,height:40,borderRadius:10,background:`${k.c}12`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{k.icon}</div>
-                <div>
-                  <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>{k.l}</div>
-                  <div style={{fontSize:18,fontWeight:800,color:k.c}}>{k.v}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {data.length>0&&(
-          <Card p="0">
-            <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,display:"flex",gap:10,alignItems:"center"}}>
-              <div style={{fontSize:13,fontWeight:700,color:S.text,flex:1}}>
-                Purchase Obligations
-                <span style={{fontSize:11,color:S.muted,fontWeight:400,marginLeft:8}}>({fmtN(filtered.length)} of {fmtN(totalRows)} rows)</span>
-              </div>
-              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search booking ID…" style={{...selStyle,width:180,fontSize:11}}/>
-              <Btn onClick={exportCsv} variant="secondary" size="sm">↓ Export CSV</Btn>
-            </div>
-
-            {totalRows>PAGE_SIZE&&(
-              <div style={{padding:"8px 16px",borderBottom:`1px solid ${S.border}`,display:"flex",alignItems:"center",gap:8,fontSize:12,background:"#f8faff"}}>
-                <span style={{color:S.muted}}>Page {page} of {Math.ceil(totalRows/PAGE_SIZE)} · {fmtN(totalRows)} total rows</span>
-                <div style={{marginLeft:"auto",display:"flex",gap:5}}>
-                  <Btn disabled={page<=1} onClick={()=>load(buildParams(f,page-1),page-1)} variant="secondary" size="sm">← Prev</Btn>
-                  <Btn disabled={page>=Math.ceil(totalRows/PAGE_SIZE)} onClick={()=>load(buildParams(f,page+1),page+1)} variant="secondary" size="sm">Next →</Btn>
-                </div>
-              </div>
-            )}
-
-            <div style={{maxHeight:500,overflowY:"auto",overflowX:"auto"}}>
-              <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:1400}}>
-                <thead style={{position:"sticky",top:0,zIndex:5,background:"#f8faff"}}>
-                  <tr>
-                    {TABLE_COLS.map(([h,a],i)=>(
-                      <th key={i} style={{padding:"9px 12px",textAlign:a,color:S.muted,fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderBottom:`1px solid ${S.border}`}}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((r,i)=>{
-                    const confirmed=r.StatusCode==="DEF";
-                    const margin=parseFloat(r.Margin||0);
-                    const margComm=parseFloat(r.MarginIncludingCommission||0);
-                    const marginPct=parseFloat(r.SalesBooking||0)>0?((margin/parseFloat(r.SalesBooking))*100):null;
-                    return(
-                      <tr key={i} style={{borderBottom:`1px solid ${S.border}`,background:i%2===0?"transparent":"#f8faff"}}>
-                        <td style={{padding:"8px 12px",color:S.accent,fontWeight:600,whiteSpace:"nowrap",fontFamily:"monospace",fontSize:11}}>{r.BookingID||"—"}</td>
-                        <td style={{padding:"8px 12px",color:S.text,fontWeight:500,whiteSpace:"nowrap"}}>{r.DepartureDate||"—"}</td>
-                        <td style={{padding:"8px 12px",color:S.muted,whiteSpace:"nowrap"}}>{r.ReturnDate||"—"}</td>
-                        <td style={{padding:"8px 12px",whiteSpace:"nowrap"}}>
-                          <span style={{background:confirmed?S.successBg:S.dangerBg,color:confirmed?S.success:S.danger,padding:"2px 8px",borderRadius:5,fontSize:11,fontWeight:700}}>
-                            {confirmed?"✓ Confirmed":"✗ Cancelled"}
-                          </span>
-                        </td>
-                        <td style={{padding:"8px 12px",color:S.textLight,whiteSpace:"nowrap",fontSize:11}}>{r.Label||"—"}</td>
-                        <td style={{padding:"8px 12px",textAlign:"right",color:S.text,whiteSpace:"nowrap"}}>{fmtN(r.PAX)}</td>
-                        <td style={{padding:"8px 12px",textAlign:"right",color:S.text,whiteSpace:"nowrap"}}>{fmtEur(r.SalesBooking)}</td>
-                        <td style={{padding:"8px 12px",textAlign:"right",color:S.text,whiteSpace:"nowrap"}}>{fmtEur(r.PurchaseCalculation)}</td>
-                        <td style={{padding:"8px 12px",textAlign:"right",color:S.warn,fontWeight:600,whiteSpace:"nowrap"}}>{fmtEur(r.PurchaseObligation)}</td>
-                        <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:margin>=0?S.success:S.danger,whiteSpace:"nowrap"}}>{fmtEur(r.Margin)}</td>
-                        <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:marginPct!=null?(marginPct>=0?S.success:S.danger):S.muted,whiteSpace:"nowrap"}}>
-                          {marginPct!=null?`${marginPct.toFixed(1)}%`:"—"}
-                        </td>
-                        <td style={{padding:"8px 12px",textAlign:"right",color:S.muted,whiteSpace:"nowrap"}}>{fmtEur(r.Commission)}</td>
-                        <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:margComm>=0?S.success:S.danger,whiteSpace:"nowrap"}}>{fmtEur(r.MarginIncludingCommission)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        )}
-      </div>
-    </div>
-  );
-
-
-// ── Settings Tab ──────────────────────────────────────────────────────────────
 function SettingsTab({token,session,onLogout}){
   const[tab,setTab]=useState("users");
   const[users,setUsers]=useState([]);
@@ -1482,7 +1201,6 @@ function SettingsTab({token,session,onLogout}){
   const[userMsg,setUserMsg]=useState({text:"",type:""});
   const[showAdd,setShowAdd]=useState(false);
   const[newUser,setNewUser]=useState({username:"",password:"",role:"viewer",name:"",email:""});
-  const[editUser,setEditUser]=useState(null);
   const[busy,setBusy]=useState(false);
   const[apiStatus,setApiStatus]=useState({});
   const[settings,setSettings]=useState({aiPrompt:"",emailAlerts:{enabled:false,revenueDropThreshold:10,bookingSpikethreshold:20,recipients:""}});
@@ -1492,6 +1210,7 @@ function SettingsTab({token,session,onLogout}){
     setLoading(true);
     api("/api/dashboard/users",{},token).then(d=>setUsers(Array.isArray(d)?d:[])).catch(()=>{}).finally(()=>setLoading(false));
   }
+
   useEffect(()=>{
     loadUsers();
     api("/api/dashboard/settings",{},token).then(d=>{if(d&&!d.error)setSettings(d);}).catch(()=>{});
@@ -1556,11 +1275,13 @@ function SettingsTab({token,session,onLogout}){
       <input type={type} value={val} onChange={e=>onChange(e.target.value)} placeholder={ph} style={{background:S.bg,border:`1.5px solid ${S.border2}`,borderRadius:7,padding:"8px 12px",color:S.text,fontSize:13,width:"100%",boxSizing:"border-box",outline:"none"}}/>
     </div>
   );
+
   const sTabBtn=(id,label,icon)=>(
     <button onClick={()=>setTab(id)} style={{padding:"8px 16px",borderRadius:7,fontSize:12,cursor:"pointer",border:`1.5px solid ${tab===id?S.accent:S.border2}`,background:tab===id?S.accentLight:"transparent",color:tab===id?S.accent:S.textLight,fontWeight:600,display:"flex",alignItems:"center",gap:5}}>
       {icon&&<span>{icon}</span>}{label}
     </button>
   );
+
   const roleColor=role=>role==="admin"?{bg:S.accentLight,c:S.accent}:{bg:"#f0fdf4",c:S.success};
 
   const API_ENDPOINTS=[
@@ -1579,8 +1300,6 @@ function SettingsTab({token,session,onLogout}){
         {sTabBtn("alerts","Email Alerts","📧")}
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
-
-        {/* ── User Management ── */}
         {tab==="users"&&(
           <div style={{maxWidth:900}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
@@ -1593,14 +1312,11 @@ function SettingsTab({token,session,onLogout}){
                 <Btn onClick={()=>setShowAdd(p=>!p)} variant="primary" size="sm">+ Add New User</Btn>
               </div>
             </div>
-
             {userMsg.text&&(
               <div style={{background:userMsg.type==="error"?S.dangerBg:S.successBg,border:`1px solid ${userMsg.type==="error"?S.danger:S.success}33`,borderRadius:8,padding:"10px 14px",fontSize:12,color:userMsg.type==="error"?S.danger:S.success,fontWeight:500,marginBottom:14}}>
                 {userMsg.type==="success"?"✓":"⚠"} {userMsg.text}
               </div>
             )}
-
-            {/* Add User Form */}
             {showAdd&&(
               <Card style={{marginBottom:16,border:`1.5px solid ${S.border2}`}}>
                 <div style={{fontSize:14,fontWeight:700,color:S.text,marginBottom:14}}>➕ Add New User</div>
@@ -1625,8 +1341,6 @@ function SettingsTab({token,session,onLogout}){
                 </form>
               </Card>
             )}
-
-            {/* Users Table */}
             <Card p="0">
               {loading&&<div style={{padding:20,textAlign:"center",color:S.muted}}>Loading users…</div>}
               {!loading&&(
@@ -1665,13 +1379,7 @@ function SettingsTab({token,session,onLogout}){
                             <span style={{background:S.successBg,color:S.success,padding:"2px 8px",borderRadius:5,fontSize:11,fontWeight:600}}>● Active</span>
                           </td>
                           <td style={{padding:"12px 16px",textAlign:"right"}}>
-                            <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
-                              {isSelf?(
-                                <span style={{fontSize:11,color:S.muted,fontStyle:"italic"}}>You</span>
-                              ):(
-                                <Btn onClick={()=>deleteUser(u.id,u.username)} variant="danger" size="sm">🗑 Delete</Btn>
-                              )}
-                            </div>
+                            {isSelf?<span style={{fontSize:11,color:S.muted,fontStyle:"italic"}}>You</span>:<Btn onClick={()=>deleteUser(u.id,u.username)} variant="danger" size="sm">🗑 Delete</Btn>}
                           </td>
                         </tr>
                       );
@@ -1680,8 +1388,6 @@ function SettingsTab({token,session,onLogout}){
                 </table>
               )}
             </Card>
-
-            {/* Current session */}
             <Card style={{marginTop:16}}>
               <div style={{fontSize:13,fontWeight:700,color:S.text,marginBottom:12}}>Current Session</div>
               <div style={{display:"flex",alignItems:"center",gap:14}}>
@@ -1695,8 +1401,6 @@ function SettingsTab({token,session,onLogout}){
             </Card>
           </div>
         )}
-
-        {/* ── API Status ── */}
         {tab==="api"&&(
           <div style={{maxWidth:700}}>
             <div style={{fontSize:16,fontWeight:800,color:S.text,marginBottom:16}}>API Status</div>
@@ -1727,8 +1431,6 @@ function SettingsTab({token,session,onLogout}){
             </Card>
           </div>
         )}
-
-        {/* ── AI Prompts ── */}
         {tab==="ai"&&(
           <div style={{maxWidth:600}}>
             <div style={{fontSize:16,fontWeight:800,color:S.text,marginBottom:16}}>AI Prompt Settings</div>
@@ -1740,8 +1442,6 @@ function SettingsTab({token,session,onLogout}){
             </Card>
           </div>
         )}
-
-        {/* ── Email Alerts ── */}
         {tab==="alerts"&&(
           <div style={{maxWidth:600}}>
             <div style={{fontSize:16,fontWeight:800,color:S.text,marginBottom:16}}>Email Alert Settings</div>
@@ -1770,7 +1470,6 @@ function SettingsTab({token,session,onLogout}){
   );
 }
 
-// ── App Shell ─────────────────────────────────────────────────────────────────
 export default function App(){
   const[session,setSession]=useState(()=>loadAuth());
   const[tab,setTab]=useState("overview");
@@ -1794,9 +1493,7 @@ export default function App(){
 
   return(
     <div style={{display:"flex",height:"100vh",background:S.bg,color:S.text,fontFamily:"system-ui,-apple-system,sans-serif",letterSpacing:"0.01em",overflow:"hidden"}}>
-      {/* Left nav */}
       <div style={{width:navW,background:S.side,borderRight:`1px solid ${S.border}`,display:"flex",flexDirection:"column",flexShrink:0,transition:"width 0.2s",boxShadow:"2px 0 8px rgba(0,0,0,0.04)"}}>
-        {/* Logo */}
         <div style={{padding:"16px 14px",borderBottom:`1px solid ${S.border}`,display:"flex",alignItems:"center",gap:10,minHeight:64}}>
           <div style={{width:36,height:36,borderRadius:9,background:`linear-gradient(135deg,${S.accent},#3b82f6)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:900,color:"#fff",flexShrink:0,cursor:"pointer",boxShadow:"0 2px 8px rgba(26,86,219,0.3)"}} onClick={()=>setNavCollapsed(p=>!p)}>
             <img src="/assets/logo.png" alt="TTP" style={{width:28,height:28,objectFit:"contain"}} onError={e=>{e.target.style.display="none";e.target.parentNode.innerHTML='<span style="font-size:13px;font-weight:900;color:#fff">TTP</span>';}}/>
@@ -1811,8 +1508,6 @@ export default function App(){
             <button onClick={()=>setNavCollapsed(true)} style={{background:"none",border:"none",color:S.muted2,cursor:"pointer",padding:2,fontSize:16,lineHeight:1,flexShrink:0}}>‹</button>
           )}
         </div>
-
-        {/* Nav items */}
         <div style={{flex:1,padding:10,overflowY:"auto"}}>
           {NAV.map(n=>(
             <div key={n.id} onClick={()=>setTab(n.id)} title={navCollapsed?n.l:""} style={{display:"flex",alignItems:"center",justifyContent:navCollapsed?"center":"flex-start",gap:10,padding:navCollapsed?"10px 6px":"9px 12px",cursor:"pointer",borderRadius:9,background:tab===n.id?S.accentLight:"transparent",color:tab===n.id?S.accent:S.textLight,borderLeft:tab===n.id?`3px solid ${S.accent}`:"3px solid transparent",marginBottom:2,fontSize:13,fontWeight:tab===n.id?700:400,transition:"all 0.15s"}}>
@@ -1821,8 +1516,6 @@ export default function App(){
             </div>
           ))}
         </div>
-
-        {/* User section */}
         <div style={{padding:"10px 12px",borderTop:`1px solid ${S.border}`,display:"flex",alignItems:"center",gap:9,justifyContent:navCollapsed?"center":"flex-start"}}>
           <div style={{width:28,height:28,borderRadius:"50%",background:`${S.accent}18`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:S.accent,flexShrink:0}}>{(session.username||"U")[0].toUpperCase()}</div>
           {!navCollapsed&&(
@@ -1841,10 +1534,7 @@ export default function App(){
           </div>
         )}
       </div>
-
-      {/* Main area */}
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        {/* Topbar */}
         <div style={{height:52,padding:"0 20px",borderBottom:`1px solid ${S.border}`,background:S.card,display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0,boxShadow:S.shadow}}>
           <div style={{fontSize:15,fontWeight:800,color:S.text,letterSpacing:"-0.01em"}}>{NAV.find(n=>n.id===tab)?.l}</div>
           <div style={{display:"flex",alignItems:"center",gap:12,fontSize:11,color:S.muted}}>
@@ -1852,8 +1542,6 @@ export default function App(){
             <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:7,height:7,borderRadius:"50%",background:S.success,display:"inline-block"}}/>Live</span>
           </div>
         </div>
-
-        {/* Tab content */}
         <div style={{flex:1,overflow:"hidden"}}>
           {tab==="overview"  &&<OverviewTab  token={token}/>}
           {tab==="bus"       &&<BusTab       token={token}/>}
