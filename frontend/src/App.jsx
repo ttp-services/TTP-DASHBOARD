@@ -106,6 +106,14 @@ function LineChart({data}){
           <div>Revenue: <strong>{fmtA(tooltip.value)}</strong></div>
         </div>
       )}
+      <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginBottom:6,flexWrap:"wrap"}}>
+        {yrs.map(yr=>(
+          <div key={yr} style={{display:"flex",alignItems:"center",gap:4}}>
+            <div style={{width:10,height:10,borderRadius:2,background:YC[yr]||S.accent}}/>
+            <span style={{fontSize:11,color:S.muted,fontWeight:600}}>{yr}</span>
+          </div>
+        ))}
+      </div>
       <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:"auto"}} onMouseLeave={()=>setTooltip(null)}>
         {[0,1,2,3,4].map(i=>{const y=PT+(CH/4)*i,v=maxV*(1-i/4);return<g key={i}><line x1={PL} x2={W-PR} y1={y} y2={y} stroke={S.border} strokeWidth={0.7}/><text x={PL-5} y={y+4} textAnchor="end" fontSize={8} fill={S.muted2}>{fmtA(v)}</text></g>;})}
         {MONTHS.map((m,i)=><text key={i} x={mx(i)} y={H-PB+13} textAnchor="middle" fontSize={8} fill={S.muted2}>{m}</text>)}
@@ -124,7 +132,6 @@ function LineChart({data}){
             ))}
           </g>;
         })}
-        {yrs.map((yr,i)=><g key={yr} transform={`translate(${W-PR-(yrs.length-i)*58+10},${PT-2})`}><rect width={8} height={8} fill={YC[yr]||S.accent} rx={2}/><text x={12} y={8} fontSize={8} fill={S.muted}>{yr}</text></g>)}
       </svg>
     </div>
   );
@@ -169,8 +176,15 @@ function BarChart({data,metric}){
             <text x={gx+groupW/2} y={H-PB+13} textAnchor="middle" fontSize={7.5} fill={S.muted2}>{MONTHS[mi]}</text>
           </g>;
         })}
-        {yrs.map((yr,i)=><g key={yr} transform={`translate(${W-PR-(yrs.length-i)*58+10},${PT-2})`}><rect width={8} height={8} fill={YC[yr]||S.accent} rx={2}/><text x={12} y={8} fontSize={8} fill={S.muted}>{yr}</text></g>)}
       </svg>
+      <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:6,flexWrap:"wrap"}}>
+        {yrs.map(yr=>(
+          <div key={yr} style={{display:"flex",alignItems:"center",gap:4}}>
+            <div style={{width:10,height:10,borderRadius:2,background:YC[yr]||S.accent}}/>
+            <span style={{fontSize:11,color:S.muted,fontWeight:600}}>{yr}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
