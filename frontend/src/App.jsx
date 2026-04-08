@@ -924,7 +924,7 @@ function PurchaseTab({token}){
         </div>
         <div>
           <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Label</label>
-          {chipSel(f.label,[{v:"Solmar",l:"Solmar"},{v:"Solmar DE",l:"Solmar DE"},{v:"Interbus",l:"Interbus"}],v=>setF({...f,label:v}),S.purple)}
+          {chipSel(f.label,[{v:"STANDAARD",l:"STANDAARD"},{v:"ITB",l:"ITB"},{v:"DEU",l:"DEU"}],v=>setF({...f,label:v}),S.purple)}
         </div>
         {subTab==="summary"&&(
           <div>
