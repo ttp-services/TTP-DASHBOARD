@@ -721,18 +721,27 @@ function BusTab({token}){
                   <option value="ITB">ITB</option>
                 </select>
               </div>
-              <div>{lbl("Status")}
-                <select multiple value={f.status?f.status.split(",").filter(Boolean):[]} onChange={e=>setF({...f,status:[...e.target.selectedOptions].map(o=>o.value).join(",")})} style={{width:"100%",background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"4px 6px",color:S.text,fontSize:11,outline:"none",height:100}}>
-                  <option value="DEF">✓ Confirmed</option>
-                  <option value="TIJD">Timed</option>
-                  <option value="VERV">Replaced</option>
-                  <option value="DEF-GEANNULEERD">✗ Cancelled</option>
-                  <option value="ACC AV NIET OK">Accom. Not OK</option>
-                  <option value="CTRL">Control</option>
-                  <option value="IN_AANVRAAG">Requested</option>
-                </select>
-                <div style={{fontSize:9,color:S.muted2,marginTop:3}}>Hold Ctrl to select multiple</div>
-              </div>
+              {view==="pendel"?(
+                <div style={{background:S.warnBg,border:`1px solid ${S.warn}33`,borderRadius:6,padding:"8px 10px",fontSize:10,color:S.warn,lineHeight:1.5}}>
+                  ⚠ Pendel data comes from <code>BUStrips</code> (ETL pre-filtered).<br/>
+                  Default: DEF only · VERV &amp; DEF-GEANNULEERD excluded.<br/>
+                  Ask Samir to run:<br/>
+                  <code style={{fontSize:9}}>EXEC etl.usp_LoadBUStrips;</code>
+                </div>
+              ):(
+                <div>{lbl("Status")}
+                  <select multiple value={f.status?f.status.split(",").filter(Boolean):[]} onChange={e=>setF({...f,status:[...e.target.selectedOptions].map(o=>o.value).join(",")})} style={{width:"100%",background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"4px 6px",color:S.text,fontSize:11,outline:"none",height:100}}>
+                    <option value="DEF">✓ Confirmed</option>
+                    <option value="TIJD">Timed</option>
+                    <option value="VERV">Replaced</option>
+                    <option value="DEF-GEANNULEERD">✗ Cancelled</option>
+                    <option value="ACC AV NIET OK">Accom. Not OK</option>
+                    <option value="CTRL">Control</option>
+                    <option value="IN_AANVRAAG">Requested</option>
+                  </select>
+                  <div style={{fontSize:9,color:S.muted2,marginTop:3}}>Hold Ctrl to select multiple</div>
+                </div>
+              )}
               {view!=="feeder"&&<>
                 <div>{lbl("Pendel")}{sel(f.pendel,v=>setF({...f,pendel:v}),sl.pendels)}</div>
                 <div>{lbl("Region")}{sel(f.region,v=>setF({...f,region:v}),sl.regions)}</div>
