@@ -124,7 +124,7 @@ function LineChart({data}){
             ))}
           </g>;
         })}
-        {yrs.map((yr,i)=><g key={yr} transform={`translate(${PL+i*58},${H-6})`}><rect width={8} height={8} fill={YC[yr]||S.accent} rx={2}/><text x={12} y={8} fontSize={8} fill={S.muted}>{yr}</text></g>)}
+        {yrs.map((yr,i)=><g key={yr} transform={`translate(${W-PR-(yrs.length-i)*58+10},${PT-2})`}><rect width={8} height={8} fill={YC[yr]||S.accent} rx={2}/><text x={12} y={8} fontSize={8} fill={S.muted}>{yr}</text></g>)}
       </svg>
     </div>
   );
@@ -169,7 +169,7 @@ function BarChart({data,metric}){
             <text x={gx+groupW/2} y={H-PB+13} textAnchor="middle" fontSize={7.5} fill={S.muted2}>{MONTHS[mi]}</text>
           </g>;
         })}
-        {yrs.map((yr,i)=><g key={yr} transform={`translate(${PL+i*58},${H-6})`}><rect width={8} height={8} fill={YC[yr]||S.accent} rx={2}/><text x={12} y={8} fontSize={8} fill={S.muted}>{yr}</text></g>)}
+        {yrs.map((yr,i)=><g key={yr} transform={`translate(${W-PR-(yrs.length-i)*58+10},${PT-2})`}><rect width={8} height={8} fill={YC[yr]||S.accent} rx={2}/><text x={12} y={8} fontSize={8} fill={S.muted}>{yr}</text></g>)}
       </svg>
     </div>
   );
@@ -484,7 +484,7 @@ function BusTab({token}){
     if(f.dateFrom)p.dateFrom=f.dateFrom;if(f.dateTo)p.dateTo=f.dateTo;
     if(f.pendel)p.pendel=f.pendel;if(f.region)p.region=f.region;
     if(f.weekday)p.weekday=f.weekday;
-    if(f.status){const statuses=f.status.split(",").filter(Boolean);if(statuses.length===1)p.status=statuses[0];else if(statuses.length>1)p.status=statuses;}
+    if(f.status)p.status=f.status;
     if(f.label)p.label=f.label;
     const fp={...p};if(f.feederLine)fp.feederLine=f.feederLine;
     Promise.all([
@@ -722,8 +722,10 @@ function BusTab({token}){
                   <option value="ITB">ITB</option>
                 </select>
               </div>
-              <div>{lbl("Status")}
-                <select multiple value={f.status?f.status.split(",").filter(Boolean):[]} onChange={e=>setF({...f,status:[...e.target.selectedOptions].map(o=>o.value).join(",")})} style={{width:"100%",background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"4px 6px",color:S.text,fontSize:11,outline:"none",height:90}}>
+              <div>
+                {lbl("Status")}
+                <select value={f.status||""} onChange={e=>setF({...f,status:e.target.value})} style={{width:"100%",background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"6px 8px",color:S.text,fontSize:11,outline:"none"}}>
+                  <option value="">All Statuses</option>
                   <option value="DEF">DEF (Confirmed)</option>
                   <option value="TIJD">TIJD (Timed)</option>
                   <option value="VERV">VERV (Replaced)</option>
@@ -732,8 +734,8 @@ function BusTab({token}){
                   <option value="CTRL">CTRL</option>
                   <option value="IN_AANVRAAG">IN_AANVRAAG</option>
                 </select>
-                <div style={{fontSize:9,color:S.muted2,marginTop:3}}>Hold Ctrl · Applies to KPI cards &amp; Deck view</div>
-                <div style={{fontSize:9,color:S.warn,marginTop:2}}>⚠ Pendel uses BUStrips (ETL-filtered, DEF only)</div>
+                <div style={{fontSize:9,color:S.muted2,marginTop:3}}>Applies to KPI cards &amp; Deck view</div>
+                <div style={{fontSize:9,color:S.warn,marginTop:2}}>⚠ Pendel = BUStrips (DEF only by default)</div>
               </div>
               {view!=="feeder"&&<>
                 <div>{lbl("Pendel")}{sel(f.pendel,v=>setF({...f,pendel:v}),sl.pendels)}</div>
