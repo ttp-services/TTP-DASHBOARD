@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { LayoutDashboard, Bus, Briefcase, Settings, Users, BarChart2, TrendingUp, Package, Star, ArrowDown, ArrowUp, CircleDot, ChevronDown, ChevronUp, RotateCcw, Play, Filter, AlertCircle, CheckCircle, XCircle, Download, Search, Layers, Map, Table2, PieChart, CreditCard, Percent, FileText } from "lucide-react";
 
 const BASE = import.meta.env?.VITE_API_URL || "https://ttp-dashboard-api.azurewebsites.net";
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -541,14 +542,14 @@ function BusTab({token}){
           {busK&&(
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
               {[
-                {l:"Total PAX",v:fmtN(busK.total_pax),c:S.accent,icon:"👥"},
-                {l:"Royal Class",v:fmtN(busK.royal_pax),c:S.warn,icon:"⭐"},
-                {l:"First Class",v:fmtN(busK.first_pax),c:S.success,icon:"✈"},
-                {l:"Premium",v:fmtN(busK.premium_pax),c:S.purple,icon:"💎"},
-                {l:"Comfort",v:fmtN(busK.comfort_pax),c:S.orange,icon:"🛋"},
-                {l:"Lower Deck",v:fmtN(busK.lower_pax),c:S.accent2,icon:"⬇"},
-                {l:"Upper Deck",v:fmtN(busK.upper_pax),c:S.success,icon:"⬆"},
-                {l:"No Deck Pref",v:fmtN(busK.no_deck_pax),c:S.muted,icon:"○"},
+                {l:"Total PAX",v:fmtN(busK.total_pax),c:S.accent,icon:<Users size={15}/>},
+                {l:"Royal Class",v:fmtN(busK.royal_pax),c:S.warn,icon:<Star size={15}/>},
+                {l:"First Class",v:fmtN(busK.first_pax),c:S.success,icon:<TrendingUp size={15}/>},
+                {l:"Premium",v:fmtN(busK.premium_pax),c:S.purple,icon:<CreditCard size={15}/>},
+                {l:"Comfort",v:fmtN(busK.comfort_pax),c:S.orange,icon:<Package size={15}/>},
+                {l:"Lower Deck",v:fmtN(busK.lower_pax),c:S.accent2,icon:<ArrowDown size={15}/>},
+                {l:"Upper Deck",v:fmtN(busK.upper_pax),c:S.success,icon:<ArrowUp size={15}/>},
+                {l:"No Deck Pref",v:fmtN(busK.no_deck_pax),c:S.muted,icon:<CircleDot size={15}/>},
               ].map(k=>(
                 <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:10,padding:"12px 14px",boxShadow:S.shadow}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
@@ -1031,15 +1032,15 @@ function PurchaseTab({token}){
           {sumKpis&&(
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
               {[
-                {l:"Total Bookings",v:fmtN(sumKpis.totalBookings),c:S.accent,icon:"📋"},
-                {l:"Confirmed",v:fmtN(sumConfirmed),c:S.success,icon:"✅"},
-                {l:"Cancelled",v:fmtN(sumCancelled),c:S.danger,icon:"❌"},
-                {l:"Total PAX",v:fmtN(sumKpis.totalPax),c:S.purple,icon:"👥"},
-                {l:"Total Sales",v:fmtM(sumKpis.totalSales),c:S.success,icon:"💰"},
-                {l:"Net Margin",v:fmtM(sumKpis.totalMargin),c:parseFloat(sumKpis.totalMargin||0)>=0?S.success:S.danger,icon:"📈"},
-                {l:"Commission",v:fmtM(sumKpis.totalCommission),v2:parseFloat(sumKpis.totalSales||0)>0?`${((parseFloat(sumKpis.totalCommission||0)/parseFloat(sumKpis.totalSales))*100).toFixed(1)}%`:null,c:S.warn,icon:"🤝"},
-                {l:"Obligations",v:fmtM(sumKpis.totalObligation),c:S.orange,icon:"📌"},
-                {l:"Margin+Comm",v:fmtM(sumKpis.totalMarginIncludingCommission),v2:parseFloat(sumKpis.totalSales||0)>0?`${((parseFloat(sumKpis.totalMarginIncludingCommission||0)/parseFloat(sumKpis.totalSales))*100).toFixed(1)}%`:null,c:parseFloat(sumKpis.totalMarginIncludingCommission||0)>=0?S.success:S.danger,icon:"💎"},
+                {l:"Total Bookings",v:fmtN(sumKpis.totalBookings),c:S.accent,icon:<FileText size={15}/>},
+                {l:"Confirmed",v:fmtN(sumConfirmed),c:S.success,icon:<CheckCircle size={15}/>},
+                {l:"Cancelled",v:fmtN(sumCancelled),c:S.danger,icon:<XCircle size={15}/>},
+                {l:"Total PAX",v:fmtN(sumKpis.totalPax),c:S.purple,icon:<Users size={15}/>},
+                {l:"Total Sales",v:fmtM(sumKpis.totalSales),c:S.success,icon:<BarChart2 size={15}/>},
+                {l:"Net Margin",v:fmtM(sumKpis.totalMargin),c:parseFloat(sumKpis.totalMargin||0)>=0?S.success:S.danger,icon:<TrendingUp size={15}/>},
+                {l:"Commission",v:fmtM(sumKpis.totalCommission),v2:parseFloat(sumKpis.totalSales||0)>0?`${((parseFloat(sumKpis.totalCommission||0)/parseFloat(sumKpis.totalSales))*100).toFixed(1)}%`:null,c:S.warn,icon:<Percent size={15}/>},
+                {l:"Obligations",v:fmtM(sumKpis.totalObligation),c:S.orange,icon:<AlertCircle size={15}/>},
+                {l:"Margin+Comm",v:fmtM(sumKpis.totalMarginIncludingCommission),v2:parseFloat(sumKpis.totalSales||0)>0?`${((parseFloat(sumKpis.totalMarginIncludingCommission||0)/parseFloat(sumKpis.totalSales))*100).toFixed(1)}%`:null,c:parseFloat(sumKpis.totalMarginIncludingCommission||0)>=0?S.success:S.danger,icon:<PieChart size={15}/>},
               ].map(k=>(
                  <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:"14px 16px",boxShadow:S.shadow,display:"flex",alignItems:"center",gap:12}}>
                     <div style={{width:38,height:38,borderRadius:10,background:`${k.c}12`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,flexShrink:0}}>{k.icon}</div>
@@ -1624,7 +1625,7 @@ export default function App(){
         <div style={{flex:1,padding:10,overflowY:"auto"}}>
           {NAV.map(n=>(
             <div key={n.id} onClick={()=>setTab(n.id)} title={navCollapsed?n.l:""} style={{display:"flex",alignItems:"center",justifyContent:navCollapsed?"center":"flex-start",gap:10,padding:navCollapsed?"10px 6px":"9px 12px",cursor:"pointer",borderRadius:9,background:tab===n.id?S.accentLight:"transparent",color:tab===n.id?S.accent:S.textLight,borderLeft:tab===n.id?`3px solid ${S.accent}`:"3px solid transparent",marginBottom:2,fontSize:13,fontWeight:tab===n.id?700:400,transition:"all 0.15s"}}>
-              <span style={{fontSize:15,flexShrink:0}}>{n.ic}</span>
+              <span style={{flexShrink:0,display:"flex",alignItems:"center"}}>{n.ic}</span>
               {!navCollapsed&&<span>{n.l}</span>}
             </div>
           ))}
