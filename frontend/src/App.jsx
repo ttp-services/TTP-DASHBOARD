@@ -962,9 +962,9 @@ function PurchaseTab({token}){
   const elFiltered=elData.filter(r=>!elSearch||String(r.BookingId||"").includes(elSearch)||(r.MarginCategory||"").toLowerCase().includes(elSearch.toLowerCase())||(r.LabelName||"").toLowerCase().includes(elSearch.toLowerCase()));
 
   const SUM_TABLE_COLS=[
-    ["Booking ID","left"],["Departure","left"],["Return","left"],["Status","left"],["Label","left"],
+    ["Booking ID","left"],["Departure","left"],["Status","left"],["Label","left"],
     ["PAX","right"],["Sales (€)","right"],["Purchase (€)","right"],["Obligation (€)","right"],
-    ["Margin (€)","right"],["Margin %","right"],["Commission (€)","right"],["Margin+Comm (€)","right"],
+    ["Margin (€)","right"],["Margin %","right"],["Commission (€)","right"],["Comm %","right"],["Margin+Comm (€)","right"],
   ];
 
   const EL_TABLE_COLS=[
@@ -1055,7 +1055,6 @@ function PurchaseTab({token}){
                         <tr key={i} style={{borderBottom:`1px solid ${S.border}`,background:i%2===0?"transparent":"#f8faff"}}>
                           <td style={{...TDL,color:S.accent,fontWeight:600,fontFamily:"monospace",fontSize:11}}>{r.BookingID||"—"}</td>
                           <td style={{...TDL,fontWeight:500}}>{r.DepartureDate||"—"}</td>
-                          <td style={{...TDL,color:S.muted}}>{r.ReturnDate||"—"}</td>
                           <td style={TDL}><span style={{background:confirmed?S.successBg:S.dangerBg,color:confirmed?S.success:S.danger,padding:"2px 7px",borderRadius:5,fontSize:10,fontWeight:700}}>{confirmed?"DEF":"DEF-GEANNULEERD"}</span></td>
                           <td style={{...TDL,color:S.textLight,fontSize:11}}>{r.Label||"—"}</td>
                           <td style={TD}>{fmtN(r.PAX)}</td>
@@ -1065,6 +1064,7 @@ function PurchaseTab({token}){
                           <td style={{...TD,fontWeight:700,color:margin>=0?S.success:S.danger}}>{fmtEur(r.Margin)}</td>
                           <td style={{...TD,fontWeight:700,color:mPct!=null?(mPct>=0?S.success:S.danger):S.muted}}>{mPct!=null?`${mPct.toFixed(1)}%`:"—"}</td>
                           <td style={{...TD,color:S.muted}}>{fmtEur(r.Commission)}</td>
+                          <td style={{...TD,color:S.muted}}>{parseFloat(r.SalesBooking||0)>0?`${((parseFloat(r.Commission||0)/parseFloat(r.SalesBooking))*100).toFixed(1)}%`:"—"}</td>
                           <td style={{...TD,fontWeight:700,color:margComm>=0?S.success:S.danger}}>{fmtEur(r.MarginIncludingCommission)}</td>
                         </tr>
                       );
