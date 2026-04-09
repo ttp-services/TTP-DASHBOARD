@@ -369,9 +369,9 @@ function OverviewTab({token}){
         {loading&&<div style={{color:S.muted,textAlign:"center",padding:40,fontSize:13}}>Loading data…</div>}
         {kpis&&(
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
-            <KpiCard label="Total Bookings" current={kpis.currentBookings} previous={kpis.previousBookings} pct={kpis.percentBookings} color={S.accent} icon="📋"/>
-            <KpiCard label="Total PAX" current={kpis.currentPax} previous={kpis.previousPax} pct={kpis.percentPax} color={S.success} icon="👥"/>
-            <KpiCard label="Gross Revenue" fmt="eur" current={kpis.currentRevenue} previous={kpis.previousRevenue} pct={kpis.percentRevenue} color={S.warn} icon="💶"/>
+            <KpiCard label="Total Bookings" current={kpis.currentBookings} previous={kpis.previousBookings} pct={kpis.percentBookings} color={S.accent} icon={<FileText size={16}/>}/>
+            <KpiCard label="Total PAX" current={kpis.currentPax} previous={kpis.previousPax} pct={kpis.percentPax} color={S.success} icon={<Users size={16}/>}/>
+            <KpiCard label="Gross Revenue" fmt="eur" current={kpis.currentRevenue} previous={kpis.previousRevenue} pct={kpis.percentRevenue} color={S.warn} icon={<BarChart2 size={16}/>}/>
           </div>
         )}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
@@ -533,8 +533,8 @@ function BusTab({token}){
     <div style={{display:"flex",flexDirection:"row",height:"100%",overflow:"hidden",background:S.bg}}>
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
         <div style={{background:S.card,borderBottom:`1px solid ${S.border}`,padding:"10px 16px",display:"flex",gap:6,flexShrink:0,boxShadow:S.shadow}}>
-          {[["pendel","🚌 Pendel Overview"],["deck","🪑 Deck & Class"],["feeder","🗺 Feeder Routes"]].map(([v,l])=>(
-            <button key={v} onClick={()=>setView(v)} style={{padding:"6px 14px",borderRadius:7,fontSize:12,cursor:"pointer",border:`1.5px solid ${view===v?S.accent:S.border2}`,background:view===v?S.accent:"transparent",color:view===v?"#fff":S.textLight,fontWeight:600,transition:"all 0.15s"}}>{l}</button>
+          {[["pendel","Pendel Overview",<Bus size={13}/>],["deck","Deck & Class",<Layers size={13}/>],["feeder","Feeder Routes",<Map size={13}/>]].map(([v,l,ic])=>(
+            <button key={v} onClick={()=>setView(v)} style={{padding:"6px 14px",borderRadius:7,fontSize:12,cursor:"pointer",border:`1.5px solid ${view===v?S.accent:S.border2}`,background:view===v?S.accent:"transparent",color:view===v?"#fff":S.textLight,fontWeight:600,transition:"all 0.15s",display:"flex",alignItems:"center",gap:5}}>{ic}{l}</button>
           ))}
           {loading&&<span style={{marginLeft:"auto",fontSize:11,color:S.muted,alignSelf:"center"}}>Loading…</span>}
         </div>
@@ -563,7 +563,7 @@ function BusTab({token}){
           )}
           {view==="pendel"&&(
             <Card p="0">
-              <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,fontSize:13,fontWeight:700,color:S.text}}>🚌 Pendel Overview</div>
+              <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,fontSize:13,fontWeight:700,color:S.text,display:"flex",alignItems:"center",gap:6}}><Bus size={14} color={S.accent}/>Pendel Overview</div>
               <div style={{overflowX:"auto",maxHeight:500,overflowY:"auto"}}>
                 <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
                   <thead><tr>
@@ -600,7 +600,7 @@ function BusTab({token}){
           )}
           {view==="deck"&&(
             <Card p="0">
-              <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,fontSize:13,fontWeight:700,color:S.text}}>🪑 Deck & Class Distribution</div>
+              <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,fontSize:13,fontWeight:700,color:S.text,display:"flex",alignItems:"center",gap:6}}><Layers size={14} color={S.accent}/>Deck & Class Distribution</div>
               <div style={{overflowX:"auto"}}>
                 <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
                   <thead><tr>
@@ -688,7 +688,7 @@ function BusTab({token}){
           )}
           {view==="feeder"&&(
             <Card p="0">
-              <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,fontSize:13,fontWeight:700,color:S.text}}>🗺 Feeder Routes</div>
+              <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,fontSize:13,fontWeight:700,color:S.text,display:"flex",alignItems:"center",gap:6}}><Map size={14} color={S.accent}/>Feeder Routes</div>
               <div style={{overflowX:"auto",maxHeight:540,overflowY:"auto"}}>
                 <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
                   <thead style={{position:"sticky",top:0,background:"#f8faff",zIndex:5}}><tr>
@@ -879,6 +879,10 @@ function PurchaseTab({token}){
     if(subTab==="summary")loadSummary(buildSumParams(f,1),1);
     else loadElements(buildElParams(f,1),1);
   }
+  useEffect(()=>{
+    loadSummary(buildSumParams({},1),1);
+    loadElements(buildElParams({},1),1);
+  },[token]);
 
   function reset(){
     const e={departureFrom:"",departureTo:"",status:[],label:[],dataset:"",year:[],travelType:[]};
@@ -1008,11 +1012,11 @@ function PurchaseTab({token}){
     <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden",background:S.bg}}>
       <div style={{background:S.card,borderBottom:`1px solid ${S.border}`,padding:"10px 20px",display:"flex",gap:6,flexShrink:0,boxShadow:S.shadow}}>
         {[
-          ["summary","📋 Booking Summary","solmar.MarginOverview"],
-          ["elements","🔍 Element Breakdown","dbo.BookingElementMarginOverview"],
+          ["summary","Booking Summary","solmar.MarginOverview"],
+          ["elements","Element Breakdown","dbo.BookingElementMarginOverview"],
         ].map(([id,label,source])=>(
           <button key={id} onClick={()=>setSubTab(id)} style={{padding:"7px 16px",borderRadius:8,fontSize:12,cursor:"pointer",border:`1.5px solid ${subTab===id?S.accent:S.border2}`,background:subTab===id?S.accentLight:"transparent",color:subTab===id?S.accent:S.textLight,fontWeight:subTab===id?700:500,transition:"all 0.15s",display:"flex",flexDirection:"column",alignItems:"flex-start",gap:1}}>
-            <span>{label}</span>
+            <span style={{display:"flex",alignItems:"center",gap:5}}>{id==="summary"?<FileText size={12}/>:<Layers size={12}/>}{label}</span>
             <span style={{fontSize:9,color:subTab===id?S.accent:S.muted2,fontFamily:"monospace",fontWeight:400}}>{source}</span>
           </button>
         ))}
@@ -1121,12 +1125,12 @@ function PurchaseTab({token}){
                 {(()=>{
                   const commPct=parseFloat(elKpis.totalSales||0)>0?((parseFloat(elKpis.totalCommission||0)/parseFloat(elKpis.totalSales))*100):null;
                   return[
-                    {l:"Total Bookings",v:fmtN(elKpis.totalBookings),c:S.accent,icon:"📋"},
-                    {l:"Total PAX",v:fmtN(elKpis.totalPax),c:S.purple,icon:"👥"},
-                    {l:"Total Sales",v:fmtM(elKpis.totalSales),c:S.success,icon:"💰"},
-                    {l:"Net Margin",v:fmtM(elKpis.totalMargin),c:parseFloat(elKpis.totalMargin||0)>=0?S.success:S.danger,icon:"📈"},
-                    {l:"Commission",v:fmtM(elKpis.totalCommission),c:S.warn,icon:"🤝"},
-                    {l:"Commission %",v:commPct!=null?`${commPct.toFixed(2)}%`:"—",c:S.warn,icon:"📊"},
+                    {l:"Total Bookings",v:fmtN(elKpis.totalBookings),c:S.accent,icon:<FileText size={15}/>},
+                    {l:"Total PAX",v:fmtN(elKpis.totalPax),c:S.purple,icon:<Users size={15}/>},
+                    {l:"Total Sales",v:fmtM(elKpis.totalSales),c:S.success,icon:<BarChart2 size={15}/>},
+                    {l:"Net Margin",v:fmtM(elKpis.totalMargin),c:parseFloat(elKpis.totalMargin||0)>=0?S.success:S.danger,icon:<TrendingUp size={15}/>},
+                    {l:"Commission",v:fmtM(elKpis.totalCommission),c:S.warn,icon:<CreditCard size={15}/>},
+                    {l:"Commission %",v:commPct!=null?`${commPct.toFixed(2)}%`:"—",c:S.warn,icon:<Percent size={15}/>},
                   ];
                 })().map(k=>(
                   <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:"14px 16px",boxShadow:S.shadow,display:"flex",alignItems:"center",gap:12}}>
@@ -1408,10 +1412,10 @@ function SettingsTab({token,session,onLogout}){
   return(
     <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden",background:S.bg}}>
       <div style={{background:S.card,borderBottom:`1px solid ${S.border}`,padding:"10px 20px",display:"flex",gap:8,flexShrink:0,boxShadow:S.shadow}}>
-        {sTabBtn("users","User Management","👥")}
-        {sTabBtn("api","API Status","🔌")}
-        {sTabBtn("ai","AI Prompts","🤖")}
-        {sTabBtn("alerts","Email Alerts","📧")}
+        {sTabBtn("users","User Management",<Users size={14}/>)}
+        {sTabBtn("api","API Status",<CircleDot size={14}/>)}
+        {sTabBtn("ai","AI Prompts",<Layers size={14}/>)}
+        {sTabBtn("alerts","Email Alerts",<AlertCircle size={14}/>)}
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
         {tab==="users"&&(
@@ -1597,10 +1601,10 @@ export default function App(){
 
   const token=session.token;
   const NAV=[
-    {id:"overview",l:"Overview",ic:"⊞"},
-    {id:"bus",l:"Bus Occupancy",ic:"🚌"},
-    {id:"purchase",l:"Purchase Obligations",ic:"$"},
-    {id:"settings",l:"Settings",ic:"⚙"},
+    {id:"overview",l:"Overview",ic:<LayoutDashboard size={16}/>},
+    {id:"bus",l:"Bus Occupancy",ic:<Bus size={16}/>},
+    {id:"purchase",l:"Purchase Obligations",ic:<Briefcase size={16}/>},
+    {id:"settings",l:"Settings",ic:<Settings size={16}/>},
   ];
 
   const navW=navCollapsed?60:220;
