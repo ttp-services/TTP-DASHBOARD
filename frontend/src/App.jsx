@@ -972,7 +972,7 @@ function PurchaseTab({token}){
     if(p.departureFrom)out.departureFrom=p.departureFrom;
     if(p.departureTo)out.departureTo=p.departureTo;
     if(p.status?.length)out.status=p.status;
-    if(p.label?.length)out.labelCode=p.label;
+    if(p.label?.length)out.label=p.label;
     if(p.travelType?.length)out.travelType=p.travelType;
     return out;
   }
