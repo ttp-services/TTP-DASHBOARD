@@ -567,6 +567,7 @@ function BusTab({token}){
                 <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
                   <thead><tr>
                     <th style={THL}>Start Date</th><th style={THL}>End Date</th>
+                    <th style={THL}>Pendel</th>
                     <th style={TH}>ORC</th><th style={TH}>OFC</th><th style={TH}>OPRE</th>
                     <th style={{...TH,color:S.accent}}>Out Total</th>
                     <th style={TH}>RRC</th><th style={TH}>RFC</th><th style={TH}>RPRE</th>
@@ -575,11 +576,12 @@ function BusTab({token}){
                     <th style={{...TH,color:S.warn}}>Δ Premium</th><th style={{...TH,color:S.warn}}>Δ Total</th>
                   </tr></thead>
                   <tbody>
-                    {pendel.length===0&&<tr><td colSpan={14} style={{padding:28,textAlign:"center",color:S.muted}}>No data</td></tr>}
+                    {pendel.length===0&&<tr><td colSpan={15} style={{padding:28,textAlign:"center",color:S.muted}}>No data</td></tr>}
                     {pendel.map((r,i)=>(
                       <tr key={i} style={{borderBottom:`1px solid ${S.border}`,background:i%2===0?"transparent":"#f8faff"}}>
                         <td style={{...TDL,color:S.accent,fontWeight:600}}>{r.StartDate}</td>
                         <td style={{...TDL,color:S.muted}}>{r.EndDate}</td>
+                        <td style={{...TDL,color:S.purple,fontWeight:600,fontSize:11}}>{r.NormalizedPendel||"—"}</td>
                         <td style={TD}>{fmtN(r.ORC)}</td><td style={TD}>{fmtN(r.OFC)}</td><td style={TD}>{fmtN(r.OPRE)}</td>
                         <td style={{...TD,fontWeight:700,color:S.accent}}>{fmtN(r.Outbound_Total)}</td>
                         <td style={TD}>{fmtN(r.RRC)}</td><td style={TD}>{fmtN(r.RFC)}</td><td style={TD}>{fmtN(r.RPRE)}</td>
@@ -749,7 +751,8 @@ function BusTab({token}){
                   <option value="IN_AANVRAAG">IN_AANVRAAG</option>
                 </select>
                 <div style={{fontSize:9,color:S.muted2,marginTop:3}}>Applies to KPI cards &amp; Deck view</div>
-                <div style={{fontSize:9,color:S.warn,marginTop:2}}>⚠ Pendel = BUStrips (DEF only by default)</div>
+                <div style={{fontSize:9,color:S.warn,marginTop:2}}>⚠ Pendel uses BUStrips — no Status column</div>
+                <div style={{fontSize:9,color:S.muted2,marginTop:1}}>Pendel status is ETL-controlled by Samir</div>
               </div>
               {view!=="feeder"&&<>
                 <div>{lbl("Pendel")}{sel(f.pendel,v=>setF({...f,pendel:v}),sl.pendels)}</div>
@@ -847,6 +850,8 @@ function PurchaseTab({token}){
   const[elPage,setElPage]=useState(1);
   const[elTotal,setElTotal]=useState(0);
   const[elSearch,setElSearch]=useState("");
+  const[filterOpen,setFilterOpen]=useState(true);
+  const[advOpen,setAdvOpen]=useState(false);
 
   function buildSumParams(p,pg=1){const out={page:pg,limit:PAGE_SIZE};if(p.departureFrom)out.departureFrom=p.departureFrom;if(p.departureTo)out.departureTo=p.departureTo;if(p.status?.length)out.status=p.status;if(p.label?.length)out.label=p.label;if(p.travelType?.length)out.travelType=p.travelType;return out;}
   function buildElParams(p,pg=1){const out={page:pg,limit:PAGE_SIZE};if(p.departureFrom)out.departureFrom=p.departureFrom;if(p.departureTo)out.departureTo=p.departureTo;if(p.status?.length)out.status=p.status;if(p.label?.length)out.label=p.label;if(p.dataset)out.dataset=p.dataset;if(p.year?.length)out.year=p.year;return out;}
@@ -907,52 +912,71 @@ function PurchaseTab({token}){
     </div>
   );
 
+  const activeCount=f.status.length+f.label.length+f.travelType.length+f.year.length+(f.departureFrom?1:0)+(f.departureTo?1:0);
   const FilterBar=(
-    <div style={{background:S.card,borderBottom:`1px solid ${S.border}`,padding:"12px 20px",flexShrink:0,boxShadow:S.shadow}}>
-      <div style={{display:"flex",gap:14,alignItems:"flex-start",flexWrap:"wrap"}}>
-        <div style={{display:"flex",gap:10,alignItems:"flex-end"}}>
-          {[["Departure From","departureFrom"],["Departure To","departureTo"]].map(([l,k])=>(
-            <div key={k}>
-              <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>{l}</label>
-              <input type="date" value={f[k]} onChange={e=>setF({...f,[k]:e.target.value})} style={selStyle}/>
-            </div>
-          ))}
-        </div>
-        <div>
-          <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Status</label>
-          {chipSel(f.status,[{v:"ok",l:"DEF"},{v:"cancelled",l:"DEF-GEANNULEERD"}],v=>setF({...f,status:v}),S.success)}
-        </div>
-        <div>
-          <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Label</label>
-          {chipSel(f.label,[{v:"STANDAARD",l:"STANDAARD"},{v:"ITB",l:"ITB"},{v:"DEU",l:"DEU"}],v=>setF({...f,label:v}),S.purple)}
-        </div>
-        {subTab==="summary"&&(
-          <div>
-            <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Travel Type</label>
-            {chipSel(f.travelType,[{v:"BUS",l:"BUS"},{v:"OWN TRANSPORT",l:"OWN TRANSPORT"},{v:"FLIGHT",l:"FLIGHT"},{v:"ENKEL",l:"ENKEL"},{v:"UNKNOWN",l:"UNKNOWN"}],v=>setF({...f,travelType:v}),S.orange)}
+    <div style={{background:S.card,borderBottom:`1px solid ${S.border}`,flexShrink:0,boxShadow:S.shadow}}>
+      <div style={{padding:"8px 16px",display:"flex",alignItems:"center",gap:8,borderBottom:filterOpen?`1px solid ${S.border}`:"none"}}>
+        <button onClick={()=>setFilterOpen(p=>!p)} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:7,fontSize:12,cursor:"pointer",border:`1px solid ${S.border2}`,background:"transparent",color:S.muted,fontWeight:600}}>
+          <span>{filterOpen?"▲":"▼"}</span><span>Filters</span>
+        </button>
+        {activeCount>0&&<span style={{background:S.accent,color:"#fff",borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:700}}>{activeCount} active</span>}
+        {activeCount>0&&(
+          <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+            {f.status.map(v=><span key={v} style={{background:S.successBg,color:S.success,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>✓ {v==="ok"?"DEF":"DEF-GEANNULEERD"}</span>)}
+            {f.label.map(v=><span key={v} style={{background:`${S.purple}15`,color:S.purple,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>🏷 {v}</span>)}
+            {f.travelType.map(v=><span key={v} style={{background:`${S.orange}15`,color:S.orange,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>🚗 {v}</span>)}
+            {f.year.map(v=><span key={v} style={{background:S.accentLight,color:S.accent,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>📅 {v}</span>)}
+            {(f.departureFrom||f.departureTo)&&<span style={{background:S.warnBg,color:S.warn,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>📆 {f.departureFrom||"…"} → {f.departureTo||"…"}</span>}
           </div>
         )}
-        {subTab==="elements"&&(
-          <div>
-            <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Year</label>
-            {chipSel(f.year,[2022,2023,2024,2025,2026].map(y=>({v:y,l:String(y)})),v=>setF({...f,year:v}),S.accent)}
-          </div>
-        )}
-        <div style={{marginLeft:"auto",display:"flex",gap:6,alignSelf:"flex-end"}}>
-          <Btn onClick={reset} variant="secondary" size="sm">Reset</Btn>
-          <Btn onClick={applyFilters} variant="primary" size="sm">Apply Filters</Btn>
+        <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+          <Btn onClick={reset} variant="secondary" size="sm">↺ Reset</Btn>
+          <Btn onClick={applyFilters} variant="primary" size="sm">▶ Apply</Btn>
         </div>
       </div>
-      {(f.status.length>0||f.label.length>0||f.travelType.length>0||f.year.length>0)&&(
-        <div style={{marginTop:8,display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
-          <span style={{fontSize:10,color:S.muted2}}>Active:</span>
-          {f.status.map(v=><span key={v} style={{background:S.successBg,color:S.success,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>{v==="ok"?"DEF":"DEF-GEANNULEERD"}</span>)}
-          {f.label.map(v=><span key={v} style={{background:`${S.purple}15`,color:S.purple,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>{v}</span>)}
-          {f.travelType.map(v=><span key={v} style={{background:`${S.orange}15`,color:S.orange,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>{v}</span>)}
-          {f.year.map(v=><span key={v} style={{background:S.accentLight,color:S.accent,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>{v}</span>)}
+      {filterOpen&&(
+        <div style={{padding:"12px 16px",display:"flex",flexDirection:"column",gap:12}}>
+          <div style={{display:"flex",gap:14,alignItems:"flex-start",flexWrap:"wrap"}}>
+            <div style={{display:"flex",gap:10,alignItems:"flex-end"}}>
+              {[["Dep From","departureFrom"],["Dep To","departureTo"]].map(([l,k])=>(
+                <div key={k}>
+                  <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>{l}</label>
+                  <input type="date" value={f[k]} onChange={e=>setF({...f,[k]:e.target.value})} style={selStyle}/>
+                </div>
+              ))}
+            </div>
+            <div>
+              <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>✅ Status</label>
+              {chipSel(f.status,[{v:"ok",l:"DEF"},{v:"cancelled",l:"DEF-GEANNULEERD"}],v=>setF({...f,status:v}),S.success)}
+            </div>
+            <div>
+              <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>🏷 Label</label>
+              {chipSel(f.label,[{v:"STANDAARD",l:"STANDAARD"},{v:"ITB",l:"ITB"},{v:"DEU",l:"DEU"}],v=>setF({...f,label:v}),S.purple)}
+            </div>
+          </div>
+          <div style={{borderTop:`1px dashed ${S.border}`,paddingTop:10}}>
+            <button onClick={()=>setAdvOpen(p=>!p)} style={{fontSize:10,color:S.accent,background:"none",border:"none",cursor:"pointer",fontWeight:600,padding:0,marginBottom:advOpen?8:0}}>
+              {advOpen?"▲ Hide advanced filters":"▼ Show advanced filters"}
+            </button>
+            {advOpen&&(
+              <div style={{display:"flex",gap:14,flexWrap:"wrap",marginTop:6}}>
+                {subTab==="summary"&&(
+                  <div>
+                    <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>🚗 Travel Type</label>
+                    {chipSel(f.travelType,[{v:"BUS",l:"BUS"},{v:"OWN TRANSPORT",l:"OWN TRANSPORT"},{v:"FLIGHT",l:"FLIGHT"},{v:"ENKEL",l:"ENKEL"},{v:"UNKNOWN",l:"UNKNOWN"}],v=>setF({...f,travelType:v}),S.orange)}
+                  </div>
+                )}
+                {subTab==="elements"&&(
+                  <div>
+                    <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>📅 Year</label>
+                    {chipSel(f.year,[2022,2023,2024,2025,2026].map(y=>({v:y,l:String(y)})),v=>setF({...f,year:v}),S.accent)}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
-      <div style={{fontSize:10,color:S.muted2,marginTop:4}}>Click chips to select · Click Apply to load</div>
     </div>
   );
 
@@ -1013,9 +1037,9 @@ function PurchaseTab({token}){
                 {l:"Total PAX",v:fmtN(sumKpis.totalPax),c:S.purple,icon:"👥"},
                 {l:"Total Sales",v:fmtM(sumKpis.totalSales),c:S.success,icon:"💰"},
                 {l:"Net Margin",v:fmtM(sumKpis.totalMargin),c:parseFloat(sumKpis.totalMargin||0)>=0?S.success:S.danger,icon:"📈"},
-                {l:"Commission",v:fmtM(sumKpis.totalCommission),c:S.warn,icon:"🤝"},
+                {l:"Commission",v:fmtM(sumKpis.totalCommission),v2:parseFloat(sumKpis.totalSales||0)>0?`${((parseFloat(sumKpis.totalCommission||0)/parseFloat(sumKpis.totalSales))*100).toFixed(1)}%`:null,c:S.warn,icon:"🤝"},
                 {l:"Obligations",v:fmtM(sumKpis.totalObligation),c:S.orange,icon:"📌"},
-                {l:"Margin+Comm",v:fmtM(sumKpis.totalMarginIncludingCommission),c:parseFloat(sumKpis.totalMarginIncludingCommission||0)>=0?S.success:S.danger,icon:"💎"},
+                {l:"Margin+Comm",v:fmtM(sumKpis.totalMarginIncludingCommission),v2:parseFloat(sumKpis.totalSales||0)>0?`${((parseFloat(sumKpis.totalMarginIncludingCommission||0)/parseFloat(sumKpis.totalSales))*100).toFixed(1)}%`:null,c:parseFloat(sumKpis.totalMarginIncludingCommission||0)>=0?S.success:S.danger,icon:"💎"},
               ].map(k=>(
                  <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:"14px 16px",boxShadow:S.shadow,display:"flex",alignItems:"center",gap:12}}>
                     <div style={{width:38,height:38,borderRadius:10,background:`${k.c}12`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,flexShrink:0}}>{k.icon}</div>
