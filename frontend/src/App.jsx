@@ -947,7 +947,6 @@ function ElementMarginChart({trend}){
 function PurchaseTab({token}){
   const[subTab,setSubTab]=useState("summary");
   const[f,setF]=useState({departureFrom:"",departureTo:"",status:[],label:[],dataset:"",year:[],travelType:[]});
-
   const[sumData,setSumData]=useState([]);
   const[sumKpis,setSumKpis]=useState(null);
   const[sumLoading,setSumLoading]=useState(false);
@@ -956,7 +955,6 @@ function PurchaseTab({token}){
   const[sumTotal,setSumTotal]=useState(0);
   const[sumSearch,setSumSearch]=useState("");
   const PAGE_SIZE=200;
-
   const[elData,setElData]=useState([]);
   const[elKpis,setElKpis]=useState(null);
   const[elCats,setElCats]=useState([]);
@@ -966,11 +964,29 @@ function PurchaseTab({token}){
   const[elPage,setElPage]=useState(1);
   const[elTotal,setElTotal]=useState(0);
   const[elSearch,setElSearch]=useState("");
-  const[filterOpen,setFilterOpen]=useState(true);
-  const[advOpen,setAdvOpen]=useState(false);
 
-  function buildSumParams(p,pg=1){const out={page:pg,limit:PAGE_SIZE};if(p.departureFrom)out.departureFrom=p.departureFrom;if(p.departureTo)out.departureTo=p.departureTo;if(p.status?.length)out.status=p.status;if(p.label?.length)out.label=p.label;if(p.travelType?.length)out.travelType=p.travelType;return out;}
-  function buildElParams(p,pg=1){const out={page:pg,limit:PAGE_SIZE};if(p.departureFrom)out.departureFrom=p.departureFrom;if(p.departureTo)out.departureTo=p.departureTo;if(p.status?.length)out.status=p.status;if(p.label?.length)out.label=p.label;if(p.dataset)out.dataset=p.dataset;if(p.year?.length)out.year=p.year;return out;}
+  const togArr=(arr,v)=>arr.includes(v)?arr.filter(x=>x!==v):[...arr,v];
+
+  function buildSumParams(p,pg=1){
+    const out={page:pg,limit:PAGE_SIZE};
+    if(p.departureFrom)out.departureFrom=p.departureFrom;
+    if(p.departureTo)out.departureTo=p.departureTo;
+    if(p.status?.length)out.status=p.status;
+    if(p.label?.length)out.label=p.label;
+    if(p.travelType?.length)out.travelType=p.travelType;
+    return out;
+  }
+
+  function buildElParams(p,pg=1){
+    const out={page:pg,limit:PAGE_SIZE};
+    if(p.departureFrom)out.departureFrom=p.departureFrom;
+    if(p.departureTo)out.departureTo=p.departureTo;
+    if(p.status?.length)out.status=p.status;
+    if(p.label?.length)out.label=p.label;
+    if(p.dataset)out.dataset=p.dataset;
+    if(p.year?.length)out.year=p.year;
+    return out;
+  }
 
   function loadSummary(params,pg=1){
     setSumLoading(true);setSumErr(null);
@@ -994,6 +1010,7 @@ function PurchaseTab({token}){
     if(subTab==="summary")loadSummary(buildSumParams(f,1),1);
     else loadElements(buildElParams(f,1),1);
   }
+
   useEffect(()=>{
     loadSummary(buildSumParams({},1),1);
     loadElements(buildElParams({},1),1);
@@ -1020,81 +1037,72 @@ function PurchaseTab({token}){
   }
 
   const selStyle={background:S.bg,border:`1.5px solid ${S.border2}`,borderRadius:7,padding:"6px 10px",color:S.text,fontSize:12,outline:"none",fontFamily:"inherit"};
-
-  const msStyle={background:S.bg,border:`1.5px solid ${S.border2}`,borderRadius:7,padding:"4px 6px",color:S.text,fontSize:11,outline:"none",fontFamily:"inherit",height:80};
-  const togArr=(arr,v)=>arr.includes(v)?arr.filter(x=>x!==v):[...arr,v];
-  const chipSel=(arr,opts,onChange,clr=S.accent)=>(
-    <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-      {opts.map(({v,l})=>{
-        const active=arr.includes(v);
-        return<button key={v} type="button" onClick={()=>onChange(togArr(arr,v))} style={{padding:"3px 9px",borderRadius:12,fontSize:11,cursor:"pointer",border:`1.5px solid ${active?clr:S.border2}`,background:active?`${clr}18`:"transparent",color:active?clr:S.textLight,fontWeight:active?700:400,transition:"all 0.12s"}}>{l}</button>;
-      })}
-    </div>
-  );
-
   const activeCount=f.status.length+f.label.length+f.travelType.length+f.year.length+(f.departureFrom?1:0)+(f.departureTo?1:0);
+
   const FilterBar=(
     <div style={{background:S.card,borderBottom:`1px solid ${S.border}`,flexShrink:0,boxShadow:S.shadow}}>
-      <div style={{padding:"8px 16px",display:"flex",alignItems:"center",gap:8,borderBottom:filterOpen?`1px solid ${S.border}`:"none"}}>
-        <button onClick={()=>setFilterOpen(p=>!p)} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:7,fontSize:12,cursor:"pointer",border:`1px solid ${S.border2}`,background:"transparent",color:S.muted,fontWeight:600}}>
-          <span>{filterOpen?"▲":"▼"}</span><span>Filters</span>
-        </button>
-        {activeCount>0&&<span style={{background:S.accent,color:"#fff",borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:700}}>{activeCount} active</span>}
-        {activeCount>0&&(
-          <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-            {f.status.map(v=><span key={v} style={{background:S.successBg,color:S.success,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>✓ {v==="ok"?"DEF":"DEF-GEANNULEERD"}</span>)}
-            {f.label.map(v=><span key={v} style={{background:`${S.purple}15`,color:S.purple,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>🏷 {v}</span>)}
-            {f.travelType.map(v=><span key={v} style={{background:`${S.orange}15`,color:S.orange,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>🚗 {v}</span>)}
-            {f.year.map(v=><span key={v} style={{background:S.accentLight,color:S.accent,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>📅 {v}</span>)}
-            {(f.departureFrom||f.departureTo)&&<span style={{background:S.warnBg,color:S.warn,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>📆 {f.departureFrom||"…"} → {f.departureTo||"…"}</span>}
+      <div style={{padding:"10px 16px",display:"flex",alignItems:"flex-end",gap:12,flexWrap:"wrap"}}>
+        {[["Dep From","departureFrom"],["Dep To","departureTo"]].map(([l,k])=>(
+          <div key={k}>
+            <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:4,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>{l}</label>
+            <input type="date" value={f[k]} onChange={e=>setF({...f,[k]:e.target.value})} style={{background:S.bg,border:`1.5px solid ${S.border2}`,borderRadius:7,padding:"5px 9px",color:S.text,fontSize:12,outline:"none"}}/>
+          </div>
+        ))}
+        <div style={{width:1,height:32,background:S.border2}}/>
+        <div>
+          <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:4,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>✅ Status</label>
+          <div style={{display:"flex",gap:4}}>
+            {[{v:"ok",l:"DEF"},{v:"cancelled",l:"DEF-GEANNULEERD"}].map(({v,l})=>{
+              const active=f.status.includes(v);
+              return<button key={v} type="button" onClick={()=>setF({...f,status:togArr(f.status,v)})} style={{padding:"4px 10px",borderRadius:12,fontSize:11,cursor:"pointer",border:`1.5px solid ${active?S.success:S.border2}`,background:active?`${S.success}18`:"transparent",color:active?S.success:S.textLight,fontWeight:active?700:400}}>{l}</button>;
+            })}
+          </div>
+        </div>
+        <div style={{width:1,height:32,background:S.border2}}/>
+        <div>
+          <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:4,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>🏷 Label</label>
+          <div style={{display:"flex",gap:4}}>
+            {[{v:"STANDAARD",l:"STANDAARD"},{v:"ITB",l:"ITB"},{v:"DEU",l:"DEU"}].map(({v,l})=>{
+              const active=f.label.includes(v);
+              return<button key={v} type="button" onClick={()=>setF({...f,label:togArr(f.label,v)})} style={{padding:"4px 10px",borderRadius:12,fontSize:11,cursor:"pointer",border:`1.5px solid ${active?S.purple:S.border2}`,background:active?`${S.purple}18`:"transparent",color:active?S.purple:S.textLight,fontWeight:active?700:400}}>{l}</button>;
+            })}
+          </div>
+        </div>
+        <div style={{width:1,height:32,background:S.border2}}/>
+        {subTab==="summary"&&(
+          <div>
+            <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:4,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>🚗 Travel Type</label>
+            <div style={{display:"flex",gap:4}}>
+              {["BUS","OWN TRANSPORT","FLIGHT","ENKEL"].map(v=>{
+                const active=f.travelType.includes(v);
+                return<button key={v} type="button" onClick={()=>setF({...f,travelType:togArr(f.travelType,v)})} style={{padding:"4px 10px",borderRadius:12,fontSize:11,cursor:"pointer",border:`1.5px solid ${active?S.orange:S.border2}`,background:active?`${S.orange}18`:"transparent",color:active?S.orange:S.textLight,fontWeight:active?700:400}}>{v}</button>;
+              })}
+            </div>
           </div>
         )}
-        <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+        {subTab==="elements"&&(
+          <div>
+            <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:4,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>📅 Year</label>
+            <div style={{display:"flex",gap:4}}>
+              {[2022,2023,2024,2025,2026].map(y=>{
+                const active=f.year.includes(y);
+                return<button key={y} type="button" onClick={()=>setF({...f,year:togArr(f.year,y)})} style={{padding:"4px 10px",borderRadius:12,fontSize:11,cursor:"pointer",border:`1.5px solid ${active?S.accent:S.border2}`,background:active?S.accentLight:"transparent",color:active?S.accent:S.textLight,fontWeight:active?700:400}}>{y}</button>;
+              })}
+            </div>
+          </div>
+        )}
+        <div style={{marginLeft:"auto",display:"flex",gap:6,alignItems:"flex-end"}}>
           <Btn onClick={reset} variant="secondary" size="sm">↺ Reset</Btn>
           <Btn onClick={applyFilters} variant="primary" size="sm">▶ Apply</Btn>
         </div>
       </div>
-      {filterOpen&&(
-        <div style={{padding:"12px 16px",display:"flex",flexDirection:"column",gap:12}}>
-          <div style={{display:"flex",gap:14,alignItems:"flex-start",flexWrap:"wrap"}}>
-            <div style={{display:"flex",gap:10,alignItems:"flex-end"}}>
-              {[["Dep From","departureFrom"],["Dep To","departureTo"]].map(([l,k])=>(
-                <div key={k}>
-                  <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>{l}</label>
-                  <input type="date" value={f[k]} onChange={e=>setF({...f,[k]:e.target.value})} style={selStyle}/>
-                </div>
-              ))}
-            </div>
-            <div>
-              <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>✅ Status</label>
-              {chipSel(f.status,[{v:"ok",l:"DEF"},{v:"cancelled",l:"DEF-GEANNULEERD"}],v=>setF({...f,status:v}),S.success)}
-            </div>
-            <div>
-              <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>🏷 Label</label>
-              {chipSel(f.label,[{v:"STANDAARD",l:"STANDAARD"},{v:"ITB",l:"ITB"},{v:"DEU",l:"DEU"}],v=>setF({...f,label:v}),S.purple)}
-            </div>
-          </div>
-          <div style={{borderTop:`1px dashed ${S.border}`,paddingTop:10}}>
-            <button onClick={()=>setAdvOpen(p=>!p)} style={{fontSize:10,color:S.accent,background:"none",border:"none",cursor:"pointer",fontWeight:600,padding:0,marginBottom:advOpen?8:0}}>
-              {advOpen?"▲ Hide advanced filters":"▼ Show advanced filters"}
-            </button>
-            {advOpen&&(
-              <div style={{display:"flex",gap:14,flexWrap:"wrap",marginTop:6}}>
-                {subTab==="summary"&&(
-                  <div>
-                    <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>🚗 Travel Type</label>
-                    {chipSel(f.travelType,[{v:"BUS",l:"BUS"},{v:"OWN TRANSPORT",l:"OWN TRANSPORT"},{v:"FLIGHT",l:"FLIGHT"},{v:"ENKEL",l:"ENKEL"},{v:"UNKNOWN",l:"UNKNOWN"}],v=>setF({...f,travelType:v}),S.orange)}
-                  </div>
-                )}
-                {subTab==="elements"&&(
-                  <div>
-                    <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:5,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>📅 Year</label>
-                    {chipSel(f.year,[2022,2023,2024,2025,2026].map(y=>({v:y,l:String(y)})),v=>setF({...f,year:v}),S.accent)}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+      {activeCount>0&&(
+        <div style={{padding:"4px 16px 8px",display:"flex",gap:5,flexWrap:"wrap"}}>
+          {f.status.map(v=><span key={v} style={{background:S.successBg,color:S.success,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>✓ {v==="ok"?"DEF":"DEF-GEANNULEERD"}</span>)}
+          {f.label.map(v=><span key={v} style={{background:`${S.purple}15`,color:S.purple,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>🏷 {v}</span>)}
+          {f.travelType.map(v=><span key={v} style={{background:`${S.orange}15`,color:S.orange,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>🚗 {v}</span>)}
+          {f.year.map(v=><span key={v} style={{background:S.accentLight,color:S.accent,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>📅 {v}</span>)}
+          {(f.departureFrom||f.departureTo)&&<span style={{background:S.warnBg,color:S.warn,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>📆 {f.departureFrom||"…"} → {f.departureTo||"…"}</span>}
         </div>
       )}
     </div>
@@ -1110,14 +1118,12 @@ function PurchaseTab({token}){
     ["PAX","right"],["Sales (€)","right"],["Purchase (€)","right"],["Obligation (€)","right"],
     ["Margin (€)","right"],["Margin %","right"],["Commission (€)","right"],["Comm %","right"],["Margin+Comm (€)","right"],
   ];
-
   const EL_TABLE_COLS=[
     ["Booking ID","left"],["Category","left"],["Dataset","left"],["Status","left"],["LabelCode","left"],
     ["Departure","left"],["Return","left"],["PAX","right"],["Elements","right"],
     ["Base Price (€)","right"],["Sold (€)","right"],["Paid (€)","right"],["Deposit (€)","right"],
     ["Commission (€)","right"],["Margin (€)","right"],["Margin%","right"],["Margin+Comm (€)","right"],
   ];
-
   const TH={padding:"9px 12px",textAlign:"right",fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderBottom:`1px solid ${S.border}`,background:"#f8faff"};
   const THL={...TH,textAlign:"left"};
   const TD={padding:"8px 12px",textAlign:"right",fontSize:12,color:S.text,whiteSpace:"nowrap",borderBottom:`1px solid ${S.border}`};
@@ -1149,7 +1155,7 @@ function PurchaseTab({token}){
           )}
           {sumLoading&&<div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"60px 20px"}}><span style={{color:S.muted,fontSize:13}}>Loading data…</span></div>}
           {sumKpis&&(
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12}}>
               {[
                 {l:"Total Bookings",v:fmtN(sumKpis.totalBookings),c:S.accent,icon:<FileText size={15}/>},
                 {l:"Confirmed",v:fmtN(sumConfirmed),c:S.success,icon:<CheckCircle size={15}/>},
@@ -1157,16 +1163,17 @@ function PurchaseTab({token}){
                 {l:"Total PAX",v:fmtN(sumKpis.totalPax),c:S.purple,icon:<Users size={15}/>},
                 {l:"Total Sales",v:fmtM(sumKpis.totalSales),c:S.success,icon:<BarChart2 size={15}/>},
                 {l:"Net Margin",v:fmtM(sumKpis.totalMargin),c:parseFloat(sumKpis.totalMargin||0)>=0?S.success:S.danger,icon:<TrendingUp size={15}/>},
-                {l:"Commission",v:fmtM(sumKpis.totalCommission),v2:parseFloat(sumKpis.totalSales||0)>0?`${((parseFloat(sumKpis.totalCommission||0)/parseFloat(sumKpis.totalSales))*100).toFixed(1)}%`:null,c:S.warn,icon:<Percent size={15}/>},
+                {l:"Commission",v:fmtM(sumKpis.totalCommission),c:S.warn,icon:<CreditCard size={15}/>},
+                {l:"Commission %",v:parseFloat(sumKpis.totalSales||0)>0?`${((parseFloat(sumKpis.totalCommission||0)/parseFloat(sumKpis.totalSales))*100).toFixed(2)}%`:"—",c:S.warn,icon:<Percent size={15}/>},
                 {l:"Obligations",v:fmtM(sumKpis.totalObligation),c:S.orange,icon:<AlertCircle size={15}/>},
-                {l:"Margin+Comm",v:fmtM(sumKpis.totalMarginIncludingCommission),v2:parseFloat(sumKpis.totalSales||0)>0?`${((parseFloat(sumKpis.totalMarginIncludingCommission||0)/parseFloat(sumKpis.totalSales))*100).toFixed(1)}%`:null,c:parseFloat(sumKpis.totalMarginIncludingCommission||0)>=0?S.success:S.danger,icon:<PieChart size={15}/>},
+                {l:"Margin+Comm",v:fmtM(sumKpis.totalMarginIncludingCommission),c:parseFloat(sumKpis.totalMarginIncludingCommission||0)>=0?S.success:S.danger,icon:<PieChart size={15}/>},
               ].map(k=>(
-                 <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:"14px 16px",boxShadow:S.shadow,display:"flex",alignItems:"center",gap:12}}>
-                    <div style={{width:38,height:38,borderRadius:10,background:`${k.c}12`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,flexShrink:0}}>{k.icon}</div>
-                    <div><div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>{k.l}</div><div style={{fontSize:18,fontWeight:800,color:k.c}}>{k.v}</div></div>
-                  </div>
-                ))}
-              </div>
+                <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:"14px 16px",boxShadow:S.shadow,display:"flex",alignItems:"center",gap:12}}>
+                  <div style={{width:38,height:38,borderRadius:10,background:`${k.c}12`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,flexShrink:0}}>{k.icon}</div>
+                  <div><div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>{k.l}</div><div style={{fontSize:18,fontWeight:800,color:k.c}}>{k.v}</div></div>
+                </div>
+              ))}
+            </div>
           )}
           {sumData.length>0&&(
             <Card p="0">
@@ -1426,7 +1433,6 @@ function PurchaseTab({token}){
     </div>
   );
 }
-
 function SettingsTab({token,session,onLogout}){
   const[tab,setTab]=useState("users");
   const[users,setUsers]=useState([]);
