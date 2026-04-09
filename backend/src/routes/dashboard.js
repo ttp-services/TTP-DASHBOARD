@@ -375,7 +375,7 @@ router.get('/year-month-comparison', async (req,res)=>{
 router.get('/bus-slicers', async (req,res)=>{
   try {
     const [pendels,regions,statuses,feederLines]=await Promise.all([
-      query(`SELECT DISTINCT Pendel_Outbound AS val FROM solmar_bus_deck_choice WHERE Pendel_Outbound IS NOT NULL AND LTRIM(RTRIM(Pendel_Outbound))!='' ORDER BY Pendel_Outbound`),
+      query(`SELECT DISTINCT NormalizedPendel AS val FROM BUStrips WHERE NormalizedPendel IS NOT NULL AND LTRIM(RTRIM(NormalizedPendel))!='' ORDER BY NormalizedPendel`),
       query(`SELECT DISTINCT Region AS val FROM solmar_bus_deck_choice WHERE Region IS NOT NULL AND LTRIM(RTRIM(Region))!='' ORDER BY Region`),
       query(`SELECT DISTINCT Status AS val FROM solmar_bus_deck_choice WHERE Status IS NOT NULL AND LTRIM(RTRIM(Status))!='' ORDER BY Status`),
       query(`SELECT DISTINCT FeederLine AS val FROM FeederOverview WHERE FeederLine IS NOT NULL AND LTRIM(RTRIM(FeederLine))!='' ORDER BY FeederLine`),
@@ -413,9 +413,15 @@ function buildFeederWhere(q){
   const conds = [], params = {};
   if (f.dateFrom) { conds.push('CAST(DepartureDate AS DATE)>=@df'); params.df=f.dateFrom; }
   if (f.dateTo) { conds.push('CAST(DepartureDate AS DATE)<=@dt'); params.dt=f.dateTo; }
-  if (f.feederLine) { conds.push('FeederLine=@fl'); params.fl=f.feederLine; }
+  if (f.feederLine) { conds.push('LTRIM(RTRIM(FeederLine))=LTRIM(RTRIM(@fl))'); params.fl=f.feederLine; }
   if (f.label) { conds.push('LabelName=@lb'); params.lb=f.label; }
   if (f.direction) { conds.push('Direction=@dr'); params.dr=f.direction; }
+  const rawStatus = Array.isArray(q.status) ? q.status.join(',') : (q.status||'');
+  if (rawStatus && rawStatus !== 'all' && rawStatus !== '') {
+    const statuses = rawStatus.split(',').map(s=>s.trim()).filter(Boolean);
+    if (statuses.length===1) { conds.push('Status=@st'); params.st=statuses[0]; }
+    else if (statuses.length>1) { statuses.forEach((s,i)=>{params['fst'+i]=s;}); conds.push('('+statuses.map((_,i)=>'Status=@fst'+i).join(' OR ')+')'); }
+  }
   const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
   return { where, params };
 }
@@ -448,10 +454,13 @@ router.get('/pendel-overview', async (req,res)=>{
     if (f.dateFrom) { conds.push('CAST(StartDate AS DATE)>=@df'); params.df=f.dateFrom; }
     if (f.dateTo) { conds.push('CAST(StartDate AS DATE)<=@dt'); params.dt=f.dateTo; }
     if (f.weekday) { conds.push('DATENAME(weekday,StartDate)=@wd'); params.wd=f.weekday; }
+    if (f.pendel) { conds.push('NormalizedPendel=@pd'); params.pd=f.pendel; }
+    // BUStrips has NO Status column — status controlled by Samir ETL proc
     const where=conds.length?`WHERE ${conds.join(' AND ')}`:'';
     const r=await query(`SELECT
       CONVERT(VARCHAR(10),StartDate,105) AS StartDate,
       CONVERT(VARCHAR(10),EndDate,105) AS EndDate,
+      NormalizedPendel,
       SUM(ORC) AS ORC, SUM(OFC) AS OFC, SUM(OPRE) AS OPRE,
       SUM(OTotal) AS Outbound_Total,
       SUM(RRC) AS RRC, SUM(RFC) AS RFC, SUM(RPRE) AS RPRE,
@@ -461,7 +470,7 @@ router.get('/pendel-overview', async (req,res)=>{
       SUM(PRE_Diff) AS Diff_Premium,
       SUM(Total_Difference) AS Diff_Total
       FROM BUStrips ${where}
-      GROUP BY StartDate,EndDate
+      GROUP BY StartDate, EndDate, NormalizedPendel
       ORDER BY CAST(StartDate AS DATE) ASC`,params);
     res.json(r.recordset||[]);
   } catch(e){res.status(500).json({error:e.message});}
@@ -668,47 +677,114 @@ router.get('/hotel-stats', async (req,res)=>{
 router.get('/margin-overview', async (req, res) => {
   try {
     const f = parseFilters(req.query);
-    const conds = [`StatusCode IN ('ok','cancelled')`], p = {};
-    if (f.departureFrom) { conds.push('CAST(DepartureDate AS DATE)>=@depFrom'); p.depFrom = f.departureFrom; }
-    if (f.departureTo) { conds.push('CAST(DepartureDate AS DATE)<=@depTo'); p.depTo = f.departureTo; }
-    if (f.returnFrom) { conds.push('CAST(ReturnDate AS DATE)>=@retFrom'); p.retFrom = f.returnFrom; }
-    if (f.returnTo) { conds.push('CAST(ReturnDate AS DATE)<=@retTo'); p.retTo = f.returnTo; }
-    if (f.marginStatus && f.marginStatus !== 'all') { conds.push('StatusCode=@status'); p.status = f.marginStatus; }
-    const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
 
-    const [kpiRes, rowsRes] = await Promise.all([
+    // Build safe WHERE — only columns confirmed in solmar.MarginOverview
+    const conds = [`StatusCode IN ('DEF','DEF-GEANNULEERD')`], p = {};
+
+    if (f.departureFrom) { conds.push('CAST(DepartureDate AS DATE)>=@depFrom'); p.depFrom = f.departureFrom; }
+    if (f.departureTo)   { conds.push('CAST(DepartureDate AS DATE)<=@depTo');   p.depTo   = f.departureTo; }
+    if (f.returnFrom)    { conds.push('CAST(ReturnDate AS DATE)>=@retFrom');     p.retFrom = f.returnFrom; }
+    if (f.returnTo)      { conds.push('CAST(ReturnDate AS DATE)<=@retTo');       p.retTo   = f.returnTo; }
+
+    // Status filter — map ok/cancelled → DEF/DEF-GEANNULEERD
+    const rawStatus = arr(req.query.status);
+    if (rawStatus.length) {
+      const mapped = [...new Set(rawStatus.map(s =>
+        s==='ok'||s==='DEF'           ? 'DEF' :
+        s==='cancelled'||s==='DEF-GEANNULEERD' ? 'DEF-GEANNULEERD' : null
+      ).filter(Boolean))];
+      if (mapped.length===1) { conds.push('StatusCode=@st0'); p.st0=mapped[0]; }
+      else if (mapped.length>1) { mapped.forEach((s,i)=>{p['st'+i]=s;}); conds.push('('+mapped.map((_,i)=>'StatusCode=@st'+i).join(' OR ')+')'); }
+    }
+
+    const where = 'WHERE ' + conds.join(' AND ');
+
+    const page  = Math.max(1, parseInt(req.query.page)||1);
+    const limit = Math.min(500, parseInt(req.query.limit)||200);
+    const off   = (page-1)*limit;
+
+    const [kpiRes, rowsRes, cntRes] = await Promise.all([
       query(`SELECT
-        COUNT(*)                          AS totalBookings,
-        ISNULL(ROUND(SUM(SalesBooking),2),0)          AS totalSales,
-        ISNULL(ROUND(SUM(PurchaseCalculation),2),0)   AS totalPurchase,
-        ISNULL(ROUND(SUM(PurchaseObligation),2),0)    AS totalObligation,
-        ISNULL(ROUND(SUM(Margin),2),0)                AS totalMargin,
-        ISNULL(ROUND(SUM(Commission),2),0)            AS totalCommission,
+        COUNT(*)                                           AS totalBookings,
+        ISNULL(SUM(PAX),0)                               AS totalPax,
+        ISNULL(ROUND(SUM(SalesBooking),2),0)             AS totalSales,
+        ISNULL(ROUND(SUM(PurchaseCalculation),2),0)      AS totalPurchase,
+        ISNULL(ROUND(SUM(PurchaseObligation),2),0)       AS totalObligation,
+        ISNULL(ROUND(SUM(Margin),2),0)                   AS totalMargin,
+        ISNULL(ROUND(SUM(Commission),2),0)               AS totalCommission,
         ISNULL(ROUND(SUM(MarginIncludingCommission),2),0) AS totalMarginIncludingCommission,
-        COUNT(CASE WHEN StatusCode='ok' THEN 1 END)         AS confirmedCount,
-        COUNT(CASE WHEN StatusCode='cancelled' THEN 1 END)  AS cancelledCount
+        COUNT(CASE WHEN StatusCode='DEF' THEN 1 END)             AS confirmedCount,
+        COUNT(CASE WHEN StatusCode='DEF-GEANNULEERD' THEN 1 END) AS cancelledCount
         FROM solmar.MarginOverview ${where}`, p),
+
       query(`SELECT
         BookingID,
         StatusCode,
+        Label,
+        TravelType,
+        CONVERT(VARCHAR(10),BookingDate,103)   AS BookingDate,
         CONVERT(VARCHAR(10),DepartureDate,103) AS DepartureDate,
         CONVERT(VARCHAR(10),ReturnDate,103)    AS ReturnDate,
         PAX,
-        ROUND(SalesBooking,2)              AS SalesBooking,
-        ROUND(PurchaseCalculation,2)       AS PurchaseCalculation,
-        ROUND(PurchaseObligation,2)        AS PurchaseObligation,
-        ROUND(Margin,2)                    AS Margin,
-        ROUND(Commission,2)                AS Commission,
-        ROUND(MarginIncludingCommission,2) AS MarginIncludingCommission
+        ROUND(SalesBooking,2)                 AS SalesBooking,
+        ROUND(PurchaseCalculation,2)          AS PurchaseCalculation,
+        ROUND(PurchaseObligation,2)           AS PurchaseObligation,
+        ROUND(Margin,2)                       AS Margin,
+        ROUND(Commission,2)                   AS Commission,
+        ROUND(MarginIncludingCommission,2)    AS MarginIncludingCommission
         FROM solmar.MarginOverview ${where}
-        ORDER BY CAST(DepartureDate AS DATE) DESC`, p),
+        ORDER BY CAST(DepartureDate AS DATE) DESC
+        OFFSET ${off} ROWS FETCH NEXT ${limit} ROWS ONLY`, p),
+
+      query(`SELECT COUNT(*) AS total FROM solmar.MarginOverview ${where}`, p),
     ]);
 
     res.json({
-      kpis: kpiRes.recordset[0] || {},
-      data: rowsRes.recordset || [],
+      kpis:      kpiRes.recordset[0] || {},
+      data:      rowsRes.recordset   || [],
+      totalRows: cntRes.recordset[0]?.total || 0,
+      page,
+      limit,
     });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+
+  } catch(e) {
+    console.error('margin-overview error:', e.message, e.stack);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── ELEMENT MARGIN OVERVIEW ─────────────────────────────────────────────────
+router.get('/element-margin-overview', async (req, res) => {
+  try {
+    const q = req.query;
+    const conds = [], p = {};
+    if (q.departureFrom) { conds.push('DepartureDate>=@depFrom'); p.depFrom=q.departureFrom; }
+    if (q.departureTo)   { conds.push('DepartureDate<=@depTo');   p.depTo=q.departureTo; }
+    const statArr = [].concat(q.status||[]).filter(Boolean);
+    if (statArr.length) {
+      const wantDef=statArr.some(s=>s==='ok'||s==='DEF');
+      const wantGeann=statArr.some(s=>s==='cancelled'||s==='DEF-GEANNULEERD');
+      if(wantDef&&!wantGeann) conds.push("Status='DEF'");
+      else if(wantGeann&&!wantDef) conds.push("Status='DEF-GEANNULEERD'");
+    }
+    const lblArr=[].concat(q.label||[]).filter(Boolean);
+    if(lblArr.length){lblArr.forEach((l,i)=>{p['lb'+i]=l;});conds.push('('+lblArr.map((_,i)=>'LabelName=@lb'+i).join(' OR ')+')');}
+    if (q.dataset) { conds.push('Dataset=@ds'); p.ds=q.dataset; }
+    const yrArr=[].concat(q.year||[]).map(Number).filter(Number.isFinite);
+    if(yrArr.length){yrArr.forEach((y,i)=>{p['yr'+i]=y;});conds.push('('+yrArr.map((_,i)=>'DepartureYear=@yr'+i).join(' OR ')+')');}
+    const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
+    const page  = Math.max(1, parseInt(q.page)||1);
+    const limit = Math.min(500, parseInt(q.limit)||200);
+    const off   = (page-1)*limit;
+    const [kpiRes,catRes,trendRes,rowsRes,cntRes] = await Promise.all([
+      query(`SELECT COUNT(DISTINCT BookingId) AS totalBookings, SUM(PAXCount) AS totalPax, ROUND(SUM(SoldAmount),2) AS totalSales, ROUND(SUM(BasePriceTotal),2) AS totalBase, ROUND(SUM(PaidAmount),2) AS totalPaid, ROUND(SUM(CommissionAmount),2) AS totalCommission, ROUND(SUM(Margin),2) AS totalMargin, ROUND(SUM(MarginIncludingCommission),2) AS totalMarginComm FROM dbo.BookingElementMarginOverview ${where}`, p),
+      query(`SELECT MarginCategory, COUNT(DISTINCT BookingId) AS bookings, SUM(PAXCount) AS pax, ROUND(SUM(SoldAmount),2) AS sales, ROUND(SUM(BasePriceTotal),2) AS basePrice, ROUND(SUM(PaidAmount),2) AS paid, ROUND(SUM(CommissionAmount),2) AS commission, ROUND(SUM(Margin),2) AS margin, ROUND(SUM(MarginIncludingCommission),2) AS marginComm, SUM(ElementCount) AS elements FROM dbo.BookingElementMarginOverview ${where} GROUP BY MarginCategory ORDER BY MarginCategory`, p),
+      query(`SELECT DepartureYear AS year, DepartureMonth AS month, MarginCategory AS category, ROUND(SUM(Margin),2) AS margin, ROUND(SUM(SoldAmount),2) AS sales, COUNT(DISTINCT BookingId) AS bookings FROM dbo.BookingElementMarginOverview ${where} GROUP BY DepartureYear, DepartureMonth, MarginCategory ORDER BY DepartureYear, DepartureMonth, MarginCategory`, p),
+      query(`SELECT BookingId, MarginCategory, Dataset, Status, LabelName, LabelCode, CONVERT(VARCHAR(10),BookingDate,103) AS BookingDate, CONVERT(VARCHAR(10),DepartureDate,103) AS DepartureDate, CONVERT(VARCHAR(10),ReturnDate,103) AS ReturnDate, DepartureYear, DepartureMonth, PAXCount, ElementCount, ROUND(BasePriceTotal,2) AS BasePriceTotal, ROUND(SoldAmount,2) AS SoldAmount, ROUND(PaidAmount,2) AS PaidAmount, ROUND(DepositAmount,2) AS DepositAmount, ROUND(CommissionAmount,2) AS CommissionAmount, ROUND(Margin,2) AS Margin, ROUND(MarginIncludingCommission,2) AS MarginIncludingCommission FROM dbo.BookingElementMarginOverview ${where} ORDER BY DepartureDate DESC OFFSET ${off} ROWS FETCH NEXT ${limit} ROWS ONLY`, p),
+      query(`SELECT COUNT(*) AS total FROM dbo.BookingElementMarginOverview ${where}`, p),
+    ]);
+    res.json({ kpis: kpiRes.recordset[0]||{}, byCategory: catRes.recordset||[], trend: trendRes.recordset||[], data: rowsRes.recordset||[], totalRows: cntRes.recordset[0]?.total||0, page, limit });
+  } catch(e){ console.error('element-margin-overview error:', e.message); res.status(500).json({error:e.message}); }
 });
 
 // ─── MARGIN SLICERS ───────────────────────────────────────────────────────────────
@@ -722,9 +798,9 @@ router.get('/margin-slicers', async (req, res) => {
       MIN(CAST(BookingDate AS DATE))   AS minBooking,
       MAX(CAST(BookingDate AS DATE))   AS maxBooking
       FROM solmar.MarginOverview
-      WHERE StatusCode IN ('ok','cancelled')`);
+      WHERE StatusCode IN ('DEF','DEF-GEANNULEERD')`);
     const [statuses, travelTypes] = await Promise.all([
-      query(`SELECT DISTINCT StatusCode AS val FROM solmar.MarginOverview WHERE StatusCode IN ('ok','cancelled') ORDER BY StatusCode`),
+      query(`SELECT DISTINCT StatusCode AS val FROM solmar.MarginOverview WHERE StatusCode IN ('DEF','DEF-GEANNULEERD') ORDER BY StatusCode`),
       query(`SELECT DISTINCT TravelType AS val FROM solmar.MarginOverview WHERE TravelType IS NOT NULL AND LTRIM(RTRIM(TravelType))!='' ORDER BY TravelType`),
     ]);
     res.json({
