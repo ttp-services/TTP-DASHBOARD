@@ -3,9 +3,9 @@
 > **Version:** v2.1 · Data Engine  
 > **Company:** TTP Services Middle East · CAPREALEO GROUP · Dubai / Belgium  
 > **Last Updated:** April 2026  
-> **Maintained by:** Abdul Rahman (Developer)  
-> **Data Engineer:** Samir Al Gnabi  
-> **Product Owner:** Robbert Jan Tel  
+> **Maintained by:** Abdul Rahman (Data Analyst)  
+> **Data Analyst:** Samir Al Gnabi  
+> **IT Team Head:** Robbert Jan Tel  
 
 ---
 
@@ -177,6 +177,8 @@ User:     ttp_admin
 Port:     1433
 ```
 
+---
+
 ### Tables Overview
 
 #### CustomerOverview
@@ -197,6 +199,8 @@ Main booking table for Solmar, Interbus, and Solmar DE datasets.
 | LabelName | nvarchar | Label of the booking |
 | TransportType | nvarchar | BUS / FLIGHT / OWN TRANSPORT etc |
 
+---
+
 #### ST_Bookings
 Booking table for Snowtravel dataset.
 
@@ -210,7 +214,9 @@ Booking table for Snowtravel dataset.
 | paxCount | int | |
 | totalPrice | decimal | |
 
-> ⚠️ **CRITICAL:** CustomerOverview uses Dutch statuses (`DEF`/`DEF-GEANNULEERD`). ST_Bookings uses English (`ok`/`cancelled`). Always handle both.
+> ⚠️ **CRITICAL:** CustomerOverview uses Dutch statuses (`DEF`/`DEF-GEANNULEERD`). ST_Bookings uses English (`ok`/`cancelled`). Always handle both in backend queries.
+
+---
 
 #### solmar_bus_bookings_modified
 Bus bookings table — used for Bus KPI cards and Deck view filters.
@@ -218,30 +224,32 @@ Bus bookings table — used for Bus KPI cards and Deck view filters.
 | Column | Type | Notes |
 |---|---|---|
 | Booking_Number | nvarchar | |
-| Status | nvarchar | `DEF` / `TIJD` / `VERV` / `DEF-GEANNULEERD` / etc |
+| Status | nvarchar | `DEF` / `TIJD` / `VERV` / `DEF-GEANNULEERD` |
 | PAX | int | |
 | Outbound_Class | nvarchar | `Royal Class` / `First Class` / `Premium Class` / `Comfort Class` |
-| Outbound_Deck | nvarchar | Contains `Onderdek` (Lower) / `Bovendek` (Upper) / `Geen` (None) |
+| Outbound_Deck | nvarchar | `Onderdek` (Lower) / `Bovendek` (Upper) / `Geen` (None) |
 | dateDeparture | date | |
 | Label | nvarchar | `STANDAARD` / `DEU` / `ITB` |
 | Region | nvarchar | |
 
-#### solmar_bus_deck_choice
-Deck and class distribution — used for Deck & Class pivot table.
+---
 
-Same structure as `solmar_bus_bookings_modified` but specifically for deck choice reporting.
+#### solmar_bus_deck_choice
+Deck and class distribution — used for Deck & Class pivot table. Same structure as `solmar_bus_bookings_modified`.
+
+---
 
 #### BUStrips
-Pendel (shuttle bus) aggregated table. **Managed by Samir's ETL stored procedure.**
+Pendel (shuttle bus) aggregated table. **Managed by Samir's ETL stored procedure — NOT automatic.**
 
 | Column | Type | Notes |
 |---|---|---|
 | StartDate | date | Departure date |
 | EndDate | date | Return date |
 | Status | nvarchar | DEF / DEF-GEANNULEERD etc |
-| ORC | int | Outbound Royal Class booked |
-| OFC | int | Outbound First Class booked |
-| OPRE | int | Outbound Premium booked |
+| ORC | int | Outbound Royal Class |
+| OFC | int | Outbound First Class |
+| OPRE | int | Outbound Premium |
 | OTotal | int | Total outbound |
 | RRC | int | Return Royal Class |
 | RFC | int | Return First Class |
@@ -252,7 +260,9 @@ Pendel (shuttle bus) aggregated table. **Managed by Samir's ETL stored procedure
 | PRE_Diff | int | Premium difference |
 | Total_Difference | int | Total difference |
 
-> ⚠️ **CRITICAL:** BUStrips is NOT updated automatically. Samir must run the stored procedure manually to populate it. See Section 14.
+> ⚠️ **CRITICAL:** BUStrips is NOT updated automatically. Samir must run the stored procedure. See Section 14.
+
+---
 
 #### FeederOverview
 Feeder route data (pickup stops per departure date).
@@ -270,8 +280,10 @@ Feeder route data (pickup stops per departure date).
 | TotalPax | int | |
 | BookingCount | int | |
 
+---
+
 #### solmar.MarginOverview
-Purchase obligations per booking. Schema: `solmar` (not `dbo`).
+Purchase obligations per booking. Schema prefix is `solmar` (not `dbo`).
 
 | Column | Type | Notes |
 |---|---|---|
@@ -290,8 +302,10 @@ Purchase obligations per booking. Schema: `solmar` (not `dbo`).
 | Commission | decimal | |
 | MarginIncludingCommission | decimal | Margin + Commission |
 
+---
+
 #### dbo.BookingElementMarginOverview
-Purchase obligations broken down by element category (Coach, Hotel, Flight, etc).
+Purchase obligations broken down by element category.
 
 | Column | Type | Notes |
 |---|---|---|
@@ -315,6 +329,8 @@ Purchase obligations broken down by element category (Coach, Hotel, Flight, etc)
 | Margin | decimal | |
 | MarginIncludingCommission | decimal | |
 
+---
+
 #### HotelRatings
 Hotel rating snapshots from TravelTrustIt API.
 
@@ -328,10 +344,10 @@ Individual hotel reviews from TravelTrustIt API.
 ### Entry Point: `src/server.js`
 
 ```
-- Sets up Express
-- Enables CORS (handles all origins)
-- Rate limiter: validate.xForwardedForHeader = false  ← IMPORTANT for Azure
-- Mounts /api/auth router
+- Sets up Express app
+- Enables CORS (all origins — Azure Portal CORS must be EMPTY)
+- Rate limiter: validate.xForwardedForHeader = false  ← REQUIRED for Azure
+- Mounts /api/auth router (public)
 - Mounts /api/dashboard router (JWT protected)
 - Listens on PORT env var or 3001
 ```
@@ -339,56 +355,42 @@ Individual hotel reviews from TravelTrustIt API.
 ### Database Helper: `src/db/azureSql.js`
 
 ```javascript
-// Simple query wrapper
+// Use named params with @name syntax
 export async function query(sql, params = {}) {
-  // connects to Azure SQL
-  // executes sql with named params (@paramName)
+  // connects to Azure SQL using mssql/tedious
+  // executes sql with named params
   // returns { recordset: [...rows] }
 }
+
+// Example:
+const result = await query(
+  "SELECT * FROM CustomerOverview WHERE Dataset=@ds AND DepartureYear=@yr",
+  { ds: "Solmar", yr: 2025 }
+);
 ```
 
-### Auth: `src/routes/auth.js`
-
-```
-POST /api/auth/login
-  Body: { username, password }
-  Returns: { token, user: { username, role } }
-  
-- Reads users from data/users.json
-- Compares bcrypt hash
-- Returns JWT (24h expiry)
-```
-
-### Main Routes: `src/routes/dashboard.js`
-
-All routes are protected by JWT middleware. See Section 10 for full API reference.
-
-#### Key Functions in dashboard.js
+### Key Functions in `dashboard.js`
 
 **`parseFilters(q)`** — Parses all query params into a clean filter object. Handles arrays for multi-select filters.
 
 ```javascript
-// Returns:
 {
-  dataset: [],          // array of dataset names
-  status: [],           // array of status values
-  year: [],             // array of years (numbers)
-  departureDateFrom: '',
-  departureDateTo: '',
-  bookingDateFrom: '',
-  bookingDateTo: '',
-  label: [],            // array — Solmar / Solmar DE / Interbus
-  travelType: [],       // array — BUS / FLIGHT / OWN TRANSPORT etc
-  statusBus: '',        // single string for bus filter
-  // ...more
+  dataset: [],       // array — Solmar / Interbus / Solmar DE / Snowtravel
+  status: [],        // array — ok / cancelled / DEF / DEF-GEANNULEERD
+  year: [],          // array of numbers
+  label: [],         // array — Solmar / Solmar DE / Interbus
+  travelType: [],    // array — BUS / FLIGHT / OWN TRANSPORT / ENKEL / UNKNOWN
+  departureDateFrom: '', departureDateTo: '',
+  bookingDateFrom: '', bookingDateTo: '',
+  departureFrom: '', departureTo: '',   // used by margin-overview
 }
 ```
 
-**`buildOverviewWhere(filters, opts)`** — Builds WHERE clause for CustomerOverview + ST_Bookings queries. Handles both tables with different column names.
+**`buildOverviewWhere(filters, opts)`** — Builds WHERE clause for CustomerOverview + ST_Bookings with different column names handled.
 
-**`overviewUnionSql(whereObj)`** — Creates UNION ALL of CustomerOverview + ST_Bookings.
+**`overviewUnionSql(whereObj)`** — Creates UNION ALL SQL combining CustomerOverview and ST_Bookings.
 
-**`buildBusWhere(q)`** — Builds WHERE clause for bus tables (`solmar_bus_bookings_modified`, `solmar_bus_deck_choice`).
+**`buildBusWhere(q)`** — Builds WHERE clause for bus tables. Reads status directly from `req.query.status`.
 
 **`cleanUnion(parts)`** — Safely joins SQL UNION parts, returns empty result if no valid parts.
 
@@ -398,7 +400,7 @@ All routes are protected by JWT middleware. See Section 10 for full API referenc
 
 ### Single File Architecture
 
-The entire frontend is in **one file: `src/App.jsx`**. This was a deliberate choice for simplicity and to avoid import/deployment complexity.
+**The entire frontend is in one file: `src/App.jsx`**. No separate component files, no CSS files — everything inline. This is intentional for simplicity.
 
 ### Key Constants
 
@@ -410,70 +412,49 @@ const YEARS = [2023,2024,2025,2026];
 const YC = {2023:"#10b981", 2024:"#8b5cf6", 2025:"#f97316", 2026:"#3b82f6"};
 ```
 
-### Color System (S object)
+### Color System — S Object
 
-All colors are in a single `S` object:
+All UI colors are in one `S` object. Edit this to change any color:
 ```javascript
 const S = {
-  bg: "#f0f5ff",          // page background
-  card: "#ffffff",        // card background
-  accent: "#1a56db",      // primary blue
-  success: "#059669",     // green
-  danger: "#dc2626",      // red
-  warn: "#d97706",        // orange/amber
-  purple: "#7c3aed",      // purple
-  // ...more
+  bg: "#f0f5ff",       // page background
+  card: "#ffffff",     // card background
+  accent: "#1a56db",   // primary blue
+  success: "#059669",  // green (confirmed, positive)
+  danger: "#dc2626",   // red (cancelled, negative)
+  warn: "#d97706",     // amber (warnings, obligations)
+  purple: "#7c3aed",   // purple
+  orange: "#ea580c",   // orange
+  muted: "#64748b",    // grey text
+  border: "#e2e8f0",   // light border
 }
 ```
 
 ### Auth System
 
 ```javascript
-// Saves to both localStorage AND sessionStorage (fallback)
-saveAuth(token, user)
-
-// Loads from localStorage first, then sessionStorage
-// Auto-expires after 30 days
-loadAuth()
-
-// Clears both storages
-clearAuth()
+saveAuth(token, user)  // saves to localStorage + sessionStorage (fallback)
+loadAuth()             // reads auth, auto-expires after 30 days
+clearAuth()            // clears both → logs user out
 ```
 
 ### API Helper
 
 ```javascript
 async function api(path, params = {}, token) {
-  // Builds URLSearchParams
-  // Arrays → multiple qs.append(k, v) calls (for multi-select)
-  // Single values → qs.set(k, v)
-  // Adds Bearer token header
-  // Throws on non-OK response
+  // Arrays → multiple ?key=val&key=val2 (for multi-select filters)
+  // Adds Authorization: Bearer <token> header
+  // Throws error if response not OK
 }
-```
-
-### Component Structure
-
-```
-App()                    ← Root, handles auth + navigation
-├── Login()              ← Login form
-├── OverviewTab()        ← Overview page
-│   ├── LineChart()      ← SVG revenue line chart
-│   └── BarChart()       ← SVG bookings/PAX bar chart
-├── BusTab()             ← Bus Occupancy page
-│   └── ElementMarginChart()  ← (legacy, replaced by pivot table)
-├── PurchaseTab()        ← Purchase Obligations page
-└── SettingsTab()        ← Settings page
 ```
 
 ### Formatting Helpers
 
 ```javascript
-fmtM(v)    // formats to €1.23M / €456.7K / €123
-fmtN(v)    // formats number with nl-BE locale (dots as thousand separators)
-fmtEur(v)  // formats to €1.234,56 (2 decimal places)
-fmtPct(v)  // formats to +12.3% or -5.6%
-dc(v)      // returns green (#059669) if positive, red (#dc2626) if negative
+fmtM(v)    // €1.23M / €456.7K / €123
+fmtN(v)    // 1.234 (nl-BE locale, dots as separators)
+fmtEur(v)  // €1.234,56 (2 decimal places)
+dc(v)      // green if positive, red if negative
 ```
 
 ---
@@ -482,190 +463,126 @@ dc(v)      // returns green (#059669) if positive, red (#dc2626) if negative
 
 ### Tab 1: Overview
 
-**Purpose:** High-level KPIs and trend charts for all bookings.
-
-**Data sources:**
-- `CustomerOverview` (Solmar, Interbus, Solmar DE)
-- `ST_Bookings` (Snowtravel)
+**Data sources:** `CustomerOverview` + `ST_Bookings`
 
 **Features:**
-- 3 KPI cards: Total Bookings, Total PAX, Gross Revenue (with Previous / Difference / Diff%)
-- Revenue by Year — SVG line chart, one line per year, monthly x-axis
-- Bookings/PAX by Month — SVG grouped bar chart, toggle between Bookings and PAX
+- 3 KPI cards: Total Bookings, Total PAX, Gross Revenue (each with Previous / Difference / Diff%)
+- Revenue by Year — SVG line chart, one line per year (2023–2026)
+- Bookings/PAX by Month — SVG grouped bar chart with toggle
 - Year-on-Year Comparison table — Period, Current, Previous, Difference, Diff%
-- Chip-based multi-select filters: Dataset, Status, Year, Departure dates, Booking dates, Quick presets
+- Chip multi-select filters: Dataset, Status, Year, Departure dates, Booking dates, Quick presets
+- Fiscal year presets: Solmar FY (Dec–Nov), Snowtravel FY (Jul–Jun)
 - CSV export of YoY table
-- Fiscal year quick presets: Solmar FY (Dec–Nov), Snowtravel FY (Jul–Jun)
 
-**YoY logic:** Backend loads `selectedYears + (y-1) + (y-2)` so Previous column always has data even when filtering.
+**YoY backend logic — loads 3 years so Previous always shows:**
+```javascript
+const loadYears = uniq([
+  ...selectedYears,
+  ...selectedYears.map(y=>y-1),
+  ...selectedYears.map(y=>y-2)
+]);
+```
 
 ---
 
 ### Tab 2: Bus Occupancy
 
-**Purpose:** Analysis of Solmar bus trips — pendel, deck/class, feeder routes.
-
 **Sub-tabs:**
 
-#### Pendel Overview
-- Data source: `dbo.BUStrips`
-- Aggregated by StartDate/EndDate
-- Shows: ORC, OFC, OPRE, Out Total, RRC, RFC, RPRE, In Total, Δ Royal, Δ First, Δ Premium, Δ Total
-- **⚠️ BUStrips must be loaded by Samir manually** (see Section 14)
-- Status filter does NOT apply here — BUStrips is pre-filtered by ETL
+**🚌 Pendel Overview** — Source: `dbo.BUStrips`
+- Shows weekly pendel trips: ORC, OFC, OPRE, Out Total, RRC, RFC, RPRE, In Total, Δ Royal, Δ First, Δ Premium, Δ Total
+- Status filter does NOT apply — BUStrips is ETL-managed by Samir
+- Empty table = ask Samir to run `EXEC etl.usp_LoadBUStrips;`
 
-#### Deck & Class
-- Data source: `solmar_bus_bookings_modified` (KPIs) + `solmar_bus_deck_choice` (pivot table)
-- Shows: 8 KPI cards (Total PAX, Royal/First/Premium/Comfort, Lower/Upper/No Deck)
-- Pivot table: per departure date, all classes × all decks
+**🪑 Deck & Class** — Source: `solmar_bus_bookings_modified` + `solmar_bus_deck_choice`
+- 8 KPI cards + pivot table per departure date
 - Status filter DOES apply here
 
-#### Feeder Routes
-- Data source: `FeederOverview`
-- Shows: Pivot table — routes as rows, dates as columns, PAX as values
-- Each route shows total row + individual stop rows
+**🗺 Feeder Routes** — Source: `FeederOverview`
+- Pivot table: routes as rows, dates as columns, PAX as values
 
-**Sidebar filters:** Date From/To, Label, Status, Pendel, Region, Weekday, Feeder Line
+**Sidebar filters:** Date, Label, Status (dropdown), Pendel, Region, Weekday, Feeder Line
 
 ---
 
 ### Tab 3: Purchase Obligations
 
-**Purpose:** Finance team's view of margins, commissions, and supplier obligations.
+**📋 Booking Summary** — Source: `solmar.MarginOverview`
+- 9 KPI cards: Total Bookings, Confirmed, Cancelled, PAX, Sales, Net Margin, Commission, Obligations, Margin+Commission
+- Detail table: Booking ID, Departure, Return, Status, Label, PAX, Sales, Purchase, Obligation, Margin, Margin%, Commission, Margin+Comm
+- Chip multi-select filters: Status, Label, Travel Type
+- Search + CSV export + pagination (200 rows/page)
 
-#### Booking Summary
-- Data source: `solmar.MarginOverview`
-- 9 KPI cards: Total Bookings, Confirmed, Cancelled, Total PAX, Total Sales, Net Margin, Commission, Obligations, Margin+Commission
-- Detail table: per booking with all financial columns
-- Filters: Departure dates, Status (DEF/DEF-GEANNULEERD), Label, Travel Type (all chip multi-select)
-- CSV export
-
-#### Element Breakdown
-- Data source: `dbo.BookingElementMarginOverview`
-- 6 KPI cards: Total Bookings, PAX, Sales, Net Margin, Commission, Commission %
+**🔍 Element Breakdown** — Source: `dbo.BookingElementMarginOverview`
+- 6 KPI cards: Bookings, PAX, Sales, Net Margin, Commission, Commission %
 - Per-category cards: Coach, Hotel, Flight, Transfer, Other, Service Line
-- Monthly pivot table: Sales + Margin per category per month + totals row
-- Full detail table with all element rows
-- Filters: Departure dates, Status, Label, Year (chip multi-select)
-- CSV export
+- Monthly pivot table: Sales + Margin per category per month + TOTAL row
+- Full detail table with CSV export + pagination
 
 ---
 
 ### Tab 4: Settings (Admin only)
 
-- User Management: create, delete, change role (viewer/admin)
-- API Status: test each backend endpoint
-- AI Prompts: custom system prompt for TTP AI tab
-- Email Alerts: threshold-based alerts configuration
+- User Management: create/delete users, change roles
+- API Status: live test of each endpoint
+- AI Prompts: custom system prompt
+- Email Alerts: configuration UI (backend not yet implemented)
 
 ---
 
 ## 10. API Reference
 
-Base URL: `https://ttp-dashboard-api.azurewebsites.net`
-
-All routes require: `Authorization: Bearer <token>`
+**Base URL:** `https://ttp-dashboard-api.azurewebsites.net`
+**All routes require:** `Authorization: Bearer <token>`
 
 ### Auth
-
 ```
 POST /api/auth/login
-Body: { username: string, password: string }
-Response: { token: string, user: { username, role } }
+Body: { username, password }
+Response: { token, user: { username, role } }
 ```
 
 ### Overview
-
 ```
 GET /api/dashboard/kpis
-Params: dataset[], status[], year[], departureDateFrom, departureDateTo, bookingDateFrom, bookingDateTo
-Response: { currentBookings, previousBookings, percentBookings, currentPax, previousPax, percentPax, currentRevenue, previousRevenue, percentRevenue, periodLabel, prevLabel }
-
 GET /api/dashboard/revenue-by-year
-Same params as kpis
-Response: [{ year, month, bookings, pax, revenue }]
-
 GET /api/dashboard/year-month-comparison
-Same params as kpis
-Response: [{ currentYear, previousYear, month, currentBookings, previousBookings, diffBookings, diffPctBookings, currentPax, previousPax, diffPax, diffPctPax, currentRevenue, previousRevenue, diffRevenue, diffPctRevenue }]
-
 GET /api/dashboard/slicers
-Response: { datasets[], years[], statuses[] }
+Common params: dataset[], status[], year[], departureDateFrom, departureDateTo, bookingDateFrom, bookingDateTo
 ```
 
 ### Bus Occupancy
-
 ```
 GET /api/dashboard/bus-slicers
-Response: { pendels[], regions[], statuses[], statusesEnglish[], feederLines[] }
-
-GET /api/dashboard/bus-kpis
-Params: dateFrom, dateTo, status, label, region, pendel, weekday
-Response: { total_pax, royal_pax, first_pax, premium_pax, comfort_pax, lower_pax, upper_pax, no_deck_pax }
-
-GET /api/dashboard/pendel-overview
-Params: dateFrom, dateTo, weekday, status
-Response: [{ StartDate, EndDate, ORC, OFC, OPRE, Outbound_Total, RRC, RFC, RPRE, Inbound_Total, Diff_Royal, Diff_First, Diff_Premium, Diff_Total }]
-
-GET /api/dashboard/deck-class
-Params: dateFrom, dateTo, status, label, region, pendel, weekday
-Response: [{ dateDeparture, Total, Total_Lower, Total_Upper, Total_NoDeck, Royal_Total, Royal_Lower, ... }]
-
-GET /api/dashboard/feeder-overview
-Params: dateFrom, dateTo, feederLine, label, direction
-Response: [{ DepartureDate, LabelName, FeederLine, RouteNo, RouteLabel, StopName, StopType, Direction, TotalPax, BookingCount }]
+GET /api/dashboard/bus-kpis          params: dateFrom, dateTo, status, label, region, pendel, weekday
+GET /api/dashboard/pendel-overview   params: dateFrom, dateTo, weekday, status
+GET /api/dashboard/deck-class        params: dateFrom, dateTo, status, label, region, pendel, weekday
+GET /api/dashboard/feeder-overview   params: dateFrom, dateTo, feederLine, label, direction
 ```
 
 ### Purchase Obligations
-
 ```
-GET /api/dashboard/margin-overview
-Params: departureFrom, departureTo, status (ok/cancelled), label[], travelType[], page, limit
-Response: { kpis: { totalBookings, totalSales, totalPurchase, totalObligation, totalMargin, totalCommission, totalMarginIncludingCommission, confirmedCount, cancelledCount, totalPax }, data: [...rows], totalRows, page, limit }
-
+GET /api/dashboard/margin-overview         params: departureFrom, departureTo, status[], label[], travelType[], page, limit
 GET /api/dashboard/margin-slicers
-Response: { minDeparture, maxDeparture, statuses[], travelTypes[] }
-
-GET /api/dashboard/element-margin-overview
-Params: departureFrom, departureTo, status, label[], dataset, year[], page, limit
-Response: { kpis: {...}, byCategory: [...], trend: [...], data: [...rows], totalRows, page, limit }
+GET /api/dashboard/element-margin-overview params: departureFrom, departureTo, status, label[], year[], page, limit
 ```
 
 ### Hotel
-
 ```
 GET /api/dashboard/hotel-ratings
-Response: [{ accommodation_code, accommodation_name, avg_overall, avg_sleep, avg_location, avg_cleanliness, avg_service, avg_facilities, total_reviews, recommendation_pct }]
-
-GET /api/dashboard/hotel-reviews
-Params: code, country, minRating, page, limit
-Response: { rows: [...], total, page, limit }
-
+GET /api/dashboard/hotel-reviews   params: code, country, minRating, page, limit
 GET /api/dashboard/hotel-stats
-Response: { total_hotels, total_reviews, avg_rating, high_rated, low_rated, latest_review }
 ```
 
-### User Management (Admin only)
-
+### Users & Settings
 ```
-GET    /api/dashboard/users
-POST   /api/dashboard/users       Body: { username, password, role, name, email }
-PUT    /api/dashboard/users/:id   Body: { role?, password? }
-DELETE /api/dashboard/users/:id
-```
-
-### Settings
-
-```
-GET  /api/dashboard/settings
-POST /api/dashboard/settings   Body: { aiPrompt, emailAlerts: { enabled, recipients, ... } }
+GET/POST/PUT/DELETE /api/dashboard/users
+GET/POST            /api/dashboard/settings
 ```
 
 ---
 
 ## 11. Data Rules — Critical
-
-> These rules are non-negotiable. Getting them wrong causes wrong numbers in the dashboard.
 
 ### Status Values per Table
 
@@ -679,27 +596,16 @@ POST /api/dashboard/settings   Body: { aiPrompt, emailAlerts: { enabled, recipie
 | `solmar.MarginOverview` | `DEF` | `DEF-GEANNULEERD` |
 | `dbo.BookingElementMarginOverview` | `DEF` | `DEF-GEANNULEERD` |
 
-### Dataset Mapping
+### Dataset → Table Mapping
 
-| Dataset name | Source table |
-|---|---|
-| Solmar | `CustomerOverview` WHERE Dataset='Solmar' |
-| Interbus | `CustomerOverview` WHERE Dataset='Interbus' |
-| Solmar DE | `CustomerOverview` WHERE Dataset='Solmar DE' |
-| Snowtravel | `ST_Bookings` |
+| Dataset | Table | Condition |
+|---|---|---|
+| Solmar | `CustomerOverview` | `Dataset='Solmar'` |
+| Interbus | `CustomerOverview` | `Dataset='Interbus'` |
+| Solmar DE | `CustomerOverview` | `Dataset='Solmar DE'` |
+| Snowtravel | `ST_Bookings` | entire table |
 
-### Travel Type Normalization
-
-In `solmar.MarginOverview`, the value `"ownTransport"` must be normalized to `"own transport"` (lowercase with space) if needed.
-
-### Pendel Table
-
-- `BUStrips` is **NOT automatically updated**
-- It is populated by Samir running `etl.usp_LoadBUStrips`
-- Default run excludes `VERV` and `DEF-GEANNULEERD`
-- Status filter on the dashboard sidebar does NOT filter `BUStrips` — it only filters `solmar_bus_bookings_modified` and `solmar_bus_deck_choice`
-
-### Deck Column Mapping (solmar_bus_bookings_modified)
+### Deck Column Mapping (Dutch → English)
 
 ```sql
 Lower Deck:  Outbound_Deck LIKE '%Onderdek%' AND Outbound_Deck NOT LIKE '%Geen%'
@@ -707,46 +613,40 @@ Upper Deck:  Outbound_Deck LIKE '%Bovendek%' AND Outbound_Deck NOT LIKE '%Geen%'
 No Deck:     Outbound_Deck LIKE '%Geen%' OR Outbound_Deck IS NULL
 ```
 
+### BUStrips Rules
+- NOT automatically updated — Samir runs ETL proc manually
+- Default proc excludes `VERV` and `DEF-GEANNULEERD`
+- Status filter does NOT filter BUStrips — only filters `solmar_bus_bookings_modified`
+
 ---
 
 ## 12. Deployment Guide
 
-### Frontend (GitHub Pages)
+### Frontend — GitHub Pages
 
-Frontend auto-deploys via GitHub Actions when you push to `main`.
-
-**Manual deploy:**
 ```bash
 cd C:\Project\frontend
 git add src/App.jsx
-git commit -m "your message"
+git commit -m "describe change"
 git push
-# GitHub Actions runs automatically → deploys to GitHub Pages in ~2 min
+# Auto-deploys via GitHub Actions in ~2 minutes
+# Check: GitHub repo → Actions tab
 ```
-
-**Check deploy status:** Go to GitHub repo → Actions tab
 
 **Live URL:** `https://ttp-services.github.io/TTP-DASHBOARD/`
 
----
+### Backend — Azure App Service
 
-### Backend (Azure App Service)
-
-Backend deploys via Git push to Azure remote.
-
-**Manual deploy:**
 ```bash
 cd C:\Project\backend
-git add src/routes/dashboard.js   # or whichever files changed
-git commit -m "your message"
+git add src/routes/dashboard.js
+git commit -m "describe change"
 git push azure master
 # Deploys in ~30-60 seconds
 ```
 
-**If git push fails (auth error):**
+**If push fails (auth error):**
 ```bash
-# Use ZIP deploy instead
-cd C:\Project\backend
 az login
 az webapp deployment source config-zip \
   --resource-group datafactory \
@@ -754,35 +654,25 @@ az webapp deployment source config-zip \
   --src backend.zip
 ```
 
-**Set upstream if needed:**
+**If upstream error:**
 ```bash
 git branch --set-upstream-to=azure/master master
 ```
 
-**Check if backend is running:**
-```
-https://ttp-dashboard-api.azurewebsites.net/api/dashboard/kpis
-```
-Should return JSON (may need auth token).
-
-**Azure Portal:**
-- Resource Group: `datafactory`
-- App Service: `ttp-dashboard-api`
-- Region: West Europe
+**Azure Portal:** portal.azure.com → Resource Group: `datafactory` → App: `ttp-dashboard-api`
 
 ---
 
 ## 13. Known Errors & Fixes
 
-### Error: Bus Occupancy → 500 on deck-class / bus-kpis
+### 🔴 Bus Occupancy → 500 error on deck-class / bus-kpis
 
-**Symptom:** Console shows `Failed to load resource: 500` for `deck-class` and `bus-kpis` endpoints.
+**Symptom:** Console: `Failed to load resource: 500` on deck-class or bus-kpis endpoint.
 
-**Cause:** Status filter sending wrong format — `q.status` was being read as `f.statusBus` which was empty.
+**Cause:** `buildBusWhere` reads `f.statusBus` (processed) instead of `q.status` (raw), building broken SQL.
 
-**Fix in `dashboard.js` `buildBusWhere`:**
+**Fix in `dashboard.js` — `buildBusWhere`:**
 ```javascript
-// Read status directly from raw query, not from parseFilters
 const rawStatus = Array.isArray(q.status) ? q.status.join(',') : (q.status||'');
 if (rawStatus && rawStatus !== 'all' && rawStatus !== '') {
   const statuses = rawStatus.split(',').map(s=>s.trim()).filter(Boolean);
@@ -796,183 +686,156 @@ if (rawStatus && rawStatus !== 'all' && rawStatus !== '') {
 
 ---
 
-### Error: `SyntaxError: Identifier 'Router' has already been declared`
+### 🔴 `SyntaxError: Identifier 'Router' has already been declared`
 
-**Symptom:** Backend crashes on startup.
+**Cause:** Duplicate `import { Router } from 'express'` in `dashboard.js`.
 
-**Cause:** Duplicate `import { Router }` in dashboard.js.
-
-**Fix:** Remove duplicate import — keep only one at the top of the file.
+**Fix:** Keep only ONE `import { Router }` at the very top. Delete the duplicate.
 
 ---
 
-### Error: CORS error on API calls
+### 🔴 CORS error on all API calls
 
-**Symptom:** Browser blocks API calls with CORS error.
-
-**Cause:** Azure Portal CORS settings conflicting with Node.js CORS.
+**Cause:** Azure Portal CORS entries conflict with Node.js CORS middleware.
 
 **Fix:**
-1. Go to Azure Portal → App Service → CORS
-2. Delete ALL entries there (leave it empty)
-3. Let Node.js handle CORS in `server.js` with `cors()` middleware
+1. Azure Portal → App Service → CORS → **Delete ALL entries** → Save
+2. Let Node.js `cors()` middleware in `server.js` handle everything
 
 ---
 
-### Error: Rate limiter — Invalid IP address
+### 🔴 Rate limiter — "Invalid IP address" crash
 
-**Symptom:** Backend logs `Error: Invalid IP address` and crashes.
-
-**Cause:** Azure App Service sends `x-forwarded-for` header that the rate limiter can't parse.
+**Cause:** Azure sends `x-forwarded-for` header with multiple IPs.
 
 **Fix in `server.js`:**
 ```javascript
 app.use(rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 500,
-  validate: { xForwardedForHeader: false }  // ← This line fixes it
+  validate: { xForwardedForHeader: false }  // ← REQUIRED
 }));
 ```
 
 ---
 
-### Error: YoY "Previous" column shows 0 or —
+### 🟡 YoY "Previous" column shows 0 or —
 
-**Symptom:** When filtering by year 2025, the "Previous" column shows 0 or — for many rows.
+**Cause:** Backend only loads [2025, 2024] but needs 2023 to show 2024's previous.
 
-**Cause:** Backend only loaded `[2025, 2024]` years, but 2024 rows need 2023 to show their "previous".
-
-**Fix in `dashboard.js` year-month-comparison route:**
+**Fix in `dashboard.js`:**
 ```javascript
-// Load 3 years: selected + previous + the one before
 const loadYears = uniq([
   ...selectedYears,
   ...selectedYears.map(y=>y-1),
-  ...selectedYears.map(y=>y-2)
+  ...selectedYears.map(y=>y-2)   // ← load 3 years
 ]);
 ```
 
 ---
 
-### Error: Chart tooltip crashes
+### 🟡 Chart tooltips crash / freeze
 
-**Symptom:** Clicking/hovering on chart dots causes JavaScript error.
+**Cause:** `e.target.closest("svg")` returns null, then crashes calling `.getBoundingClientRect()` on null.
 
-**Cause:** `e.target.closest("svg")` returns null in some browser states.
-
-**Fix:**
+**Fix in `App.jsx`:**
 ```javascript
 onMouseEnter={e=>{
   try {
     const sv = e.currentTarget.closest("svg") || e.target.closest("svg");
     if (!sv) return;
     const rc = sv.getBoundingClientRect();
-    // ... rest of tooltip logic
+    setTooltip({ ... });
   } catch {}
 }}
 ```
 
 ---
 
-### Error: Backend startup crash — `users.js` not found
+### 🟡 Pendel table shows "No data"
 
-**Symptom:** Backend crashes on startup with module not found error.
+**Cause:** `BUStrips` table is empty — Samir has not run the ETL proc.
 
-**Cause:** `server.js` imports `users.js` but file doesn't exist or is not a proper Express router.
+**Fix:**
+```sql
+EXEC etl.usp_LoadBUStrips;
+
+-- Verify:
+SELECT Status, COUNT(*) AS cnt, MIN(StartDate), MAX(StartDate)
+FROM dbo.BUStrips GROUP BY Status;
+```
+
+---
+
+### 🟡 Purchase Obligations shows zeros
+
+**Cause 1:** User forgot to click Apply Filters — data does not auto-load.
+**Cause 2:** `solmar.MarginOverview` table is empty.
+
+**Fix:**
+```sql
+SELECT COUNT(*) FROM solmar.MarginOverview;
+-- If 0 → ask Samir to run the pipeline
+```
+
+---
+
+### 🟡 Backend startup crash — auth.js not found
+
+**Cause:** `server.js` imports `auth.js` but it's missing from deployment.
 
 **Fix:** Ensure `src/routes/auth.js` exists and exports a valid Express Router.
 
 ---
 
-### Error: Pendel table shows "No data"
-
-**Symptom:** Pendel Overview table is empty even with correct date range.
-
-**Cause:** `BUStrips` table is empty — Samir has not run the ETL procedure.
-
-**Fix:** Ask Samir to run:
-```sql
-EXEC etl.usp_LoadBUStrips;
-```
-Then verify:
-```sql
-SELECT MIN(StartDate), MAX(StartDate), COUNT(*) FROM dbo.BUStrips;
-```
-
----
-
-### Error: solmar.MarginOverview has 0 rows
-
-**Symptom:** Purchase Obligations → Booking Summary shows 0 for everything.
-
-**Cause:** Samir's pipeline has not yet loaded data into `solmar.MarginOverview`.
-
-**Fix:** Check row count:
-```sql
-SELECT COUNT(*) FROM solmar.MarginOverview;
-```
-If 0, ask Samir to run the pipeline.
-
----
-
 ## 14. ETL & Samir's Procedures
 
-### BUStrips — Pendel Data
+### BUStrips Stored Procedure
 
-Samir owns the stored procedure `etl.usp_LoadBUStrips`.
+**Procedure name:** `etl.usp_LoadBUStrips`
 
-**How it works:**
-- `@Statuses` — optional, comma-separated. If empty → accepts all except default excluded ones
-- `@ExcludedStatuses` — optional. If empty → uses default excluded (VERV and DEF-GEANNULEERD)
-
-**Run with defaults (DEF only, excludes VERV + DEF-GEANNULEERD):**
 ```sql
+-- Default run (DEF only — excludes VERV and DEF-GEANNULEERD):
 EXEC etl.usp_LoadBUStrips;
-```
 
-**Run with specific statuses:**
-```sql
-EXEC etl.usp_LoadBUStrips
-    @Statuses = 'DEF, DEF-GEANNULEERD';
-```
-
-**Run with specific statuses AND override excluded:**
-```sql
+-- Include DEF-GEANNULEERD as well:
 EXEC etl.usp_LoadBUStrips
     @Statuses = 'DEF, DEF-GEANNULEERD',
     @ExcludedStatuses = 'VERV, TEST';
-```
 
-**Verify result:**
-```sql
+-- Verify result:
 SELECT Status, COUNT(*) AS cnt, MIN(StartDate) AS minDate, MAX(StartDate) AS maxDate
 FROM dbo.BUStrips
 GROUP BY Status;
 ```
 
-**Format rules:**
-- Use comma-separated values
+**Rules:**
+- Use comma-separated values for parameters
 - No brackets needed
-- Spaces are fine
+- Spaces around commas are fine
 
 ---
 
-### Verifying Data Counts
+### Data Verification Queries
 
 ```sql
--- Check CustomerOverview by year
-SELECT DepartureYear, COUNT(*) FROM CustomerOverview GROUP BY DepartureYear ORDER BY DepartureYear;
+-- Bookings by year
+SELECT DepartureYear, COUNT(*) AS bookings
+FROM CustomerOverview
+GROUP BY DepartureYear ORDER BY DepartureYear;
+-- Expected: 2023~23557, 2024~24969, 2025~22316, 2026~12126
 
--- Check ST_Bookings
-SELECT YEAR(dateDeparture) AS yr, COUNT(*) FROM ST_Bookings GROUP BY YEAR(dateDeparture);
+-- Snowtravel by year
+SELECT YEAR(dateDeparture) AS yr, COUNT(*) FROM ST_Bookings
+GROUP BY YEAR(dateDeparture) ORDER BY yr;
 
--- Check MarginOverview
+-- Margin data
 SELECT COUNT(*) FROM solmar.MarginOverview;
 
--- Check BUStrips
+-- BUStrips
 SELECT COUNT(*) FROM dbo.BUStrips;
 
--- Check ElementMarginOverview
+-- Element breakdown
 SELECT COUNT(*) FROM dbo.BookingElementMarginOverview;
 ```
 
@@ -984,70 +847,78 @@ SELECT COUNT(*) FROM dbo.BookingElementMarginOverview;
 
 | Feature | Priority | Notes |
 |---|---|---|
-| Hotel Insights tab | High | Backend routes exist (`/hotel-ratings`, `/hotel-reviews`). Frontend view not built yet. |
-| Data Table tab | Medium | Paginated table from CustomerOverview + ST_Bookings. Backend route `/bookings-table` exists. |
-| TTP AI tab improvements | Medium | GPT-4o-mini with live DB context. Ask-one-clarifying-question logic. Needs refinement. |
-| Dynamic Travel Type options in Purchase Obligations | Low | Currently hardcoded. Should fetch from `/margin-slicers` once data is consistent. |
-| Hotel reviews ETL fix | Low | TravelTrustIt API ETL needs fixing by Samir. |
-| Email alerts | Low | Settings UI exists. Backend logic not implemented. |
-| Export improvements | Low | Currently CSV only. Excel export requested. |
+| Hotel Insights tab | High | Backend routes exist. Frontend view not built yet. |
+| Data Table tab | Medium | Backend route `/bookings-table` exists. Frontend not built. |
+| TTP AI tab improvements | Medium | GPT-4o-mini works but needs refinement. |
+| Dynamic Travel Type filter | Low | Currently hardcoded. Should fetch from `/margin-slicers`. |
+| Hotel reviews ETL fix | Low | TravelTrustIt API pipeline broken — Samir to fix. |
+| Email alerts backend | Low | UI exists, backend logic not implemented. |
+| Excel export | Low | Currently CSV only. Finance team requested Excel. |
+| BUStrips auto-refresh schedule | Low | Currently manual only. |
 
-### Data Gaps to Resolve
+### Data Gaps
 
 | Item | Owner | Status |
 |---|---|---|
 | `solmar.MarginOverview` empty rows | Samir | Pending pipeline run |
-| 2026 deck Lower/Upper data showing zero | Samir | Expected — pipeline not yet run for 2026 |
-| `CustomerOverview` 2025 data verification | Samir | Verify data completeness |
-| `BUStrips` regular refresh schedule | Samir | Currently manual only |
+| 2026 deck data showing zero | Samir | Pipeline not yet run for 2026 |
+| `CustomerOverview` 2025 completeness | Samir | Verify all months loaded |
+| `BUStrips` refresh schedule | Samir | No schedule — manual only |
+| Hotel reviews ETL | Samir | API broken — needs fixing |
 
 ---
 
-## 📞 Contacts & Access
+## 📞 Team Contacts & Access
 
 | Person | Role | Responsibility |
 |---|---|---|
-| Abdul Rahman | Developer | Frontend + Backend code |
-| Samir Al Gnabi | Data Engineer | Azure SQL, ETL pipelines, stored procedures |
-| Robbert Jan Tel | Manager / Product Owner | Feature requirements, UX decisions |
+| Abdul Rahman | Data Analyst | Frontend + Backend code, dashboard features, deployment |
+| Samir Al Gnabi | Data Analyst | Azure SQL, ETL pipelines, stored procedures, data loading |
+| Robbert Jan Tel | IT Team Head | Feature requirements, UX decisions, product direction |
 
 ### Quick Access Links
 
-| Resource | URL |
+| Resource | URL / Location |
 |---|---|
 | Dashboard (live) | https://ttp-services.github.io/TTP-DASHBOARD/ |
 | Backend API | https://ttp-dashboard-api.azurewebsites.net |
 | GitHub Repository | https://github.com/ttp-services/TTP-DASHBOARD |
-| Azure Portal | https://portal.azure.com → Resource Group: datafactory |
+| Azure Portal | https://portal.azure.com → Resource Group: `datafactory` |
+| App Service | `ttp-dashboard-api` · West Europe |
+| Azure SQL | `ttpserver.database.windows.net` / DB: `TTPDatabase` |
 
 ---
 
-## 🆘 Emergency Fixes — Quick Reference
+## 🆘 Emergency Quick Reference
 
-**Dashboard not loading at all?**
-1. Check https://ttp-dashboard-api.azurewebsites.net — is it responding?
-2. Check Azure Portal → App Service → Log Stream for errors
-3. Check GitHub Actions → did the last deploy succeed?
+**Dashboard not loading?**
+1. Test: `https://ttp-dashboard-api.azurewebsites.net` → should respond
+2. Azure Portal → App Service → Log Stream → check for errors
+3. GitHub → Actions tab → check latest deploy status
 
 **All numbers showing 0?**
-1. Login works → backend is up
-2. Open browser Console → look for 500 or 401 errors
-3. Test: `GET /api/dashboard/kpis` with a valid token
-4. Check Azure SQL connection in App Service Configuration
+1. Browser DevTools → Console → look for 500 or 401 errors
+2. 401 = token expired → log out and log back in
+3. 500 = backend SQL error → check Azure Log Stream
 
-**Bus data not showing?**
-1. Check `SELECT COUNT(*) FROM dbo.BUStrips;` — if 0, ask Samir to run the procedure
-2. Check date filter — default is current year, BUStrips may have different date range
+**Bus Occupancy 500 error?**
+1. Check `buildBusWhere` in `dashboard.js` — status must read from `req.query.status`
+2. Redeploy backend after fix
 
-**Purchase Obligations showing empty?**
-1. Click **Apply Filters** — data does not load automatically, user must click Apply
-2. Check `SELECT COUNT(*) FROM solmar.MarginOverview;` — if 0, pipeline not loaded
+**Pendel empty?**
+1. `SELECT COUNT(*) FROM dbo.BUStrips;`
+2. If 0 → `EXEC etl.usp_LoadBUStrips;`
 
-**Login not working?**
-1. Check `data/users.json` exists in backend deployment
-2. Check JWT_SECRET environment variable is set in Azure App Service Configuration
+**Purchase Obligations empty?**
+1. Click **Apply Filters** — data does not auto-load
+2. `SELECT COUNT(*) FROM solmar.MarginOverview;`
+
+**Login broken?**
+1. Check `data/users.json` exists in backend
+2. Check `JWT_SECRET` in Azure App Service Configuration
+3. Redeploy backend if files missing
 
 ---
 
-*This documentation is maintained by Abdul Rahman. Last updated: April 2026.*
-*For questions: contact Abdul Rahman or Robbert Jan Tel.*
+*Documentation by Abdul Rahman — Data Analyst, TTP Services Middle East.*  
+*Last updated: April 2026. Contact: Abdul Rahman or Robbert Jan Tel.*
