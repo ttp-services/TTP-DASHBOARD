@@ -1786,7 +1786,8 @@ export default function App(){
           {tab==="overview"  &&<OverviewTab  token={token}/>}
           {tab==="bus"       &&<BusTab       token={token}/>}
           {tab==="purchase"  &&<PurchaseTab  token={token}/>}
-          {tab==="settings"  &&<SettingsTab  token={token} session={session} onLogout={()=>{clearAuth();setSession(null);}}/>}
+          const[tab,setTab]=useState("overview");
+  useEffect(()=>{if(tab==="settings"&&session?.role!=="admin")setTab("overview");},[tab,session]);
         </div>
       </div>
     </div>
