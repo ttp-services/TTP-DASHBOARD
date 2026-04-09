@@ -972,7 +972,7 @@ function PurchaseTab({token}){
     if(p.departureFrom)out.departureFrom=p.departureFrom;
     if(p.departureTo)out.departureTo=p.departureTo;
     if(p.status?.length)out.status=p.status;
-    if(p.label?.length)out.label=p.label;
+    if(p.label?.length)out.labelCode=p.label;
     if(p.travelType?.length)out.travelType=p.travelType;
     return out;
   }
@@ -982,7 +982,7 @@ function PurchaseTab({token}){
     if(p.departureFrom)out.departureFrom=p.departureFrom;
     if(p.departureTo)out.departureTo=p.departureTo;
     if(p.status?.length)out.status=p.status;
-    if(p.label?.length)out.label=p.label;
+    if(p.label?.length)out.labelCode=p.label;
     if(p.dataset)out.dataset=p.dataset;
     if(p.year?.length)out.year=p.year;
     return out;
@@ -1243,7 +1243,7 @@ function PurchaseTab({token}){
           {elLoading&&<div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"60px 20px"}}><span style={{color:S.muted,fontSize:13}}>Loading element data…</span></div>}
           {elKpis&&(
             <>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
                 {(()=>{
                   const commPct=parseFloat(elKpis.totalSales||0)>0?((parseFloat(elKpis.totalCommission||0)/parseFloat(elKpis.totalSales))*100):null;
                   return[
@@ -1253,6 +1253,7 @@ function PurchaseTab({token}){
                     {l:"Net Margin",v:fmtM(elKpis.totalMargin),c:parseFloat(elKpis.totalMargin||0)>=0?S.success:S.danger,icon:<TrendingUp size={15}/>},
                     {l:"Commission",v:fmtM(elKpis.totalCommission),c:S.warn,icon:<CreditCard size={15}/>},
                     {l:"Commission %",v:commPct!=null?`${commPct.toFixed(2)}%`:"—",c:S.warn,icon:<Percent size={15}/>},
+                    {l:"Margin+Comm",v:fmtM(elKpis.totalMarginIncludingCommission),c:parseFloat(elKpis.totalMarginIncludingCommission||0)>=0?S.success:S.danger,icon:<PieChart size={15}/>},
                   ];
                 })().map(k=>(
                   <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:"14px 16px",boxShadow:S.shadow,display:"flex",alignItems:"center",gap:12}}>
