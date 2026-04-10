@@ -1742,8 +1742,8 @@ function HotelTab({token}){
                       <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search hotel / region…" style={{background:S.bg,border:`1.5px solid ${S.border2}`,borderRadius:8,padding:"6px 10px 6px 30px",color:S.text,fontSize:12,outline:"none",width:210}}/>
                     </div>
                     <button onClick={()=>{
-                      const cols=["Hotel","Region","Bookings","Bk Last Yr","Bk Diff%","PAX","PAX Last Yr","PAX Diff%","Revenue","Rev Last Yr","Rev Diff%","Margin","Margin+Comm"];
-                      const rows=filtered.map(r=>[`"${r.hotel||""}"`,r.region||"",r.bookingsCur,r.bookingsPrev,r.bookingsDiffPct??"",r.paxCur,r.paxPrev,r.paxDiffPct??"",r.revenueCur,r.revenuePrev,r.revenueDiffPct??"",r.margin,r.marginComm].join(","));
+                      const cols=["Hotel","First Dep","Last Dep","Bookings","Bk Last Yr","Bk Diff%","PAX","PAX Last Yr","PAX Diff%","Revenue","Rev Last Yr","Rev Diff%","Margin","Margin+Comm"];
+                      const rows=filtered.map(r=>[`"${r.hotel||""}"`,r.firstDep||"",r.lastDep||"",r.bookingsCur,r.bookingsPrev,r.bookingsDiffPct??"",r.paxCur,r.paxPrev,r.paxDiffPct??"",r.revenueCur,r.revenuePrev,r.revenueDiffPct??"",r.margin,r.marginComm].join(","));
                       const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\uFEFF"+[cols.join(","),...rows].join("\n")],{type:"text/csv;charset=utf-8"}));a.download=`hotel-overview-${new Date().toISOString().split("T")[0]}.csv`;a.click();
                     }} style={{padding:"6px 12px",background:"transparent",border:`1.5px solid ${S.border2}`,borderRadius:8,color:S.muted,fontSize:12,cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",gap:5}}>
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -1765,7 +1765,8 @@ function HotelTab({token}){
                     <thead style={{position:"sticky",top:0,zIndex:5}}>
                       <tr>
                         <SortTH col="hotel" right={false}>Hotel</SortTH>
-                        <th style={THL}>Region</th>
+                        <th style={THL}>First Dep</th>
+                        <th style={THL}>Last Dep</th>
                         <SortTH col="bookings">Bookings</SortTH>
                         <th style={TH}>Last Year</th>
                         <th style={TH}>Diff %</th>
@@ -1786,9 +1787,8 @@ function HotelTab({token}){
                           onMouseEnter={e=>e.currentTarget.style.background="#eef4ff"}
                           onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"#ffffff":"#f7f9ff"}>
                           <td style={{...TDL,fontWeight:600,color:S.accent,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis"}}>{r.hotel||"—"}</td>
-                          <td style={{...TDL,color:S.muted,fontSize:11}}>
-                            {r.region&&<span style={{background:`${S.accent}10`,color:S.accent,padding:"2px 7px",borderRadius:4,fontSize:10,fontWeight:600}}>{r.region}</span>}
-                          </td>
+                          <td style={{...TDL,color:S.muted,fontSize:11}}>{r.firstDep||"—"}</td>
+                          <td style={{...TDL,color:S.muted,fontSize:11}}>{r.lastDep||"—"}</td>
                           <td style={{...TD,fontWeight:700}}>{fmtN(r.bookingsCur)}</td>
                           <td style={{...TD,color:S.muted}}>{fmtN(r.bookingsPrev)}</td>
                           <td style={{...TD,fontWeight:700}}>
