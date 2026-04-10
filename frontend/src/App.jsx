@@ -1714,6 +1714,7 @@ export default function App(){
   const[session,setSession]=useState(()=>loadAuth());
   const[tab,setTab]=useState("overview");
   const[navCollapsed,setNavCollapsed]=useState(false);
+  useEffect(()=>{if(tab==="settings"&&session?.role!=="admin")setTab("overview");},[tab,session]);
 
   useEffect(()=>{document.body.style.background=S.bg;},[]);
 
@@ -1722,11 +1723,12 @@ export default function App(){
   }
 
   const token=session.token;
+  const isAdmin = session?.role === "admin";
   const NAV=[
     {id:"overview",l:"Overview",ic:<LayoutDashboard size={16}/>},
     {id:"bus",l:"Bus Occupancy",ic:<Bus size={16}/>},
     {id:"purchase",l:"Purchase Obligations",ic:<Briefcase size={16}/>},
-    {id:"settings",l:"Settings",ic:<Settings size={16}/>},
+    ...(isAdmin?[{id:"settings",l:"Settings",ic:<Settings size={16}/>}]:[]),
   ];
 
   const navW=navCollapsed?60:220;
@@ -1761,8 +1763,8 @@ export default function App(){
           {!navCollapsed&&(
             <>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:12,fontWeight:600,color:S.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{session.username}</div>
-                <div style={{fontSize:10,color:S.muted}}>{session.role||"viewer"}</div>
+                <div style={{fontSize:12,fontWeight:600,color:S.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{session.name||session.username}</div>
+                <div style={{fontSize:10,color:S.muted,textTransform:"capitalize"}}>{session.role||"viewer"}</div>
               </div>
               <button onClick={()=>{clearAuth();setSession(null);}} title="Sign out" style={{background:"none",border:"none",color:S.muted2,cursor:"pointer",padding:4,flexShrink:0,fontSize:14}}>→</button>
             </>
@@ -1786,8 +1788,7 @@ export default function App(){
           {tab==="overview"  &&<OverviewTab  token={token}/>}
           {tab==="bus"       &&<BusTab       token={token}/>}
           {tab==="purchase"  &&<PurchaseTab  token={token}/>}
-          const[tab,setTab]=useState("overview");
-  useEffect(()=>{if(tab==="settings"&&session?.role!=="admin")setTab("overview");},[tab,session]);
+          {tab==="settings" && isAdmin &&<SettingsTab token={token} session={session} onLogout={()=>{clearAuth();setSession(null);}}/>}
         </div>
       </div>
     </div>
