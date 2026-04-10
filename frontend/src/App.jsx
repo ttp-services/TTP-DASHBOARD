@@ -22,7 +22,7 @@ async function api(path,params={},token){
   return r.json();
 }
 
-const fmtM=v=>{const n=parseFloat(v)||0;if(Math.abs(n)>=1e6)return`€${Math.round(n/1e6).toLocaleString("nl-BE")}M`;if(Math.abs(n)>=1e3)return`€${Math.round(n/1e3).toLocaleString("nl-BE")}K`;return`€${Math.round(n).toLocaleString("nl-BE")}`;};
+const fmtM=v=>{const n=parseFloat(v)||0;return`€${Math.round(n).toLocaleString("nl-BE")}`;};
 const fmtN=v=>v==null?"—":Number(v).toLocaleString("nl-BE");
 const fmtPct=v=>v==null?"—":`${v>=0?"+":""}${parseFloat(v).toFixed(1)}%`;
 const fmtEur=v=>{const n=parseFloat(v)||0;return`€${n.toLocaleString("nl-BE",{minimumFractionDigits:2,maximumFractionDigits:2})}`;};
