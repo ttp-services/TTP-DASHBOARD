@@ -659,10 +659,10 @@ function BusTab({token}){
                       <thead style={{position:"sticky",top:0,background:"#f8faff",zIndex:5}}>
                         <tr>
                           <th style={{...THL,borderRight:"2px solid #2563eb"}} rowSpan={2}>Date</th>
-                          <th style={{...TH,textAlign:"center",borderRight:`1px solid ${S.border2}`,color:S.text}} colSpan={4}>Total</th>
-                          <th style={{...TH,textAlign:"center",borderRight:`1px solid ${S.border2}`,color:S.warn}} colSpan={4}>Royal Class</th>
-                          <th style={{...TH,textAlign:"center",borderRight:`1px solid ${S.border2}`,color:S.success}} colSpan={4}>First Class</th>
-                          <th style={{...TH,textAlign:"center",borderRight:`1px solid ${S.border2}`,color:S.purple}} colSpan={4}>Premium Class</th>
+                          <th style={{...TH,textAlign:"center",borderRight:`1px solid ${S.border2}`,color:"#ffffff"}} colSpan={4}>Total</th>
+                          <th style={{...TH,textAlign:"center",borderRight:`1px solid ${S.border2}`,color:"#ffffff"}} colSpan={4}>Royal Class</th>
+                          <th style={{...TH,textAlign:"center",borderRight:`1px solid ${S.border2}`,color:"#ffffff"}} colSpan={4}>First Class</th>
+                          <th style={{...TH,textAlign:"center",borderRight:`1px solid ${S.border2}`,color:"#ffffff"}} colSpan={4}>Premium Class</th>
                           </tr>
                         <tr>
                           {["Total","Lower","Upper","No Deck","Total","Lower","Upper","No Deck","Total","Lower","Upper","No Deck","Total","Lower","Upper","No Deck"].map((h,i)=>(
