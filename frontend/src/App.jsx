@@ -483,7 +483,7 @@ function OverviewTab({token}){
 
 function BusTab({token}){
   const[view,setView]=useState("pendel");
-  const[sl,setSl]=useState({pendels:[],regions:[],statuses:[],feederLines:[]});
+  const[sl,setSl]=useState({pendels:[],regions:[],statuses:[],feederLines:[],statusesEnglish:[]});
   const[busK,setBusK]=useState(null);
   const[pendel,setPendel]=useState([]);
   const[feeder,setFeeder]=useState([]);
@@ -491,7 +491,14 @@ function BusTab({token}){
   const[loading,setLoading]=useState(false);
   const[f,setF]=useState({dateFrom:`2020-01-01`,dateTo:`${cy}-12-31`,pendel:"",region:"",label:"",feederLine:"",weekday:"",status:"",_collapsed:false});
 
-  useEffect(()=>{api("/api/dashboard/bus-slicers",{},token).then(d=>{if(d&&!d.error)setSl(d);}).catch(()=>{});},[token]);
+  useEffect(()=>{
+    api("/api/dashboard/bus-slicers",{},token).then(d=>{
+      if(d&&!d.error){
+        console.log("bus-slicers loaded:",d);
+        setSl(d);
+      }
+    }).catch(e=>console.error("bus-slicers error:",e));
+  },[token]);
 
   function applyLoad(){
     setLoading(true);
@@ -813,7 +820,7 @@ function BusTab({token}){
                       <select value={f.pendel||""} onChange={e=>setF({...f,pendel:e.target.value})}
                         style={{width:"100%",background:S.card,border:`1px solid ${S.border2}`,borderRadius:6,padding:"6px 8px",color:S.text,fontSize:11,outline:"none"}}>
                         <option value="">All Pendels</option>
-                        {sl.pendels.map(o=><option key={o} value={o}>{o}</option>)}
+                        {sl.pendels.map(o=><option key={o} value={o}>H-{o}</option>)}
                       </select>
                     </div>
                     <div>
