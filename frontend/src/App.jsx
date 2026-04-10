@@ -560,32 +560,49 @@ function BusTab({token}){
               ))}
             </div>
           )}
-          {view==="pendel"&&(
+{view==="pendel"&&(
             <Card p="0">
               <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,fontSize:13,fontWeight:700,color:S.text,display:"flex",alignItems:"center",gap:6}}><Bus size={14} color={S.accent}/>Pendel Overview</div>
-              <div style={{overflowX:"auto",maxHeight:500,overflowY:"auto"}}>
+              <div style={{overflowX:"auto",maxHeight:560,overflowY:"auto"}}>
                 <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                  <thead><tr>
-                    <th style={THL}>Start Date</th><th style={THL}>End Date</th>
-                    <th style={TH}>ORC</th><th style={TH}>OFC</th><th style={TH}>OPRE</th>
-                    <th style={{...TH,color:S.accent}}>Out Total</th>
-                    <th style={TH}>RRC</th><th style={TH}>RFC</th><th style={TH}>RPRE</th>
-                    <th style={{...TH,color:S.accent}}>In Total</th>
-                    <th style={{...TH,color:S.warn}}>Δ Royal</th><th style={{...TH,color:S.warn}}>Δ First</th>
-                    <th style={{...TH,color:S.warn}}>Δ Premium</th><th style={{...TH,color:S.warn}}>Δ Total</th>
-                  </tr></thead>
+                  <thead>
+                    <tr>
+                      <th style={{padding:"8px 12px",textAlign:"left",background:"#1a56db",color:"#fff",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderRight:"1px solid #2563eb"}} rowSpan={2}>Start Date</th>
+                      <th style={{padding:"8px 12px",textAlign:"center",background:"#1a56db",color:"#fff",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",borderRight:"2px solid #fff"}} colSpan={4}>Outbound</th>
+                      <th style={{padding:"8px 12px",textAlign:"left",background:"#1a56db",color:"#fff",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderRight:"1px solid #2563eb"}} rowSpan={2}>Return Date</th>
+                      <th style={{padding:"8px 12px",textAlign:"center",background:"#1a56db",color:"#fff",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",borderRight:"2px solid #fff"}} colSpan={4}>Inbound</th>
+                      <th style={{padding:"8px 12px",textAlign:"center",background:"#d97706",color:"#fff",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em"}} colSpan={4}>Difference Outbound vs Inbound</th>
+                    </tr>
+                    <tr>
+                      {["Total","Royal Class","First Class","Premium Class"].map((h,i)=>(
+                        <th key={"o"+i} style={{padding:"7px 12px",textAlign:"right",background:"#dbeafe",color:"#1e40af",fontWeight:700,fontSize:10,borderBottom:"2px solid #93c5fd",borderRight:i===3?"2px solid #fff":"1px solid #bfdbfe",whiteSpace:"nowrap"}}>{h}</th>
+                      ))}
+                      {["Total","Royal Class","First Class","Premium Class"].map((h,i)=>(
+                        <th key={"i"+i} style={{padding:"7px 12px",textAlign:"right",background:"#dbeafe",color:"#1e40af",fontWeight:700,fontSize:10,borderBottom:"2px solid #93c5fd",borderRight:i===3?"2px solid #d97706":"1px solid #bfdbfe",whiteSpace:"nowrap"}}>{h}</th>
+                      ))}
+                      {["Total","Royal Class","First Class","Premium Class"].map((h,i)=>(
+                        <th key={"d"+i} style={{padding:"7px 12px",textAlign:"right",background:"#fef3c7",color:"#92400e",fontWeight:700,fontSize:10,borderBottom:"2px solid #fcd34d",borderRight:i<3?"1px solid #fde68a":"none",whiteSpace:"nowrap"}}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
                   <tbody>
-                    {pendel.length===0&&<tr><td colSpan={15} style={{padding:28,textAlign:"center",color:S.muted}}>No data</td></tr>}
+                    {pendel.length===0&&<tr><td colSpan={13} style={{padding:28,textAlign:"center",color:S.muted}}>No data — click Apply Filters</td></tr>}
                     {pendel.map((r,i)=>(
-                      <tr key={i} style={{borderBottom:`1px solid ${S.border}`,background:i%2===0?"transparent":"#f8faff"}}>
-                        {pendel.length===0&&<tr><td colSpan={14} style={{padding:28,textAlign:"center",color:S.muted}}>No data</td></tr>}<td style={TD}>{fmtN(r.OFC)}</td><td style={TD}>{fmtN(r.OPRE)}</td>
-                        <td style={{...TD,fontWeight:700,color:S.accent}}>{fmtN(r.Outbound_Total)}</td>
-                        <td style={TD}>{fmtN(r.RRC)}</td><td style={TD}>{fmtN(r.RFC)}</td><td style={TD}>{fmtN(r.RPRE)}</td>
-                        <td style={{...TD,fontWeight:700,color:S.accent}}>{fmtN(r.Inbound_Total)}</td>
-                        <td style={{...TD,color:dc(r.Diff_Royal)}}>{r.Diff_Royal>=0?"+":""}{fmtN(r.Diff_Royal)}</td>
-                        <td style={{...TD,color:dc(r.Diff_First)}}>{r.Diff_First>=0?"+":""}{fmtN(r.Diff_First)}</td>
-                        <td style={{...TD,color:dc(r.Diff_Premium)}}>{r.Diff_Premium>=0?"+":""}{fmtN(r.Diff_Premium)}</td>
-                        <td style={{...TD,fontWeight:700,color:dc(r.Diff_Total)}}>{r.Diff_Total>=0?"+":""}{fmtN(r.Diff_Total)}</td>
+                      <tr key={i} style={{borderBottom:"1px solid #e2e8f0",background:i%2===0?"#ffffff":"#f0f7ff"}}>
+                        <td style={{padding:"8px 12px",fontWeight:600,color:S.accent,whiteSpace:"nowrap",borderRight:"1px solid #bfdbfe"}}>{r.StartDate}</td>
+                        <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:S.text,borderRight:"1px solid #bfdbfe"}}>{fmtN(r.Outbound_Total)}</td>
+                        <td style={{padding:"8px 12px",textAlign:"right",color:S.warn,borderRight:"1px solid #bfdbfe"}}>{fmtN(r.ORC)}</td>
+                        <td style={{padding:"8px 12px",textAlign:"right",color:S.success,borderRight:"1px solid #bfdbfe"}}>{fmtN(r.OFC)}</td>
+                        <td style={{padding:"8px 12px",textAlign:"right",color:S.purple,borderRight:"2px solid #93c5fd"}}>{fmtN(r.OPRE)}</td>
+                        <td style={{padding:"8px 12px",fontWeight:600,color:S.muted,whiteSpace:"nowrap",borderRight:"1px solid #bfdbfe"}}>{r.EndDate}</td>
+                        <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:S.text,borderRight:"1px solid #bfdbfe"}}>{fmtN(r.Inbound_Total)}</td>
+                        <td style={{padding:"8px 12px",textAlign:"right",color:S.warn,borderRight:"1px solid #bfdbfe"}}>{fmtN(r.RRC)}</td>
+                        <td style={{padding:"8px 12px",textAlign:"right",color:S.success,borderRight:"1px solid #bfdbfe"}}>{fmtN(r.RFC)}</td>
+                        <td style={{padding:"8px 12px",textAlign:"right",color:S.purple,borderRight:"2px solid #fcd34d"}}>{fmtN(r.RPRE)}</td>
+                        <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:dc(r.Diff_Total),borderRight:"1px solid #fde68a"}}>{r.Diff_Total>=0?"+":""}{fmtN(r.Diff_Total)}</td>
+                        <td style={{padding:"8px 12px",textAlign:"right",color:dc(r.Diff_Royal),borderRight:"1px solid #fde68a"}}>{r.Diff_Royal>=0?"+":""}{fmtN(r.Diff_Royal)}</td>
+                        <td style={{padding:"8px 12px",textAlign:"right",color:dc(r.Diff_First),borderRight:"1px solid #fde68a"}}>{r.Diff_First>=0?"+":""}{fmtN(r.Diff_First)}</td>
+                        <td style={{padding:"8px 12px",textAlign:"right",color:dc(r.Diff_Premium)}}>{r.Diff_Premium>=0?"+":""}{fmtN(r.Diff_Premium)}</td>
                       </tr>
                     ))}
                   </tbody>
