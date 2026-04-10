@@ -502,19 +502,43 @@ function BusTab({token}){
 
   function applyLoad(){
     setLoading(true);
+
+    // Params for deck & kpis (solmar_bus_deck_choice — has Label, Region, Status, Pendel)
     const p={};
-    if(f.dateFrom)p.dateFrom=f.dateFrom;if(f.dateTo)p.dateTo=f.dateTo;
-    if(f.pendel)p.pendel=f.pendel;if(f.region)p.region=f.region;
+    if(f.dateFrom)p.dateFrom=f.dateFrom;
+    if(f.dateTo)p.dateTo=f.dateTo;
+    if(f.pendel)p.pendel=f.pendel;
+    if(f.region)p.region=f.region;
     if(f.weekday)p.weekday=f.weekday;
     if(f.status)p.status=f.status;
     if(f.label)p.label=f.label;
-    const fp={...p};if(f.feederLine)fp.feederLine=f.feederLine;if(f.weekday)fp.weekday=f.weekday;
+
+    // Params for pendel (BUStrips — only has dateFrom, dateTo, weekday, pendel — NO label, NO status)
+    const pp={};
+    if(f.dateFrom)pp.dateFrom=f.dateFrom;
+    if(f.dateTo)pp.dateTo=f.dateTo;
+    if(f.pendel)pp.pendel=f.pendel;
+    if(f.weekday)pp.weekday=f.weekday;
+
+    // Params for feeder (FeederOverview — has dateFrom, dateTo, feederLine, label, weekday)
+    const fp={};
+    if(f.dateFrom)fp.dateFrom=f.dateFrom;
+    if(f.dateTo)fp.dateTo=f.dateTo;
+    if(f.feederLine)fp.feederLine=f.feederLine;
+    if(f.label)fp.label=f.label;
+    if(f.weekday)fp.weekday=f.weekday;
+
     Promise.all([
       api("/api/dashboard/bus-kpis",p,token).catch(()=>({})),
-      api("/api/dashboard/pendel-overview",p,token).catch(()=>[]),
+      api("/api/dashboard/pendel-overview",pp,token).catch(()=>[]),
       api("/api/dashboard/feeder-overview",fp,token).catch(()=>[]),
       api("/api/dashboard/deck-class",p,token).catch(()=>[])
-    ]).then(([k,pd,fd,dc])=>{setBusK(k||{});setPendel(Array.isArray(pd)?pd:[]);setFeeder(Array.isArray(fd)?fd:[]);setDeck(Array.isArray(dc)?dc:[]);}).finally(()=>setLoading(false));
+    ]).then(([k,pd,fd,dc])=>{
+      setBusK(k||{});
+      setPendel(Array.isArray(pd)?pd:[]);
+      setFeeder(Array.isArray(fd)?fd:[]);
+      setDeck(Array.isArray(dc)?dc:[]);
+    }).finally(()=>setLoading(false));
   }
   useEffect(()=>{applyLoad();},[token]);
 
