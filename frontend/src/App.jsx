@@ -518,9 +518,9 @@ function BusTab({token}){
   feeder.forEach(r=>{const rk=`${r.RouteNo}||${r.RouteLabel}`;if(!froutes[rk])froutes[rk]={no:r.RouteNo,label:r.RouteLabel,stops:{},totals:{}};if(!froutes[rk].stops[r.StopName])froutes[rk].stops[r.StopName]={};froutes[rk].stops[r.StopName][r.DepartureDate]=(froutes[rk].stops[r.StopName][r.DepartureDate]||0)+(r.TotalPax||0);froutes[rk].totals[r.DepartureDate]=(froutes[rk].totals[r.DepartureDate]||0)+(r.TotalPax||0);});
   const rl=Object.values(froutes).sort((a,b)=>a.no-b.no);
 
-  const TH={padding:"9px 12px",textAlign:"right",fontSize:11,fontWeight:700,color:"#ffffff",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",background:"#1a56db",borderRight:"1px solid #2563eb"};
+  const TH={padding:"9px 12px",textAlign:"right",fontSize:11,fontWeight:700,color:"#ffffff",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",background:"#1e40af",borderRight:"1px solid #3b82f6"};
   const THL={...TH,textAlign:"left"};
-  const TD={padding:"8px 12px",textAlign:"right",fontSize:12,color:S.text,whiteSpace:"nowrap",borderBottom:"1px solid #dbeafe",borderRight:"1px solid #dbeafe"};
+  const TD={padding:"8px 12px",textAlign:"right",fontSize:12,color:S.text,whiteSpace:"nowrap",borderBottom:"1px solid #dbeafe",borderRight:"1px solid #e8f0fe"};
   const TDL={...TD,textAlign:"left"};
   const lbl=l=><label style={{fontSize:10,color:S.muted,display:"block",marginBottom:4,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>{l}</label>;
   const sel=(val,set,opts)=><select value={val} onChange={e=>set(e.target.value)} style={{width:"100%",background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"6px 8px",color:S.text,fontSize:11,outline:"none"}}><option value="">All</option>{opts.map(o=><option key={o} value={o}>{o}</option>)}</select>;
@@ -616,28 +616,28 @@ function BusTab({token}){
               <div style={{overflowX:"auto"}}>
                 <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
                   <thead><tr>
-                    <th style={{padding:"9px 12px",textAlign:"left",background:"#1a56db",color:"#fff",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderRight:"1px solid #2563eb"}}>Class</th>
-                    <th style={{padding:"9px 12px",textAlign:"right",background:"#1a56db",color:"#fff",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderRight:"1px solid #2563eb"}}>Total PAX</th>
-                    <th style={{padding:"9px 12px",textAlign:"right",background:"#1a56db",color:"#fff",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderRight:"1px solid #2563eb"}}>Lower</th>
-                    <th style={{padding:"9px 12px",textAlign:"right",background:"#1a56db",color:"#fff",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderRight:"1px solid #2563eb"}}>Upper</th>
-                    <th style={{padding:"9px 12px",textAlign:"right",background:"#1a56db",color:"#fff",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderRight:"1px solid #2563eb"}}>No Deck</th>
-                    <th style={{padding:"9px 12px",textAlign:"right",background:"#1a56db",color:"#fff",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderRight:"1px solid #2563eb"}}>Lower %</th>
-                    <th style={{padding:"9px 12px",textAlign:"right",background:"#1a56db",color:"#fff",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>Upper %</th>
+                    <th style={{padding:"9px 12px",textAlign:"left",background:"#1e40af",color:"#fff",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderRight:"1px solid #3b82f6"}}>Class</th>
+                    <th style={{padding:"9px 12px",textAlign:"right",background:"#1e40af",color:"#fff",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderRight:"1px solid #3b82f6"}}>Total PAX</th>
+                    <th style={{padding:"9px 12px",textAlign:"right",background:"#1e40af",color:"#bfdbfe",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderRight:"1px solid #3b82f6"}}>Lower</th>
+                    <th style={{padding:"9px 12px",textAlign:"right",background:"#1e40af",color:"#bbf7d0",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderRight:"1px solid #3b82f6"}}>Upper</th>
+                    <th style={{padding:"9px 12px",textAlign:"right",background:"#1e40af",color:"#e2e8f0",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderRight:"1px solid #3b82f6"}}>No Deck</th>
+                    <th style={{padding:"9px 12px",textAlign:"right",background:"#1e40af",color:"#bfdbfe",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderRight:"1px solid #3b82f6"}}>Lower %</th>
+                    <th style={{padding:"9px 12px",textAlign:"right",background:"#1e40af",color:"#bbf7d0",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>Upper %</th>
                   </tr></thead>
                   <tbody>
                     {[
-                      {label:"TOTAL",total:"Total",lower:"Total_Lower",upper:"Total_Upper",noDeck:"Total_NoDeck",c:"#1a56db"},
+                      {label:"TOTAL",total:"Total",lower:"Total_Lower",upper:"Total_Upper",noDeck:"Total_NoDeck",c:S.text,bold:true},
                       {label:"Royal Class",total:"Royal_Total",lower:"Royal_Lower",upper:"Royal_Upper",noDeck:"Royal_NoDeck",c:S.warn},
                       {label:"First Class",total:"First_Total",lower:"First_Lower",upper:"First_Upper",noDeck:"First_NoDeck",c:S.success},
                       {label:"Premium Class",total:"Premium_Total",lower:"Premium_Lower",upper:"Premium_Upper",noDeck:"Premium_NoDeck",c:S.purple},
                     ].map((row,i)=>(
-                      <tr key={i} style={{borderBottom:"1px solid #dbeafe",background:i%2===0?"#ffffff":"#f0f7ff"}}>
+                      <tr key={i} style={{borderBottom:"1px solid #dbeafe",background:i===0?"#eff6ff":i%2===0?"#ffffff":"#f0f7ff"}}>
                         <td style={{padding:"9px 12px",textAlign:"left",fontWeight:i===0?800:600,color:row.c,borderRight:"1px solid #dbeafe",fontSize:12}}>{row.label}</td>
                         <td style={{padding:"9px 12px",textAlign:"right",fontWeight:700,color:row.c,borderRight:"1px solid #dbeafe",fontSize:12}}>{fmtN(deckTotals[row.total]||0)}</td>
-                        <td style={{padding:"9px 12px",textAlign:"right",color:"#1a56db",borderRight:"1px solid #dbeafe",fontSize:12}}>{fmtN(deckTotals[row.lower]||0)}</td>
+                        <td style={{padding:"9px 12px",textAlign:"right",color:S.accent,borderRight:"1px solid #dbeafe",fontSize:12}}>{fmtN(deckTotals[row.lower]||0)}</td>
                         <td style={{padding:"9px 12px",textAlign:"right",color:S.success,borderRight:"1px solid #dbeafe",fontSize:12}}>{fmtN(deckTotals[row.upper]||0)}</td>
                         <td style={{padding:"9px 12px",textAlign:"right",color:S.muted,borderRight:"1px solid #dbeafe",fontSize:12}}>{fmtN(deckTotals[row.noDeck]||0)}</td>
-                        <td style={{padding:"9px 12px",textAlign:"right",color:"#1a56db",borderRight:"1px solid #dbeafe",fontSize:12}}>{pct(deckTotals[row.lower]||0,deckTotals[row.total]||1)}</td>
+                        <td style={{padding:"9px 12px",textAlign:"right",color:S.accent,borderRight:"1px solid #dbeafe",fontSize:12}}>{pct(deckTotals[row.lower]||0,deckTotals[row.total]||1)}</td>
                         <td style={{padding:"9px 12px",textAlign:"right",color:S.success,fontSize:12}}>{pct(deckTotals[row.upper]||0,deckTotals[row.total]||1)}</td>
                       </tr>
                     ))}
@@ -767,8 +767,8 @@ function BusTab({token}){
                 </div>
               </div>
 
-              {/* STATUS — only for Deck view */}
-              {view==="deck"&&(
+              {/* STATUS */}
+              {(
                 <div style={{background:S.bg,borderRadius:8,padding:"10px 10px",border:`1px solid ${S.border}`}}>
                   <div style={{fontSize:10,fontWeight:700,color:S.accent,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8,display:"flex",alignItems:"center",gap:4}}>
                     <span style={{width:3,height:12,background:S.accent,borderRadius:2,display:"inline-block"}}/>Status
@@ -1137,9 +1137,9 @@ function PurchaseTab({token}){
     ["Base Price (€)","right"],["Sold (€)","right"],["Paid (€)","right"],["Deposit (€)","right"],
     ["Commission (€)","right"],["Margin (€)","right"],["Margin%","right"],["Margin+Comm (€)","right"],
   ];
-  const TH={padding:"9px 12px",textAlign:"right",fontSize:11,fontWeight:700,color:"#ffffff",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",background:"#1a56db",borderRight:"1px solid #2563eb"};
+  const TH={padding:"9px 12px",textAlign:"right",fontSize:11,fontWeight:700,color:"#ffffff",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",background:"#1e40af",borderRight:"1px solid #3b82f6"};
   const THL={...TH,textAlign:"left"};
-  const TD={padding:"8px 12px",textAlign:"right",fontSize:12,color:S.text,whiteSpace:"nowrap",borderBottom:"1px solid #dbeafe",borderRight:"1px solid #dbeafe"};
+  const TD={padding:"8px 12px",textAlign:"right",fontSize:12,color:S.text,whiteSpace:"nowrap",borderBottom:"1px solid #dbeafe",borderRight:"1px solid #e8f0fe"};
   const TDL={...TD,textAlign:"left"};
 
   return(
