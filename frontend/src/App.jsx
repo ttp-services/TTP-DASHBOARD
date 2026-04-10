@@ -460,7 +460,7 @@ function OverviewTab({token}){
                       <td style={{padding:"9px 14px",textAlign:"right",color:S.text,fontWeight:600}}>{fmt(cur)}</td>
                       <td style={{padding:"9px 14px",textAlign:"right",color:S.muted}}>{fmt(prv)}</td>
                       <td style={{padding:"9px 14px",textAlign:"right",fontWeight:600,color:dc(dif)}}>
-                        {dif!=null?(parseFloat(dif)>=0?"+":"")+fmt(Math.abs(dif)):"—"}
+                        {dif!=null?(parseFloat(dif)>=0?"+":"-")+fmt(Math.abs(dif)):"—"}
                       </td>
                       <td style={{padding:"9px 14px",textAlign:"right"}}>
                         {pct!=null?(
