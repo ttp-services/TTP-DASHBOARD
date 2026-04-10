@@ -22,7 +22,7 @@ async function api(path,params={},token){
   return r.json();
 }
 
-const fmtM=v=>{const n=parseFloat(v)||0;if(Math.abs(n)>=1e6)return`€${(n/1e6).toFixed(2)}M`;if(Math.abs(n)>=1e3)return`€${(n/1e3).toFixed(1)}K`;return`€${Math.round(n).toLocaleString("nl-BE")}`;};
+const fmtM=v=>{const n=parseFloat(v)||0;if(Math.abs(n)>=1e6)return`€${Math.round(n/1e6).toLocaleString("nl-BE")}M`;if(Math.abs(n)>=1e3)return`€${Math.round(n/1e3).toLocaleString("nl-BE")}K`;return`€${Math.round(n).toLocaleString("nl-BE")}`;};
 const fmtN=v=>v==null?"—":Number(v).toLocaleString("nl-BE");
 const fmtPct=v=>v==null?"—":`${v>=0?"+":""}${parseFloat(v).toFixed(1)}%`;
 const fmtEur=v=>{const n=parseFloat(v)||0;return`€${n.toLocaleString("nl-BE",{minimumFractionDigits:2,maximumFractionDigits:2})}`;};
@@ -526,7 +526,7 @@ function BusTab({token}){
   const sel=(val,set,opts)=><select value={val} onChange={e=>set(e.target.value)} style={{width:"100%",background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"6px 8px",color:S.text,fontSize:11,outline:"none"}}><option value="">All</option>{opts.map(o=><option key={o} value={o}>{o}</option>)}</select>;
   const di=(val,set)=><input type="date" value={val} onChange={e=>set(e.target.value)} style={{width:"100%",background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"6px 8px",color:S.text,fontSize:11,boxSizing:"border-box",outline:"none"}}/>;
   const WEEKDAYS=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
-  const deckTotals=deck.reduce((acc,r)=>{["Total","Total_Lower","Total_Upper","Total_NoDeck","Royal_Total","Royal_Lower","Royal_Upper","Royal_NoDeck","First_Total","First_Lower","First_Upper","First_NoDeck","Premium_Total","Premium_Lower","Premium_Upper","Premium_NoDeck","Comfort_Total","Comfort_Lower","Comfort_Upper","Comfort_NoDeck"].forEach(k=>{acc[k]=(acc[k]||0)+(r[k]||0);});return acc;},{});
+  const deckTotals=deck.reduce((acc,r)=>{["Total","Total_Lower","Total_Upper","Total_NoDeck","Royal_Total","Royal_Lower","Royal_Upper","Royal_NoDeck","First_Total","First_Lower","First_Upper","First_NoDeck","Premium_Total","Premium_Lower","Premium_Upper","Premium_NoDeck"].forEach(k=>{acc[k]=(acc[k]||0)+(r[k]||0);});return acc;},{});
   const pct=(a,b)=>b>0?`${((a/b)*100).toFixed(1)}%`:"—";
 
   return(
@@ -567,7 +567,6 @@ function BusTab({token}){
                 <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
                   <thead><tr>
                     <th style={THL}>Start Date</th><th style={THL}>End Date</th>
-                    <th style={THL}>Pendel</th>
                     <th style={TH}>ORC</th><th style={TH}>OFC</th><th style={TH}>OPRE</th>
                     <th style={{...TH,color:S.accent}}>Out Total</th>
                     <th style={TH}>RRC</th><th style={TH}>RFC</th><th style={TH}>RPRE</th>
@@ -579,10 +578,7 @@ function BusTab({token}){
                     {pendel.length===0&&<tr><td colSpan={15} style={{padding:28,textAlign:"center",color:S.muted}}>No data</td></tr>}
                     {pendel.map((r,i)=>(
                       <tr key={i} style={{borderBottom:`1px solid ${S.border}`,background:i%2===0?"transparent":"#f8faff"}}>
-                        <td style={{...TDL,color:S.accent,fontWeight:600}}>{r.StartDate}</td>
-                        <td style={{...TDL,color:S.muted}}>{r.EndDate}</td>
-                        <td style={{...TDL,color:S.purple,fontWeight:600,fontSize:11}}>{r.NormalizedPendel||"—"}</td>
-                        <td style={TD}>{fmtN(r.ORC)}</td><td style={TD}>{fmtN(r.OFC)}</td><td style={TD}>{fmtN(r.OPRE)}</td>
+                        {pendel.length===0&&<tr><td colSpan={14} style={{padding:28,textAlign:"center",color:S.muted}}>No data</td></tr>}<td style={TD}>{fmtN(r.OFC)}</td><td style={TD}>{fmtN(r.OPRE)}</td>
                         <td style={{...TD,fontWeight:700,color:S.accent}}>{fmtN(r.Outbound_Total)}</td>
                         <td style={TD}>{fmtN(r.RRC)}</td><td style={TD}>{fmtN(r.RFC)}</td><td style={TD}>{fmtN(r.RPRE)}</td>
                         <td style={{...TD,fontWeight:700,color:S.accent}}>{fmtN(r.Inbound_Total)}</td>
