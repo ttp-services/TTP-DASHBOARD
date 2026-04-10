@@ -625,11 +625,11 @@ function BusTab({token}){
                   <thead><tr>
                     <th style={{padding:"9px 12px",textAlign:"left",background:"#1e40af",color:"#fff",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderRight:"1px solid #3b82f6"}}>Class</th>
                     <th style={{padding:"9px 12px",textAlign:"right",background:"#1e40af",color:"#fff",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderRight:"1px solid #3b82f6"}}>Total PAX</th>
-                    <th style={{padding:"9px 12px",textAlign:"right",background:"#1e40af",color:"#bfdbfe",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderRight:"1px solid #3b82f6"}}>Lower</th>
-                    <th style={{padding:"9px 12px",textAlign:"right",background:"#1e40af",color:"#bbf7d0",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderRight:"1px solid #3b82f6"}}>Upper</th>
-                    <th style={{padding:"9px 12px",textAlign:"right",background:"#1e40af",color:"#e2e8f0",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderRight:"1px solid #3b82f6"}}>No Deck</th>
-                    <th style={{padding:"9px 12px",textAlign:"right",background:"#1e40af",color:"#bfdbfe",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderRight:"1px solid #3b82f6"}}>Lower %</th>
-                    <th style={{padding:"9px 12px",textAlign:"right",background:"#1e40af",color:"#bbf7d0",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>Upper %</th>
+                    <th style={{padding:"9px 12px",textAlign:"right",background:"#1e40af",color:"#ffffff",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderRight:"1px solid #3b82f6"}}>Lower</th>
+                    <th style={{padding:"9px 12px",textAlign:"right",background:"#1e40af",color:"#ffffff",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderRight:"1px solid #3b82f6"}}>Upper</th>
+                    <th style={{padding:"9px 12px",textAlign:"right",background:"#1e40af",color:"#ffffff",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderRight:"1px solid #3b82f6"}}>No Deck</th>
+                    <th style={{padding:"9px 12px",textAlign:"right",background:"#1e40af",color:"#ffffff",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderRight:"1px solid #3b82f6"}}>Lower %</th>
+                    <th style={{padding:"9px 12px",textAlign:"right",background:"#1e40af",color:"#ffffff",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>Upper %</th>
                   </tr></thead>
                   <tbody>
                     {[
