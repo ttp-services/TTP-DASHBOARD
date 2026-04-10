@@ -1478,6 +1478,367 @@ function PurchaseTab({token}){
     </div>
   );
 }
+
+function HotelTab({token}){
+  const[subTab,setSubTab]=useState("overview");
+  // ── Overview state ──
+  const[sl,setSl]=useState({regions:[],destinations:[],transports:[],labels:[]});
+  const[f,setF]=useState({depFrom:"",depTo:"",bkFrom:"",bkTo:"",region:"",destination:"",transport:"",label:[],status:[]});
+  const[data,setData]=useState([]);
+  const[kpis,setKpis]=useState(null);
+  const[loading,setLoading]=useState(false);
+  const[err,setErr]=useState(null);
+  const[page,setPage]=useState(1);
+  const[total,setTotal]=useState(0);
+  const[sort,setSort]=useState({col:"pax",dir:"desc"});
+  const[search,setSearch]=useState("");
+  const PAGE_SIZE=50;
+
+  // ── Reviews state ──
+  const[ratings,setRatings]=useState([]);
+  const[reviews,setReviews]=useState([]);
+  const[revTotal,setRevTotal]=useState(0);
+  const[revPage,setRevPage]=useState(1);
+  const[revSearch,setRevSearch]=useState("");
+  const[selectedHotel,setSelectedHotel]=useState("");
+  const[hotelStats,setHotelStats]=useState(null);
+
+  useEffect(()=>{
+    api("/api/dashboard/hotel-slicers",{},token).then(d=>{if(d&&!d.error)setSl(d);}).catch(()=>{});
+  },[token]);
+
+  useEffect(()=>{
+    if(subTab==="reviews"){
+      api("/api/dashboard/hotel-stats",{},token).then(d=>{if(d&&!d.error)setHotelStats(d);}).catch(()=>{});
+      api("/api/dashboard/hotel-ratings",{},token).then(d=>{if(Array.isArray(d))setRatings(d);}).catch(()=>{});
+      loadReviews(1);
+    }
+  },[subTab,token]);
+
+  function buildParams(pg=1){
+    const out={page:pg,limit:PAGE_SIZE,sort:sort.col,dir:sort.dir};
+    if(f.depFrom)out.depFrom=f.depFrom;
+    if(f.depTo)out.depTo=f.depTo;
+    if(f.bkFrom)out.bkFrom=f.bkFrom;
+    if(f.bkTo)out.bkTo=f.bkTo;
+    if(f.region)out.region=f.region;
+    if(f.destination)out.destination=f.destination;
+    if(f.transport)out.transport=f.transport;
+    if(f.label?.length)out.label=f.label;
+    if(f.status?.length)out.status=f.status;
+    return out;
+  }
+
+  function loadOverview(pg=1){
+    setLoading(true);setErr(null);
+    api("/api/dashboard/hotel-overview",buildParams(pg),token)
+      .then(d=>{setKpis(d?.kpis||null);setData(Array.isArray(d?.data)?d.data:[]);setTotal(Number(d?.totalRows||0));setPage(pg);})
+      .catch(e=>setErr(e.message))
+      .finally(()=>setLoading(false));
+  }
+
+  function loadReviews(pg=1){
+    const p={page:pg,limit:20};
+    if(selectedHotel)p.code=selectedHotel;
+    if(revSearch)p.search=revSearch;
+    api("/api/dashboard/hotel-reviews",p,token)
+      .then(d=>{setReviews(Array.isArray(d?.rows)?d.rows:[]);setRevTotal(Number(d?.total||0));setRevPage(pg);})
+      .catch(()=>{});
+  }
+
+  function reset(){
+    const e={depFrom:"",depTo:"",bkFrom:"",bkTo:"",region:"",destination:"",transport:"",label:[],status:[]};
+    setF(e);setData([]);setKpis(null);setPage(1);setTotal(0);setSearch("");
+  }
+
+  function handleSort(col){
+    const dir=sort.col===col&&sort.dir==="desc"?"asc":"desc";
+    setSort({col,dir});
+  }
+  useEffect(()=>{if(data.length>0)loadOverview(1);},[sort]);
+
+  const togArr=(arr,v)=>arr.includes(v)?arr.filter(x=>x!==v):[...arr,v];
+  const filtered=data.filter(r=>!search||r.hotel?.toLowerCase().includes(search.toLowerCase())||r.region?.toLowerCase().includes(search.toLowerCase()));
+
+  const pctColor=v=>v==null?"#94a3b8":v>=0?"#059669":"#dc2626";
+  const pctFmt=v=>v==null?"—":`${v>=0?"▲":"▼"} ${Math.abs(v).toFixed(1)}%`;
+
+  const SortTH=({col,children,right=true})=>{
+    const active=sort.col===col;
+    return(
+      <th onClick={()=>handleSort(col)} style={{padding:"9px 12px",textAlign:right?"right":"left",fontSize:11,fontWeight:700,color:"#ffffff",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",background:"#1e40af",borderRight:"1px solid #3b82f6",cursor:"pointer",userSelect:"none"}}>
+        {children} {active?(sort.dir==="desc"?"↓":"↑"):""}
+      </th>
+    );
+  };
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden",background:S.bg}}>
+      {/* Sub-tab bar */}
+      <div style={{background:S.card,borderBottom:`1px solid ${S.border}`,padding:"10px 20px",display:"flex",gap:6,flexShrink:0,boxShadow:S.shadow}}>
+        {[
+          ["overview","Hotel Overview","📊"],
+          ["reviews","Hotel Reviews","⭐"],
+        ].map(([id,label,ic])=>(
+          <button key={id} onClick={()=>setSubTab(id)} style={{padding:"7px 16px",borderRadius:8,fontSize:12,cursor:"pointer",border:`1.5px solid ${subTab===id?S.accent:S.border2}`,background:subTab===id?S.accentLight:"transparent",color:subTab===id?S.accent:S.textLight,fontWeight:subTab===id?700:500,transition:"all 0.15s",display:"flex",alignItems:"center",gap:6}}>
+            <span>{ic}</span>{label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── HOTEL OVERVIEW SUB-TAB ── */}
+      {subTab==="overview"&&(
+        <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden"}}>
+          {/* Filter bar */}
+          <div style={{background:S.card,borderBottom:`1px solid ${S.border}`,padding:"10px 16px",display:"flex",alignItems:"flex-end",gap:10,flexWrap:"wrap",flexShrink:0,boxShadow:S.shadow}}>
+            {[["Dep From","depFrom"],["Dep To","depTo"],["Book From","bkFrom"],["Book To","bkTo"]].map(([l,k])=>(
+              <div key={k}>
+                <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:3,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>{l}</label>
+                <input type="date" value={f[k]} onChange={e=>setF({...f,[k]:e.target.value})} style={{background:S.bg,border:`1.5px solid ${S.border2}`,borderRadius:7,padding:"5px 9px",color:S.text,fontSize:12,outline:"none"}}/>
+              </div>
+            ))}
+            <div style={{width:1,height:32,background:S.border2}}/>
+            {[["Region","region",sl.regions],["Destination","destination",sl.destinations],["Transport","transport",sl.transports]].map(([l,k,opts])=>(
+              <div key={k}>
+                <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:3,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>{l}</label>
+                <select value={f[k]} onChange={e=>setF({...f,[k]:e.target.value})} style={{background:S.bg,border:`1.5px solid ${S.border2}`,borderRadius:7,padding:"5px 9px",color:S.text,fontSize:12,outline:"none",maxWidth:140}}>
+                  <option value="">All</option>
+                  {opts.map(o=><option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+            ))}
+            <div style={{width:1,height:32,background:S.border2}}/>
+            <div>
+              <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:3,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Status</label>
+              <div style={{display:"flex",gap:4}}>
+                {[{v:"ok",l:"DEF"},{v:"cancelled",l:"Cancelled"}].map(({v,l})=>{
+                  const active=f.status.includes(v);
+                  return<button key={v} type="button" onClick={()=>setF({...f,status:togArr(f.status,v)})} style={{padding:"4px 10px",borderRadius:12,fontSize:11,cursor:"pointer",border:`1.5px solid ${active?S.success:S.border2}`,background:active?`${S.success}18`:"transparent",color:active?S.success:S.textLight,fontWeight:active?700:400}}>{l}</button>;
+                })}
+              </div>
+            </div>
+            <div style={{marginLeft:"auto",display:"flex",gap:6,alignItems:"flex-end"}}>
+              <Btn onClick={reset} variant="secondary" size="sm">↺ Reset</Btn>
+              <Btn onClick={()=>loadOverview(1)} variant="primary" size="sm">▶ Apply</Btn>
+            </div>
+          </div>
+
+          <div style={{flex:1,overflowY:"auto",padding:"16px 20px",display:"flex",flexDirection:"column",gap:14}}>
+            {err&&<div style={{background:S.dangerBg,border:`1px solid ${S.danger}33`,borderRadius:10,padding:"10px 14px",fontSize:12,color:S.danger}}>⚠ {err}</div>}
+
+            {/* KPI Cards */}
+            {kpis&&(
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
+                {[
+                  {l:"Total Hotels",v:fmtN(kpis.totalHotels),c:S.accent,icon:"🏨"},
+                  {l:"Total Bookings",v:fmtN(kpis.totalBookings),c:S.purple,icon:"📋"},
+                  {l:"Total PAX",v:fmtN(kpis.totalPax),c:S.success,icon:"👥"},
+                  {l:"Total Revenue",v:fmtM(kpis.totalRevenue),c:S.warn,icon:"💶"},
+                ].map(k=>(
+                  <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:"14px 16px",boxShadow:S.shadow,display:"flex",alignItems:"center",gap:12}}>
+                    <div style={{width:40,height:40,borderRadius:10,background:`${k.c}12`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{k.icon}</div>
+                    <div>
+                      <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>{k.l}</div>
+                      <div style={{fontSize:20,fontWeight:800,color:k.c}}>{k.v}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {!kpis&&!loading&&(
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"60px 20px",color:S.muted}}>
+                <div style={{fontSize:48,marginBottom:16}}>🏨</div>
+                <div style={{fontSize:16,fontWeight:600,color:S.textLight,marginBottom:8}}>Hotel Overview</div>
+                <div style={{fontSize:13,color:S.muted,textAlign:"center",maxWidth:400}}>Set filters and click <strong>Apply</strong> to load hotel performance data.</div>
+              </div>
+            )}
+
+            {loading&&<div style={{textAlign:"center",padding:40,color:S.muted,fontSize:13}}>Loading hotel data…</div>}
+
+            {/* Main Table */}
+            {data.length>0&&(
+              <Card p="0">
+                <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,display:"flex",gap:10,alignItems:"center"}}>
+                  <div style={{fontSize:13,fontWeight:700,color:S.text,flex:1}}>Hotel Performance <span style={{fontSize:11,color:S.muted,fontWeight:400}}>({fmtN(total)} hotels)</span></div>
+                  <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search hotel / region…" style={{background:S.bg,border:`1.5px solid ${S.border2}`,borderRadius:7,padding:"5px 10px",color:S.text,fontSize:11,outline:"none",width:200}}/>
+                  <button onClick={()=>{
+                    const cols=["Hotel","Region","Bookings (Current)","Bookings (Last Year)","Bookings Diff %","PAX (Current)","PAX (Last Year)","PAX Diff %","Revenue (Current)","Revenue (Last Year)","Revenue Diff %","Margin","Margin+Comm"];
+                    const rows=filtered.map(r=>[
+                      `"${r.hotel||""}"`,r.region||"",r.bookingsCur,r.bookingsPrev,r.bookingsDiffPct??""
+                      ,r.paxCur,r.paxPrev,r.paxDiffPct??""
+                      ,r.revenueCur,r.revenuePrev,r.revenueDiffPct??""
+                      ,r.margin,r.marginComm
+                    ].join(","));
+                    const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\uFEFF"+[cols.join(","),...rows].join("\n")],{type:"text/csv;charset=utf-8"}));a.download=`hotel-overview-${new Date().toISOString().split("T")[0]}.csv`;a.click();
+                  }} style={{padding:"5px 12px",background:"transparent",border:`1px solid ${S.border2}`,borderRadius:6,color:S.muted,fontSize:11,cursor:"pointer",fontWeight:600}}>↓ CSV</button>
+                </div>
+                {total>PAGE_SIZE&&(
+                  <div style={{padding:"8px 16px",borderBottom:`1px solid ${S.border}`,display:"flex",alignItems:"center",gap:8,fontSize:12,background:"#f8faff"}}>
+                    <span style={{color:S.muted}}>Page {page} of {Math.ceil(total/PAGE_SIZE)}</span>
+                    <div style={{marginLeft:"auto",display:"flex",gap:5}}>
+                      <Btn disabled={page<=1} onClick={()=>loadOverview(page-1)} variant="secondary" size="sm">← Prev</Btn>
+                      <Btn disabled={page>=Math.ceil(total/PAGE_SIZE)} onClick={()=>loadOverview(page+1)} variant="secondary" size="sm">Next →</Btn>
+                    </div>
+                  </div>
+                )}
+                <div style={{overflowX:"auto",maxHeight:520,overflowY:"auto"}}>
+                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:1100}}>
+                    <thead style={{position:"sticky",top:0,zIndex:5}}>
+                      <tr>
+                        <SortTH col="hotel" right={false}>Hotel</SortTH>
+                        <th style={{padding:"9px 12px",textAlign:"left",fontSize:11,fontWeight:700,color:"#ffffff",textTransform:"uppercase",background:"#1e40af",borderRight:"1px solid #3b82f6"}}>Region</th>
+                        <SortTH col="bookings">Bookings</SortTH>
+                        <th style={{padding:"9px 12px",textAlign:"right",fontSize:11,fontWeight:700,color:"#ffffff",textTransform:"uppercase",background:"#1e40af",borderRight:"1px solid #3b82f6"}}>Bk Last Year</th>
+                        <th style={{padding:"9px 12px",textAlign:"right",fontSize:11,fontWeight:700,color:"#ffffff",textTransform:"uppercase",background:"#1e40af",borderRight:"1px solid #3b82f6"}}>Bk Diff %</th>
+                        <SortTH col="pax">PAX</SortTH>
+                        <th style={{padding:"9px 12px",textAlign:"right",fontSize:11,fontWeight:700,color:"#ffffff",textTransform:"uppercase",background:"#1e40af",borderRight:"1px solid #3b82f6"}}>PAX Last Year</th>
+                        <th style={{padding:"9px 12px",textAlign:"right",fontSize:11,fontWeight:700,color:"#ffffff",textTransform:"uppercase",background:"#1e40af",borderRight:"1px solid #3b82f6"}}>PAX Diff %</th>
+                        <SortTH col="revenue">Revenue</SortTH>
+                        <th style={{padding:"9px 12px",textAlign:"right",fontSize:11,fontWeight:700,color:"#ffffff",textTransform:"uppercase",background:"#1e40af",borderRight:"1px solid #3b82f6"}}>Rev Last Year</th>
+                        <th style={{padding:"9px 12px",textAlign:"right",fontSize:11,fontWeight:700,color:"#ffffff",textTransform:"uppercase",background:"#1e40af",borderRight:"1px solid #3b82f6"}}>Rev Diff %</th>
+                        <SortTH col="margin">Margin</SortTH>
+                        <th style={{padding:"9px 12px",textAlign:"right",fontSize:11,fontWeight:700,color:"#ffffff",textTransform:"uppercase",background:"#1e40af",borderRight:"1px solid #3b82f6"}}>Margin+Comm</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filtered.length===0&&<tr><td colSpan={13} style={{padding:28,textAlign:"center",color:S.muted}}>No data</td></tr>}
+                      {filtered.map((r,i)=>(
+                        <tr key={i} style={{borderBottom:"1px solid #dbeafe",background:i%2===0?"#ffffff":"#f0f7ff"}}>
+                          <td style={{padding:"8px 12px",fontWeight:600,color:S.accent,whiteSpace:"nowrap",borderRight:"1px solid #dbeafe",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis"}}>{r.hotel||"—"}</td>
+                          <td style={{padding:"8px 12px",color:S.muted,fontSize:11,borderRight:"1px solid #dbeafe",whiteSpace:"nowrap"}}>{r.region||"—"}</td>
+                          <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:S.text,borderRight:"1px solid #dbeafe"}}>{fmtN(r.bookingsCur)}</td>
+                          <td style={{padding:"8px 12px",textAlign:"right",color:S.muted,borderRight:"1px solid #dbeafe"}}>{fmtN(r.bookingsPrev)}</td>
+                          <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:pctColor(r.bookingsDiffPct),borderRight:"1px solid #dbeafe"}}>{pctFmt(r.bookingsDiffPct)}</td>
+                          <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:S.text,borderRight:"1px solid #dbeafe"}}>{fmtN(r.paxCur)}</td>
+                          <td style={{padding:"8px 12px",textAlign:"right",color:S.muted,borderRight:"1px solid #dbeafe"}}>{fmtN(r.paxPrev)}</td>
+                          <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:pctColor(r.paxDiffPct),borderRight:"1px solid #dbeafe"}}>{pctFmt(r.paxDiffPct)}</td>
+                          <td style={{padding:"8px 12px",textAlign:"right",fontWeight:600,color:S.success,borderRight:"1px solid #dbeafe"}}>{fmtM(r.revenueCur)}</td>
+                          <td style={{padding:"8px 12px",textAlign:"right",color:S.muted,borderRight:"1px solid #dbeafe"}}>{fmtM(r.revenuePrev)}</td>
+                          <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:pctColor(r.revenueDiffPct),borderRight:"1px solid #dbeafe"}}>{pctFmt(r.revenueDiffPct)}</td>
+                          <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:parseFloat(r.margin||0)>=0?S.success:S.danger,borderRight:"1px solid #dbeafe"}}>{fmtM(r.margin)}</td>
+                          <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:parseFloat(r.marginComm||0)>=0?S.success:S.danger}}>{fmtM(r.marginComm)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── HOTEL REVIEWS SUB-TAB ── */}
+      {subTab==="reviews"&&(
+        <div style={{flex:1,overflowY:"auto",padding:"16px 20px",display:"flex",flexDirection:"column",gap:14}}>
+          {/* Stats KPIs */}
+          {hotelStats&&(
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
+              {[
+                {l:"Total Hotels",v:fmtN(hotelStats.total_hotels),c:S.accent,icon:"🏨"},
+                {l:"Total Reviews",v:fmtN(hotelStats.total_reviews),c:S.purple,icon:"⭐"},
+                {l:"Avg Rating",v:parseFloat(hotelStats.avg_rating||0).toFixed(1)+"/10",c:S.warn,icon:"📊"},
+                {l:"High Rated (≥8)",v:fmtN(hotelStats.high_rated),c:S.success,icon:"✅"},
+              ].map(k=>(
+                <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:"14px 16px",boxShadow:S.shadow,display:"flex",alignItems:"center",gap:12}}>
+                  <div style={{width:40,height:40,borderRadius:10,background:`${k.c}12`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{k.icon}</div>
+                  <div>
+                    <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>{k.l}</div>
+                    <div style={{fontSize:20,fontWeight:800,color:k.c}}>{k.v}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Ratings Table */}
+          {ratings.length>0&&(
+            <Card p="0">
+              <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,fontSize:13,fontWeight:700,color:S.text}}>Hotel Ratings Snapshot</div>
+              <div style={{overflowX:"auto",maxHeight:300,overflowY:"auto"}}>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                  <thead style={{position:"sticky",top:0,zIndex:5}}>
+                    <tr>
+                      {[["Hotel","left"],["Overall","right"],["Sleep","right"],["Location","right"],["Cleanliness","right"],["Service","right"],["Facilities","right"],["Reviews","right"],["Recommend %","right"]].map(([h,a],i)=>(
+                        <th key={i} style={{padding:"9px 12px",textAlign:a,fontSize:11,fontWeight:700,color:"#ffffff",textTransform:"uppercase",background:"#1e40af",borderRight:"1px solid #3b82f6",whiteSpace:"nowrap"}}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ratings.map((r,i)=>{
+                      const score=parseFloat(r.avg_overall||0);
+                      const scoreColor=score>=8?S.success:score>=6?S.warn:S.danger;
+                      return(
+                        <tr key={i} style={{borderBottom:"1px solid #dbeafe",background:i%2===0?"#ffffff":"#f0f7ff",cursor:"pointer"}}
+                          onClick={()=>setSelectedHotel(r.accommodation_code)}>
+                          <td style={{padding:"8px 12px",fontWeight:600,color:S.accent,borderRight:"1px solid #dbeafe",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.accommodation_name||"—"}</td>
+                          <td style={{padding:"8px 12px",textAlign:"right",fontWeight:800,color:scoreColor,borderRight:"1px solid #dbeafe"}}>{score.toFixed(1)}</td>
+                          {["avg_sleep","avg_location","avg_cleanliness","avg_service","avg_facilities"].map(k=>(
+                            <td key={k} style={{padding:"8px 12px",textAlign:"right",color:S.textLight,borderRight:"1px solid #dbeafe"}}>{parseFloat(r[k]||0).toFixed(1)}</td>
+                          ))}
+                          <td style={{padding:"8px 12px",textAlign:"right",color:S.muted,borderRight:"1px solid #dbeafe"}}>{fmtN(r.total_reviews)}</td>
+                          <td style={{padding:"8px 12px",textAlign:"right",color:S.success,fontWeight:600}}>{r.recommendation_pct?`${parseFloat(r.recommendation_pct).toFixed(0)}%`:"—"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+
+          {/* Reviews */}
+          <Card p="0">
+            <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,display:"flex",gap:10,alignItems:"center"}}>
+              <div style={{fontSize:13,fontWeight:700,color:S.text,flex:1}}>Guest Reviews <span style={{fontSize:11,color:S.muted,fontWeight:400}}>({fmtN(revTotal)} reviews)</span></div>
+              <input value={revSearch} onChange={e=>setRevSearch(e.target.value)} onKeyDown={e=>e.key==="Enter"&&loadReviews(1)} placeholder="Search reviews…" style={{background:S.bg,border:`1.5px solid ${S.border2}`,borderRadius:7,padding:"5px 10px",color:S.text,fontSize:11,outline:"none",width:180}}/>
+              {selectedHotel&&<button onClick={()=>{setSelectedHotel("");loadReviews(1);}} style={{padding:"4px 10px",background:S.dangerBg,border:`1px solid ${S.danger}33`,borderRadius:6,color:S.danger,fontSize:11,cursor:"pointer",fontWeight:600}}>✕ Clear filter</button>}
+              <Btn onClick={()=>loadReviews(1)} variant="primary" size="sm">Search</Btn>
+            </div>
+            {revTotal>20&&(
+              <div style={{padding:"8px 16px",borderBottom:`1px solid ${S.border}`,display:"flex",alignItems:"center",gap:8,fontSize:12,background:"#f8faff"}}>
+                <span style={{color:S.muted}}>Page {revPage} of {Math.ceil(revTotal/20)}</span>
+                <div style={{marginLeft:"auto",display:"flex",gap:5}}>
+                  <Btn disabled={revPage<=1} onClick={()=>{setRevPage(p=>p-1);loadReviews(revPage-1);}} variant="secondary" size="sm">← Prev</Btn>
+                  <Btn disabled={revPage>=Math.ceil(revTotal/20)} onClick={()=>{setRevPage(p=>p+1);loadReviews(revPage+1);}} variant="secondary" size="sm">Next →</Btn>
+                </div>
+              </div>
+            )}
+            <div style={{padding:16,display:"flex",flexDirection:"column",gap:12,maxHeight:600,overflowY:"auto"}}>
+              {reviews.length===0&&<div style={{textAlign:"center",padding:32,color:S.muted}}>No reviews found</div>}
+              {reviews.map((r,i)=>{
+                const score=parseFloat(r.overall_rating||0);
+                const scoreColor=score>=8?S.success:score>=6?S.warn:S.danger;
+                return(
+                  <div key={i} style={{background:S.bg,border:`1px solid ${S.border}`,borderRadius:10,padding:"14px 16px"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                      <div>
+                        <div style={{fontSize:13,fontWeight:700,color:S.text}}>{r.accommodation_name||"—"}</div>
+                        <div style={{fontSize:11,color:S.muted,marginTop:2}}>{r.reviewer_name||"Anonymous"} · {r.reviewer_city||""}{r.reviewer_country?`, ${r.reviewer_country}`:""} · {r.review_date?.split("T")[0]||"—"}</div>
+                      </div>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <span style={{background:`${scoreColor}15`,color:scoreColor,padding:"4px 10px",borderRadius:8,fontSize:14,fontWeight:800}}>{score.toFixed(1)}</span>
+                        {r.travel_type&&<span style={{background:S.accentLight,color:S.accent,padding:"2px 8px",borderRadius:6,fontSize:10,fontWeight:600}}>{r.travel_type}</span>}
+                      </div>
+                    </div>
+                    {r.review_title&&<div style={{fontSize:12,fontWeight:600,color:S.textLight,marginBottom:4}}>{r.review_title}</div>}
+                    {r.review_text&&<div style={{fontSize:12,color:S.muted,lineHeight:1.5}}>{r.review_text.length>300?r.review_text.slice(0,300)+"…":r.review_text}</div>}
+                    <div style={{display:"flex",gap:8,marginTop:8,flexWrap:"wrap"}}>
+                      {[["Sleep",r.category_sleep],["Location",r.category_location],["Cleanliness",r.category_cleanliness],["Service",r.category_service],["Facilities",r.category_facilities]].filter(([,v])=>v).map(([l,v])=>(
+                        <span key={l} style={{fontSize:10,color:S.muted,background:S.card,border:`1px solid ${S.border}`,padding:"2px 7px",borderRadius:5}}>{l}: <strong style={{color:parseFloat(v)>=8?S.success:parseFloat(v)>=6?S.warn:S.danger}}>{parseFloat(v).toFixed(1)}</strong></span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+}
 function SettingsTab({token,session,onLogout}){
   const[tab,setTab]=useState("users");
   const[users,setUsers]=useState([]);
@@ -1772,6 +2133,7 @@ export default function App(){
     {id:"overview",l:"Overview",ic:<LayoutDashboard size={16}/>},
     {id:"bus",l:"Bus Occupancy",ic:<Bus size={16}/>},
     {id:"purchase",l:"Purchase Obligations",ic:<Briefcase size={16}/>},
+    {id:"hotel",l:"Hotel Insights",ic:<Star size={16}/>},
     ...(isAdmin?[{id:"settings",l:"Settings",ic:<Settings size={16}/>}]:[]),
   ];
 
@@ -1832,6 +2194,7 @@ export default function App(){
           {tab==="overview"  &&<OverviewTab  token={token}/>}
           {tab==="bus"       &&<BusTab       token={token}/>}
           {tab==="purchase"  &&<PurchaseTab  token={token}/>}
+          {tab==="hotel"     &&<HotelTab     token={token}/>}
           {tab==="settings" && isAdmin &&<SettingsTab token={token} session={session} onLogout={()=>{clearAuth();setSession(null);}}/>}
         </div>
       </div>
