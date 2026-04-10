@@ -546,7 +546,6 @@ function BusTab({token}){
                 {l:"Royal Class",v:fmtN(busK.royal_pax),c:S.warn,icon:<Star size={15}/>},
                 {l:"First Class",v:fmtN(busK.first_pax),c:S.success,icon:<TrendingUp size={15}/>},
                 {l:"Premium",v:fmtN(busK.premium_pax),c:S.purple,icon:<CreditCard size={15}/>},
-                {label:"Comfort Class",total:"Comfort_Total",lower:"Comfort_Lower",upper:"Comfort_Upper",noDeck:"Comfort_NoDeck",c:S.orange},
                 {l:"Lower Deck",v:fmtN(busK.lower_pax),c:S.accent2,icon:<ArrowDown size={15}/>},
                 {l:"Upper Deck",v:fmtN(busK.upper_pax),c:S.success,icon:<ArrowUp size={15}/>},
                 {l:"No Deck Pref",v:fmtN(busK.no_deck_pax),c:S.muted,icon:<CircleDot size={15}/>},
@@ -618,7 +617,6 @@ function BusTab({token}){
                       {label:"Royal Class",total:"Royal_Total",lower:"Royal_Lower",upper:"Royal_Upper",noDeck:"Royal_NoDeck",c:S.warn},
                       {label:"First Class",total:"First_Total",lower:"First_Lower",upper:"First_Upper",noDeck:"First_NoDeck",c:S.success},
                       {label:"Premium Class",total:"Premium_Total",lower:"Premium_Lower",upper:"Premium_Upper",noDeck:"Premium_NoDeck",c:S.purple},
-                      {label:"Comfort Class",total:"Comfort_Total",lower:"Comfort_Lower",upper:"Comfort_Upper",noDeck:"Comfort_NoDeck",c:S.orange},
                     ].map((row,i)=>(
                       <tr key={i} style={{borderBottom:`1px solid ${S.border}`,background:i===0?"#f8faff":i%2===0?"transparent":"#fafcff"}}>
                         <td style={{...TDL,fontWeight:i===0?800:600,color:row.c}}>{row.label}</td>
@@ -645,14 +643,10 @@ function BusTab({token}){
                           <th style={{...TH,textAlign:"center",borderRight:`1px solid ${S.border2}`,color:S.warn}} colSpan={4}>Royal Class</th>
                           <th style={{...TH,textAlign:"center",borderRight:`1px solid ${S.border2}`,color:S.success}} colSpan={4}>First Class</th>
                           <th style={{...TH,textAlign:"center",borderRight:`1px solid ${S.border2}`,color:S.purple}} colSpan={4}>Premium Class</th>
-                          <td style={{...TD,fontWeight:600,color:S.orange}}>{fmtN(r.Comfort_Total)}</td>
-                            <td style={TD}>{fmtN(r.Comfort_Lower)}</td>
-                            <td style={TD}>{fmtN(r.Comfort_Upper)}</td>
-                            <td style={TD}>{fmtN(r.Comfort_NoDeck)}</td>
-                        </tr>
+                          </tr>
                         <tr>
-                          {["Total","Lower","Upper","No Deck","Total","Lower","Upper","No Deck","Total","Lower","Upper","No Deck","Total","Lower","Upper","No Deck","Total","Lower","Upper","No Deck"].map((h,i)=>(
-                            <th key={i} style={{...TH,fontSize:9,borderRight:i===3||i===7||i===11||i===15?`1px solid ${S.border2}`:"none"}}>{h}</th>
+                          {["Total","Lower","Upper","No Deck","Total","Lower","Upper","No Deck","Total","Lower","Upper","No Deck","Total","Lower","Upper","No Deck"].map((h,i)=>(
+                            <th key={i} style={{...TH,fontSize:9,borderRight:i===3||i===7||i===11?`1px solid ${S.border2}`:"none"}}>{h}</th>
                           ))}
                         </tr>
                       </thead>
@@ -675,11 +669,7 @@ function BusTab({token}){
                             <td style={{...TD,fontWeight:600,color:S.purple}}>{fmtN(r.Premium_Total)}</td>
                             <td style={TD}>{fmtN(r.Premium_Lower)}</td>
                             <td style={TD}>{fmtN(r.Premium_Upper)}</td>
-                            <td style={{...TD,borderRight:`1px solid ${S.border2}`}}>{fmtN(r.Premium_NoDeck)}</td>
-                            <td style={{...TD,fontWeight:600,color:S.orange}}>{fmtN(r.Comfort_Total)}</td>
-                            <td style={TD}>{fmtN(r.Comfort_Lower)}</td>
-                            <td style={TD}>{fmtN(r.Comfort_Upper)}</td>
-                            <td style={TD}>{fmtN(r.Comfort_NoDeck)}</td>
+                            <td style={{...TD,borderRight:`1px solid ${S.border2}`}}>{fmtN(r.Premium_NoDeck)}</td> 
                           </tr>
                         ))}
                       </tbody>
