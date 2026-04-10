@@ -48,11 +48,18 @@ export const fetchDeckClass           = (f) => get("/api/dashboard/deck-class", 
 export const fetchBookingsTable       = (f) => get("/api/dashboard/bookings-table",       f);
 export const fetchHotelReviews        = (f) => get("/api/dashboard/hotel-reviews",        f);
 
-export const fetchBusPendel   = (f) => get("/api/dashboard/bus-pendel",  f);
-export const fetchBusFeeder   = (f) => get("/api/dashboard/bus-feeder",  f);
-export const fetchBusDeck     = (f) => get("/api/dashboard/bus-deck",    f);
-export const fetchHotelStats  = ()  => get("/api/dashboard/hotel-stats");
-export const fetchHotelRatings= (f) => get("/api/dashboard/hotel-ratings", f);
+export const fetchBusPendel      = (f) => get("/api/dashboard/pendel-overview", f);
+export const fetchBusFeeder      = (f) => get("/api/dashboard/feeder-overview", f);
+export const fetchBusDeck        = (f) => get("/api/dashboard/deck-class",      f);
+export const fetchHotelStats     = ()  => get("/api/dashboard/hotel-stats");
+export const fetchHotelRatings   = (f) => get("/api/dashboard/hotel-ratings",   f);
+export const fetchHotelOverview  = (f) => get("/api/dashboard/hotel-overview",  f);
+export const fetchHotelSlicers   = ()  => get("/api/dashboard/hotel-slicers");
+export const fetchBusSlicers     = ()  => get("/api/dashboard/bus-slicers");
+export const fetchFeederSlicers  = ()  => get("/api/dashboard/feeder-slicers");
+export const fetchMarginOverview = (f) => get("/api/dashboard/margin-overview", f);
+export const fetchMarginSlicers  = ()  => get("/api/dashboard/margin-slicers");
+export const fetchElementMargin  = (f) => get("/api/dashboard/element-margin-overview", f);
 
 export async function chatWithAI(message, history = []) {
   const res = await fetch(`${BASE}/api/ai/chat`, {
@@ -63,3 +70,4 @@ export async function chatWithAI(message, history = []) {
   if (!res.ok) throw new Error((await res.json()).error || "AI chat failed");
   return res.json();
 }
+
