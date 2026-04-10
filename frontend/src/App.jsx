@@ -1479,8 +1479,12 @@ function PurchaseTab({token}){
   );
 }
 
+// ─── REPLACE the entire HotelTab function in App.jsx ────────────────────────
+// Also replace the ORDER BY block in dashboard.js /hotel-overview route (see above)
+
 function HotelTab({token}){
   const[subTab,setSubTab]=useState("overview");
+
   // ── Overview state ──
   const[sl,setSl]=useState({regions:[],destinations:[],transports:[],labels:[]});
   const[f,setF]=useState({depFrom:"",depTo:"",bkFrom:"",bkTo:"",region:"",destination:"",transport:"",label:[],status:[]});
@@ -1496,12 +1500,15 @@ function HotelTab({token}){
 
   // ── Reviews state ──
   const[ratings,setRatings]=useState([]);
+  const[filteredRatings,setFilteredRatings]=useState([]);
   const[reviews,setReviews]=useState([]);
   const[revTotal,setRevTotal]=useState(0);
   const[revPage,setRevPage]=useState(1);
   const[revSearch,setRevSearch]=useState("");
-  const[selectedHotel,setSelectedHotel]=useState("");
+  const[ratingSearch,setRatingSearch]=useState("");
+  const[selectedHotel,setSelectedHotel]=useState(null); // {code, name}
   const[hotelStats,setHotelStats]=useState(null);
+  const[revLoading,setRevLoading]=useState(false);
 
   useEffect(()=>{
     api("/api/dashboard/hotel-slicers",{},token).then(d=>{if(d&&!d.error)setSl(d);}).catch(()=>{});
@@ -1510,10 +1517,17 @@ function HotelTab({token}){
   useEffect(()=>{
     if(subTab==="reviews"){
       api("/api/dashboard/hotel-stats",{},token).then(d=>{if(d&&!d.error)setHotelStats(d);}).catch(()=>{});
-      api("/api/dashboard/hotel-ratings",{},token).then(d=>{if(Array.isArray(d))setRatings(d);}).catch(()=>{});
-      loadReviews(1);
+      api("/api/dashboard/hotel-ratings",{},token).then(d=>{if(Array.isArray(d)){setRatings(d);setFilteredRatings(d);}}).catch(()=>{});
+      loadReviews(1,selectedHotel?.code,"");
     }
   },[subTab,token]);
+
+  // Filter ratings by search
+  useEffect(()=>{
+    if(!ratingSearch.trim()){setFilteredRatings(ratings);return;}
+    const q=ratingSearch.toLowerCase();
+    setFilteredRatings(ratings.filter(r=>(r.accommodation_name||"").toLowerCase().includes(q)));
+  },[ratingSearch,ratings]);
 
   function buildParams(pg=1){
     const out={page:pg,limit:PAGE_SIZE,sort:sort.col,dir:sort.dir};
@@ -1537,13 +1551,15 @@ function HotelTab({token}){
       .finally(()=>setLoading(false));
   }
 
-  function loadReviews(pg=1){
+  function loadReviews(pg=1,code,searchTerm){
+    setRevLoading(true);
     const p={page:pg,limit:20};
-    if(selectedHotel)p.code=selectedHotel;
-    if(revSearch)p.search=revSearch;
+    if(code)p.code=code;
+    if(searchTerm)p.search=searchTerm;
     api("/api/dashboard/hotel-reviews",p,token)
       .then(d=>{setReviews(Array.isArray(d?.rows)?d.rows:[]);setRevTotal(Number(d?.total||0));setRevPage(pg);})
-      .catch(()=>{});
+      .catch(()=>{})
+      .finally(()=>setRevLoading(false));
   }
 
   function reset(){
@@ -1563,34 +1579,72 @@ function HotelTab({token}){
   const pctColor=v=>v==null?"#94a3b8":v>=0?"#059669":"#dc2626";
   const pctFmt=v=>v==null?"—":`${v>=0?"▲":"▼"} ${Math.abs(v).toFixed(1)}%`;
 
+  // Score → color gradient
+  const scoreColor=v=>{
+    const n=parseFloat(v||0);
+    if(n>=90)return{bg:"#ecfdf5",c:"#059669",bar:"#059669"};
+    if(n>=70)return{bg:"#fffbeb",c:"#d97706",bar:"#f59e0b"};
+    return{bg:"#fef2f2",c:"#dc2626",bar:"#ef4444"};
+  };
+
+  // Mini score bar
+  const ScoreBar=({value,max=100})=>{
+    const pct=Math.min(100,Math.max(0,(parseFloat(value||0)/max)*100));
+    const sc=scoreColor(pct);
+    return(
+      <div style={{display:"flex",alignItems:"center",gap:6}}>
+        <div style={{flex:1,height:5,background:"#e2e8f0",borderRadius:10,overflow:"hidden"}}>
+          <div style={{width:`${pct}%`,height:"100%",background:sc.bar,borderRadius:10,transition:"width 0.3s"}}/>
+        </div>
+        <span style={{fontSize:11,fontWeight:700,color:sc.c,minWidth:32,textAlign:"right"}}>{parseFloat(value||0).toFixed(1)}</span>
+      </div>
+    );
+  };
+
   const SortTH=({col,children,right=true})=>{
     const active=sort.col===col;
     return(
-      <th onClick={()=>handleSort(col)} style={{padding:"9px 12px",textAlign:right?"right":"left",fontSize:11,fontWeight:700,color:"#ffffff",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",background:"#1e40af",borderRight:"1px solid #3b82f6",cursor:"pointer",userSelect:"none"}}>
-        {children} {active?(sort.dir==="desc"?"↓":"↑"):""}
+      <th onClick={()=>handleSort(col)} style={{padding:"10px 14px",textAlign:right?"right":"left",fontSize:11,fontWeight:700,color:"#ffffff",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",background:"#1e40af",borderRight:"1px solid #3b82f6",cursor:"pointer",userSelect:"none"}}>
+        <span style={{display:"inline-flex",alignItems:"center",gap:4}}>
+          {children}
+          <span style={{opacity:active?1:0.3,fontSize:10}}>{active?(sort.dir==="desc"?"↓":"↑"):"↕"}</span>
+        </span>
       </th>
     );
   };
 
+  const TH={padding:"10px 14px",textAlign:"right",fontSize:11,fontWeight:700,color:"#ffffff",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",background:"#1e40af",borderRight:"1px solid #3b82f6"};
+  const THL={...TH,textAlign:"left"};
+  const TD={padding:"9px 14px",textAlign:"right",fontSize:12,color:S.text,whiteSpace:"nowrap",borderBottom:"1px solid #dbeafe",borderRight:"1px solid #e8f0fe"};
+  const TDL={...TD,textAlign:"left"};
+
   return(
     <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden",background:S.bg}}>
-      {/* Sub-tab bar */}
-      <div style={{background:S.card,borderBottom:`1px solid ${S.border}`,padding:"10px 20px",display:"flex",gap:6,flexShrink:0,boxShadow:S.shadow}}>
+
+      {/* ── Sub-tab bar ── */}
+      <div style={{background:S.card,borderBottom:`1px solid ${S.border}`,padding:"10px 20px",display:"flex",gap:8,flexShrink:0,boxShadow:S.shadow}}>
         {[
-          ["overview","Hotel Overview","📊"],
-          ["reviews","Hotel Reviews","⭐"],
-        ].map(([id,label,ic])=>(
-          <button key={id} onClick={()=>setSubTab(id)} style={{padding:"7px 16px",borderRadius:8,fontSize:12,cursor:"pointer",border:`1.5px solid ${subTab===id?S.accent:S.border2}`,background:subTab===id?S.accentLight:"transparent",color:subTab===id?S.accent:S.textLight,fontWeight:subTab===id?700:500,transition:"all 0.15s",display:"flex",alignItems:"center",gap:6}}>
-            <span>{ic}</span>{label}
-          </button>
+          ["overview","Hotel Overview","📊 Overview"],
+          ["reviews","Hotel Reviews","⭐ Reviews"],
+        ].map(([id,,label])=>(
+          <button key={id} onClick={()=>setSubTab(id)} style={{
+            padding:"8px 20px",borderRadius:9,fontSize:12,cursor:"pointer",
+            border:`1.5px solid ${subTab===id?S.accent:S.border2}`,
+            background:subTab===id?S.accent:"transparent",
+            color:subTab===id?"#fff":S.textLight,
+            fontWeight:600,transition:"all 0.15s",
+          }}>{label}</button>
         ))}
       </div>
 
-      {/* ── HOTEL OVERVIEW SUB-TAB ── */}
+      {/* ══════════════════════════════════════════════
+          HOTEL OVERVIEW TAB
+      ══════════════════════════════════════════════ */}
       {subTab==="overview"&&(
         <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden"}}>
+
           {/* Filter bar */}
-          <div style={{background:S.card,borderBottom:`1px solid ${S.border}`,padding:"10px 16px",display:"flex",alignItems:"flex-end",gap:10,flexWrap:"wrap",flexShrink:0,boxShadow:S.shadow}}>
+          <div style={{background:S.card,borderBottom:`1px solid ${S.border}`,padding:"10px 20px",display:"flex",alignItems:"flex-end",gap:10,flexWrap:"wrap",flexShrink:0,boxShadow:S.shadow}}>
             {[["Dep From","depFrom"],["Dep To","depTo"],["Book From","bkFrom"],["Book To","bkTo"]].map(([l,k])=>(
               <div key={k}>
                 <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:3,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>{l}</label>
@@ -1611,9 +1665,9 @@ function HotelTab({token}){
             <div>
               <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:3,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>Status</label>
               <div style={{display:"flex",gap:4}}>
-                {[{v:"ok",l:"DEF"},{v:"cancelled",l:"Cancelled"}].map(({v,l})=>{
+                {[{v:"ok",l:"Confirmed"},{v:"cancelled",l:"Cancelled"}].map(({v,l})=>{
                   const active=f.status.includes(v);
-                  return<button key={v} type="button" onClick={()=>setF({...f,status:togArr(f.status,v)})} style={{padding:"4px 10px",borderRadius:12,fontSize:11,cursor:"pointer",border:`1.5px solid ${active?S.success:S.border2}`,background:active?`${S.success}18`:"transparent",color:active?S.success:S.textLight,fontWeight:active?700:400}}>{l}</button>;
+                  return<button key={v} type="button" onClick={()=>setF({...f,status:togArr(f.status,v)})} style={{padding:"5px 12px",borderRadius:7,fontSize:11,cursor:"pointer",border:`1.5px solid ${active?(v==="ok"?S.success:S.danger):S.border2}`,background:active?(v==="ok"?`${S.success}18`:`${S.danger}18`):"transparent",color:active?(v==="ok"?S.success:S.danger):S.textLight,fontWeight:active?700:400}}>{l}</button>;
                 })}
               </div>
             </div>
@@ -1630,16 +1684,27 @@ function HotelTab({token}){
             {kpis&&(
               <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
                 {[
-                  {l:"Total Hotels",v:fmtN(kpis.totalHotels),c:S.accent,icon:"🏨"},
-                  {l:"Total Bookings",v:fmtN(kpis.totalBookings),c:S.purple,icon:"📋"},
-                  {l:"Total PAX",v:fmtN(kpis.totalPax),c:S.success,icon:"👥"},
-                  {l:"Total Revenue",v:fmtM(kpis.totalRevenue),c:S.warn,icon:"💶"},
+                  {l:"Hotels",v:fmtN(kpis.totalHotels),c:S.accent,sub:"destinations tracked",icon:(
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+                  )},
+                  {l:"Bookings",v:fmtN(kpis.totalBookings),c:S.purple,sub:"total reservations",icon:(
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10,9 9,9 8,9"/></svg>
+                  )},
+                  {l:"Total PAX",v:fmtN(kpis.totalPax),c:S.success,sub:"guests travelling",icon:(
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                  )},
+                  {l:"Revenue",v:fmtM(kpis.totalRevenue),c:S.warn,sub:"gross income",icon:(
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                  )},
                 ].map(k=>(
-                  <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:"14px 16px",boxShadow:S.shadow,display:"flex",alignItems:"center",gap:12}}>
-                    <div style={{width:40,height:40,borderRadius:10,background:`${k.c}12`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{k.icon}</div>
+                  <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:14,padding:"18px 20px",boxShadow:S.shadow,display:"flex",flexDirection:"column",gap:8}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                      <div style={{width:44,height:44,borderRadius:12,background:`${k.c}12`,display:"flex",alignItems:"center",justifyContent:"center",color:k.c}}>{k.icon}</div>
+                      <span style={{fontSize:10,color:S.muted2,background:S.bg,padding:"3px 8px",borderRadius:6,border:`1px solid ${S.border}`,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.04em"}}>{k.sub}</span>
+                    </div>
                     <div>
-                      <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>{k.l}</div>
-                      <div style={{fontSize:20,fontWeight:800,color:k.c}}>{k.v}</div>
+                      <div style={{fontSize:11,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>{k.l}</div>
+                      <div style={{fontSize:28,fontWeight:800,color:k.c,letterSpacing:"-0.03em",lineHeight:1}}>{k.v}</div>
                     </div>
                   </div>
                 ))}
@@ -1647,34 +1712,47 @@ function HotelTab({token}){
             )}
 
             {!kpis&&!loading&&(
-              <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"60px 20px",color:S.muted}}>
-                <div style={{fontSize:48,marginBottom:16}}>🏨</div>
-                <div style={{fontSize:16,fontWeight:600,color:S.textLight,marginBottom:8}}>Hotel Overview</div>
-                <div style={{fontSize:13,color:S.muted,textAlign:"center",maxWidth:400}}>Set filters and click <strong>Apply</strong> to load hotel performance data.</div>
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"80px 20px",color:S.muted}}>
+                <div style={{width:80,height:80,borderRadius:20,background:`${S.accent}10`,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:20,border:`2px dashed ${S.border2}`}}>
+                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={S.accent} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+                </div>
+                <div style={{fontSize:16,fontWeight:700,color:S.textLight,marginBottom:6}}>Hotel Overview</div>
+                <div style={{fontSize:13,color:S.muted,textAlign:"center",maxWidth:360}}>Set filters above and click <strong>Apply</strong> to load hotel performance data.</div>
               </div>
             )}
 
-            {loading&&<div style={{textAlign:"center",padding:40,color:S.muted,fontSize:13}}>Loading hotel data…</div>}
+            {loading&&(
+              <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"60px 20px",gap:10}}>
+                <div style={{width:20,height:20,border:`3px solid ${S.border2}`,borderTop:`3px solid ${S.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
+                <span style={{color:S.muted,fontSize:13}}>Loading hotel data…</span>
+              </div>
+            )}
 
             {/* Main Table */}
             {data.length>0&&(
               <Card p="0">
-                <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,display:"flex",gap:10,alignItems:"center"}}>
-                  <div style={{fontSize:13,fontWeight:700,color:S.text,flex:1}}>Hotel Performance <span style={{fontSize:11,color:S.muted,fontWeight:400}}>({fmtN(total)} hotels)</span></div>
-                  <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search hotel / region…" style={{background:S.bg,border:`1.5px solid ${S.border2}`,borderRadius:7,padding:"5px 10px",color:S.text,fontSize:11,outline:"none",width:200}}/>
-                  <button onClick={()=>{
-                    const cols=["Hotel","Region","Bookings (Current)","Bookings (Last Year)","Bookings Diff %","PAX (Current)","PAX (Last Year)","PAX Diff %","Revenue (Current)","Revenue (Last Year)","Revenue Diff %","Margin","Margin+Comm"];
-                    const rows=filtered.map(r=>[
-                      `"${r.hotel||""}"`,r.region||"",r.bookingsCur,r.bookingsPrev,r.bookingsDiffPct??""
-                      ,r.paxCur,r.paxPrev,r.paxDiffPct??""
-                      ,r.revenueCur,r.revenuePrev,r.revenueDiffPct??""
-                      ,r.margin,r.marginComm
-                    ].join(","));
-                    const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\uFEFF"+[cols.join(","),...rows].join("\n")],{type:"text/csv;charset=utf-8"}));a.download=`hotel-overview-${new Date().toISOString().split("T")[0]}.csv`;a.click();
-                  }} style={{padding:"5px 12px",background:"transparent",border:`1px solid ${S.border2}`,borderRadius:6,color:S.muted,fontSize:11,cursor:"pointer",fontWeight:600}}>↓ CSV</button>
+                <div style={{padding:"14px 18px",borderBottom:`1px solid ${S.border}`,display:"flex",gap:10,alignItems:"center"}}>
+                  <div>
+                    <div style={{fontSize:14,fontWeight:700,color:S.text}}>Hotel Performance</div>
+                    <div style={{fontSize:11,color:S.muted,marginTop:1}}>{fmtN(total)} hotels · sorted by {sort.col} {sort.dir}</div>
+                  </div>
+                  <div style={{marginLeft:"auto",display:"flex",gap:8,alignItems:"center"}}>
+                    <div style={{position:"relative"}}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={S.muted} strokeWidth="2" style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",pointerEvents:"none"}}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                      <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search hotel / region…" style={{background:S.bg,border:`1.5px solid ${S.border2}`,borderRadius:8,padding:"6px 10px 6px 30px",color:S.text,fontSize:12,outline:"none",width:210}}/>
+                    </div>
+                    <button onClick={()=>{
+                      const cols=["Hotel","Region","Bookings","Bk Last Yr","Bk Diff%","PAX","PAX Last Yr","PAX Diff%","Revenue","Rev Last Yr","Rev Diff%","Margin","Margin+Comm"];
+                      const rows=filtered.map(r=>[`"${r.hotel||""}"`,r.region||"",r.bookingsCur,r.bookingsPrev,r.bookingsDiffPct??"",r.paxCur,r.paxPrev,r.paxDiffPct??"",r.revenueCur,r.revenuePrev,r.revenueDiffPct??"",r.margin,r.marginComm].join(","));
+                      const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\uFEFF"+[cols.join(","),...rows].join("\n")],{type:"text/csv;charset=utf-8"}));a.download=`hotel-overview-${new Date().toISOString().split("T")[0]}.csv`;a.click();
+                    }} style={{padding:"6px 12px",background:"transparent",border:`1.5px solid ${S.border2}`,borderRadius:8,color:S.muted,fontSize:12,cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",gap:5}}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      CSV
+                    </button>
+                  </div>
                 </div>
                 {total>PAGE_SIZE&&(
-                  <div style={{padding:"8px 16px",borderBottom:`1px solid ${S.border}`,display:"flex",alignItems:"center",gap:8,fontSize:12,background:"#f8faff"}}>
+                  <div style={{padding:"8px 18px",borderBottom:`1px solid ${S.border}`,display:"flex",alignItems:"center",gap:8,fontSize:12,background:"#f8faff"}}>
                     <span style={{color:S.muted}}>Page {page} of {Math.ceil(total/PAGE_SIZE)}</span>
                     <div style={{marginLeft:"auto",display:"flex",gap:5}}>
                       <Btn disabled={page<=1} onClick={()=>loadOverview(page-1)} variant="secondary" size="sm">← Prev</Btn>
@@ -1687,37 +1765,50 @@ function HotelTab({token}){
                     <thead style={{position:"sticky",top:0,zIndex:5}}>
                       <tr>
                         <SortTH col="hotel" right={false}>Hotel</SortTH>
-                        <th style={{padding:"9px 12px",textAlign:"left",fontSize:11,fontWeight:700,color:"#ffffff",textTransform:"uppercase",background:"#1e40af",borderRight:"1px solid #3b82f6"}}>Region</th>
+                        <th style={THL}>Region</th>
                         <SortTH col="bookings">Bookings</SortTH>
-                        <th style={{padding:"9px 12px",textAlign:"right",fontSize:11,fontWeight:700,color:"#ffffff",textTransform:"uppercase",background:"#1e40af",borderRight:"1px solid #3b82f6"}}>Bk Last Year</th>
-                        <th style={{padding:"9px 12px",textAlign:"right",fontSize:11,fontWeight:700,color:"#ffffff",textTransform:"uppercase",background:"#1e40af",borderRight:"1px solid #3b82f6"}}>Bk Diff %</th>
+                        <th style={TH}>Last Year</th>
+                        <th style={TH}>Diff %</th>
                         <SortTH col="pax">PAX</SortTH>
-                        <th style={{padding:"9px 12px",textAlign:"right",fontSize:11,fontWeight:700,color:"#ffffff",textTransform:"uppercase",background:"#1e40af",borderRight:"1px solid #3b82f6"}}>PAX Last Year</th>
-                        <th style={{padding:"9px 12px",textAlign:"right",fontSize:11,fontWeight:700,color:"#ffffff",textTransform:"uppercase",background:"#1e40af",borderRight:"1px solid #3b82f6"}}>PAX Diff %</th>
+                        <th style={TH}>Last Year</th>
+                        <th style={TH}>Diff %</th>
                         <SortTH col="revenue">Revenue</SortTH>
-                        <th style={{padding:"9px 12px",textAlign:"right",fontSize:11,fontWeight:700,color:"#ffffff",textTransform:"uppercase",background:"#1e40af",borderRight:"1px solid #3b82f6"}}>Rev Last Year</th>
-                        <th style={{padding:"9px 12px",textAlign:"right",fontSize:11,fontWeight:700,color:"#ffffff",textTransform:"uppercase",background:"#1e40af",borderRight:"1px solid #3b82f6"}}>Rev Diff %</th>
+                        <th style={TH}>Last Year</th>
+                        <th style={TH}>Diff %</th>
                         <SortTH col="margin">Margin</SortTH>
-                        <th style={{padding:"9px 12px",textAlign:"right",fontSize:11,fontWeight:700,color:"#ffffff",textTransform:"uppercase",background:"#1e40af",borderRight:"1px solid #3b82f6"}}>Margin+Comm</th>
+                        <th style={TH}>Margin+Comm</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filtered.length===0&&<tr><td colSpan={13} style={{padding:28,textAlign:"center",color:S.muted}}>No data</td></tr>}
+                      {filtered.length===0&&<tr><td colSpan={13} style={{padding:32,textAlign:"center",color:S.muted}}>No data</td></tr>}
                       {filtered.map((r,i)=>(
-                        <tr key={i} style={{borderBottom:"1px solid #dbeafe",background:i%2===0?"#ffffff":"#f0f7ff"}}>
-                          <td style={{padding:"8px 12px",fontWeight:600,color:S.accent,whiteSpace:"nowrap",borderRight:"1px solid #dbeafe",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis"}}>{r.hotel||"—"}</td>
-                          <td style={{padding:"8px 12px",color:S.muted,fontSize:11,borderRight:"1px solid #dbeafe",whiteSpace:"nowrap"}}>{r.region||"—"}</td>
-                          <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:S.text,borderRight:"1px solid #dbeafe"}}>{fmtN(r.bookingsCur)}</td>
-                          <td style={{padding:"8px 12px",textAlign:"right",color:S.muted,borderRight:"1px solid #dbeafe"}}>{fmtN(r.bookingsPrev)}</td>
-                          <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:pctColor(r.bookingsDiffPct),borderRight:"1px solid #dbeafe"}}>{pctFmt(r.bookingsDiffPct)}</td>
-                          <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:S.text,borderRight:"1px solid #dbeafe"}}>{fmtN(r.paxCur)}</td>
-                          <td style={{padding:"8px 12px",textAlign:"right",color:S.muted,borderRight:"1px solid #dbeafe"}}>{fmtN(r.paxPrev)}</td>
-                          <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:pctColor(r.paxDiffPct),borderRight:"1px solid #dbeafe"}}>{pctFmt(r.paxDiffPct)}</td>
-                          <td style={{padding:"8px 12px",textAlign:"right",fontWeight:600,color:S.success,borderRight:"1px solid #dbeafe"}}>{fmtM(r.revenueCur)}</td>
-                          <td style={{padding:"8px 12px",textAlign:"right",color:S.muted,borderRight:"1px solid #dbeafe"}}>{fmtM(r.revenuePrev)}</td>
-                          <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:pctColor(r.revenueDiffPct),borderRight:"1px solid #dbeafe"}}>{pctFmt(r.revenueDiffPct)}</td>
-                          <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:parseFloat(r.margin||0)>=0?S.success:S.danger,borderRight:"1px solid #dbeafe"}}>{fmtM(r.margin)}</td>
-                          <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:parseFloat(r.marginComm||0)>=0?S.success:S.danger}}>{fmtM(r.marginComm)}</td>
+                        <tr key={i} style={{borderBottom:"1px solid #dbeafe",background:i%2===0?"#ffffff":"#f7f9ff",transition:"background 0.1s"}}
+                          onMouseEnter={e=>e.currentTarget.style.background="#eef4ff"}
+                          onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"#ffffff":"#f7f9ff"}>
+                          <td style={{...TDL,fontWeight:600,color:S.accent,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis"}}>{r.hotel||"—"}</td>
+                          <td style={{...TDL,color:S.muted,fontSize:11}}>
+                            {r.region&&<span style={{background:`${S.accent}10`,color:S.accent,padding:"2px 7px",borderRadius:4,fontSize:10,fontWeight:600}}>{r.region}</span>}
+                          </td>
+                          <td style={{...TD,fontWeight:700}}>{fmtN(r.bookingsCur)}</td>
+                          <td style={{...TD,color:S.muted}}>{fmtN(r.bookingsPrev)}</td>
+                          <td style={{...TD,fontWeight:700}}>
+                            {r.bookingsDiffPct!=null&&<span style={{background:r.bookingsDiffPct>=0?S.successBg:S.dangerBg,color:pctColor(r.bookingsDiffPct),padding:"2px 6px",borderRadius:4,fontSize:11}}>{pctFmt(r.bookingsDiffPct)}</span>}
+                            {r.bookingsDiffPct==null&&<span style={{color:S.muted2}}>—</span>}
+                          </td>
+                          <td style={{...TD,fontWeight:700}}>{fmtN(r.paxCur)}</td>
+                          <td style={{...TD,color:S.muted}}>{fmtN(r.paxPrev)}</td>
+                          <td style={{...TD,fontWeight:700}}>
+                            {r.paxDiffPct!=null&&<span style={{background:r.paxDiffPct>=0?S.successBg:S.dangerBg,color:pctColor(r.paxDiffPct),padding:"2px 6px",borderRadius:4,fontSize:11}}>{pctFmt(r.paxDiffPct)}</span>}
+                            {r.paxDiffPct==null&&<span style={{color:S.muted2}}>—</span>}
+                          </td>
+                          <td style={{...TD,fontWeight:600,color:S.success}}>{fmtM(r.revenueCur)}</td>
+                          <td style={{...TD,color:S.muted}}>{fmtM(r.revenuePrev)}</td>
+                          <td style={{...TD,fontWeight:700}}>
+                            {r.revenueDiffPct!=null&&<span style={{background:r.revenueDiffPct>=0?S.successBg:S.dangerBg,color:pctColor(r.revenueDiffPct),padding:"2px 6px",borderRadius:4,fontSize:11}}>{pctFmt(r.revenueDiffPct)}</span>}
+                            {r.revenueDiffPct==null&&<span style={{color:S.muted2}}>—</span>}
+                          </td>
+                          <td style={{...TD,fontWeight:700,color:parseFloat(r.margin||0)>=0?S.success:S.danger}}>{fmtM(r.margin)}</td>
+                          <td style={{...TD,fontWeight:700,color:parseFloat(r.marginComm||0)>=0?S.success:S.danger}}>{fmtM(r.marginComm)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1729,111 +1820,203 @@ function HotelTab({token}){
         </div>
       )}
 
-      {/* ── HOTEL REVIEWS SUB-TAB ── */}
+      {/* ══════════════════════════════════════════════
+          HOTEL REVIEWS TAB
+      ══════════════════════════════════════════════ */}
       {subTab==="reviews"&&(
-        <div style={{flex:1,overflowY:"auto",padding:"16px 20px",display:"flex",flexDirection:"column",gap:14}}>
-          {/* Stats KPIs */}
+        <div style={{flex:1,overflowY:"auto",padding:"16px 20px",display:"flex",flexDirection:"column",gap:16}}>
+
+          {/* Stats KPI Row */}
           {hotelStats&&(
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
               {[
-                {l:"Total Hotels",v:fmtN(hotelStats.total_hotels),c:S.accent,icon:"🏨"},
-                {l:"Total Reviews",v:fmtN(hotelStats.total_reviews),c:S.purple,icon:"⭐"},
-                {l:"Avg Rating",v:parseFloat(hotelStats.avg_rating||0).toFixed(1)+"/10",c:S.warn,icon:"📊"},
-                {l:"High Rated (≥8)",v:fmtN(hotelStats.high_rated),c:S.success,icon:"✅"},
+                {l:"Hotels Tracked",v:fmtN(hotelStats.total_hotels),c:S.accent,icon:(
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+                )},
+                {l:"Total Reviews",v:fmtN(hotelStats.total_reviews),c:S.purple,icon:(
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                )},
+                {l:"Avg Rating",v:parseFloat(hotelStats.avg_rating||0).toFixed(1),c:S.warn,icon:(
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg>
+                ),sub:"/10"},
+                {l:"High Rated ≥ 8",v:fmtN(hotelStats.high_rated),c:S.success,icon:(
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22,4 12,14.01 9,11.01"/></svg>
+                )},
               ].map(k=>(
-                <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:"14px 16px",boxShadow:S.shadow,display:"flex",alignItems:"center",gap:12}}>
-                  <div style={{width:40,height:40,borderRadius:10,background:`${k.c}12`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{k.icon}</div>
-                  <div>
-                    <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>{k.l}</div>
-                    <div style={{fontSize:20,fontWeight:800,color:k.c}}>{k.v}</div>
+                <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:14,padding:"18px 20px",boxShadow:S.shadow}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                    <div style={{width:44,height:44,borderRadius:12,background:`${k.c}12`,display:"flex",alignItems:"center",justifyContent:"center",color:k.c}}>{k.icon}</div>
                   </div>
+                  <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>{k.l}</div>
+                  <div style={{fontSize:28,fontWeight:800,color:k.c,letterSpacing:"-0.03em",lineHeight:1}}>{k.v}{k.sub&&<span style={{fontSize:14,fontWeight:500,color:S.muted}}>{k.sub}</span>}</div>
                 </div>
               ))}
             </div>
           )}
 
-          {/* Ratings Table */}
-          {ratings.length>0&&(
-            <Card p="0">
-              <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,fontSize:13,fontWeight:700,color:S.text}}>Hotel Ratings Snapshot</div>
-              <div style={{overflowX:"auto",maxHeight:300,overflowY:"auto"}}>
-                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                  <thead style={{position:"sticky",top:0,zIndex:5}}>
-                    <tr>
-                      {[["Hotel","left"],["Overall","right"],["Sleep","right"],["Location","right"],["Cleanliness","right"],["Service","right"],["Facilities","right"],["Reviews","right"],["Recommend %","right"]].map(([h,a],i)=>(
-                        <th key={i} style={{padding:"9px 12px",textAlign:a,fontSize:11,fontWeight:700,color:"#ffffff",textTransform:"uppercase",background:"#1e40af",borderRight:"1px solid #3b82f6",whiteSpace:"nowrap"}}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ratings.map((r,i)=>{
-                      const score=parseFloat(r.avg_overall||0);
-                      const scoreColor=score>=8?S.success:score>=6?S.warn:S.danger;
-                      return(
-                        <tr key={i} style={{borderBottom:"1px solid #dbeafe",background:i%2===0?"#ffffff":"#f0f7ff",cursor:"pointer"}}
-                          onClick={()=>setSelectedHotel(r.accommodation_code)}>
-                          <td style={{padding:"8px 12px",fontWeight:600,color:S.accent,borderRight:"1px solid #dbeafe",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.accommodation_name||"—"}</td>
-                          <td style={{padding:"8px 12px",textAlign:"right",fontWeight:800,color:scoreColor,borderRight:"1px solid #dbeafe"}}>{score.toFixed(1)}</td>
-                          {["avg_sleep","avg_location","avg_cleanliness","avg_service","avg_facilities"].map(k=>(
-                            <td key={k} style={{padding:"8px 12px",textAlign:"right",color:S.textLight,borderRight:"1px solid #dbeafe"}}>{parseFloat(r[k]||0).toFixed(1)}</td>
-                          ))}
-                          <td style={{padding:"8px 12px",textAlign:"right",color:S.muted,borderRight:"1px solid #dbeafe"}}>{fmtN(r.total_reviews)}</td>
-                          <td style={{padding:"8px 12px",textAlign:"right",color:S.success,fontWeight:600}}>{r.recommendation_pct?`${parseFloat(r.recommendation_pct).toFixed(0)}%`:"—"}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+          {/* Two-column layout: Ratings table (left) + Reviews (right) */}
+          <div style={{display:"grid",gridTemplateColumns:"420px 1fr",gap:14,alignItems:"start"}}>
+
+            {/* ── LEFT: Ratings Table ── */}
+            <Card p="0" style={{position:"sticky",top:0}}>
+              <div style={{padding:"14px 16px",borderBottom:`1px solid ${S.border}`}}>
+                <div style={{fontSize:13,fontWeight:700,color:S.text,marginBottom:10}}>Hotel Ratings</div>
+                <div style={{position:"relative"}}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={S.muted} strokeWidth="2" style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",pointerEvents:"none"}}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <input value={ratingSearch} onChange={e=>setRatingSearch(e.target.value)} placeholder="Filter hotels…" style={{background:S.bg,border:`1.5px solid ${S.border2}`,borderRadius:8,padding:"7px 10px 7px 30px",color:S.text,fontSize:12,outline:"none",width:"100%",boxSizing:"border-box"}}/>
+                </div>
+                {selectedHotel&&(
+                  <div style={{marginTop:8,padding:"6px 10px",background:S.accentLight,borderRadius:7,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <span style={{fontSize:11,fontWeight:600,color:S.accent,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:280}}>{selectedHotel.name}</span>
+                    <button onClick={()=>{setSelectedHotel(null);loadReviews(1,null,"");}} style={{background:"none",border:"none",color:S.muted,cursor:"pointer",fontSize:16,padding:"0 2px",lineHeight:1,flexShrink:0}}>×</button>
+                  </div>
+                )}
+              </div>
+              <div style={{maxHeight:560,overflowY:"auto"}}>
+                {filteredRatings.map((r,i)=>{
+                  const score=parseFloat(r.avg_overall||0);
+                  const sc=scoreColor(score);
+                  const isSelected=selectedHotel?.code===r.accommodation_code;
+                  return(
+                    <div key={i} onClick={()=>{
+                      if(isSelected){setSelectedHotel(null);loadReviews(1,null,"");}
+                      else{setSelectedHotel({code:r.accommodation_code,name:r.accommodation_name});loadReviews(1,r.accommodation_code,"");}
+                    }} style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,cursor:"pointer",background:isSelected?S.accentLight:"transparent",transition:"background 0.15s"}}
+                      onMouseEnter={e=>{if(!isSelected)e.currentTarget.style.background=S.bg;}}
+                      onMouseLeave={e=>{e.currentTarget.style.background=isSelected?S.accentLight:"transparent";}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                        <div style={{fontSize:12,fontWeight:600,color:isSelected?S.accent:S.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:280}}>{r.accommodation_name||"—"}</div>
+                        <span style={{background:sc.bg,color:sc.c,padding:"3px 8px",borderRadius:6,fontSize:12,fontWeight:800,flexShrink:0,marginLeft:8}}>{score.toFixed(1)}</span>
+                      </div>
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"3px 8px"}}>
+                        {[["Sleep",r.avg_sleep],["Location",r.avg_location],["Cleanliness",r.avg_cleanliness],["Service",r.avg_service]].map(([l,v])=>(
+                          <div key={l}>
+                            <div style={{fontSize:9,color:S.muted2,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:1}}>{l}</div>
+                            <ScoreBar value={v}/>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{display:"flex",gap:10,marginTop:6}}>
+                        <span style={{fontSize:10,color:S.muted}}>{fmtN(r.total_reviews)} reviews</span>
+                        {r.recommendation_pct&&<span style={{fontSize:10,color:S.success,fontWeight:600}}>👍 {parseFloat(r.recommendation_pct).toFixed(0)}% recommend</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+                {filteredRatings.length===0&&<div style={{padding:24,textAlign:"center",color:S.muted,fontSize:12}}>No hotels match your search</div>}
               </div>
             </Card>
-          )}
 
-          {/* Reviews */}
-          <Card p="0">
-            <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,display:"flex",gap:10,alignItems:"center"}}>
-              <div style={{fontSize:13,fontWeight:700,color:S.text,flex:1}}>Guest Reviews <span style={{fontSize:11,color:S.muted,fontWeight:400}}>({fmtN(revTotal)} reviews)</span></div>
-              <input value={revSearch} onChange={e=>setRevSearch(e.target.value)} onKeyDown={e=>e.key==="Enter"&&loadReviews(1)} placeholder="Search reviews…" style={{background:S.bg,border:`1.5px solid ${S.border2}`,borderRadius:7,padding:"5px 10px",color:S.text,fontSize:11,outline:"none",width:180}}/>
-              {selectedHotel&&<button onClick={()=>{setSelectedHotel("");loadReviews(1);}} style={{padding:"4px 10px",background:S.dangerBg,border:`1px solid ${S.danger}33`,borderRadius:6,color:S.danger,fontSize:11,cursor:"pointer",fontWeight:600}}>✕ Clear filter</button>}
-              <Btn onClick={()=>loadReviews(1)} variant="primary" size="sm">Search</Btn>
-            </div>
-            {revTotal>20&&(
-              <div style={{padding:"8px 16px",borderBottom:`1px solid ${S.border}`,display:"flex",alignItems:"center",gap:8,fontSize:12,background:"#f8faff"}}>
-                <span style={{color:S.muted}}>Page {revPage} of {Math.ceil(revTotal/20)}</span>
-                <div style={{marginLeft:"auto",display:"flex",gap:5}}>
-                  <Btn disabled={revPage<=1} onClick={()=>{setRevPage(p=>p-1);loadReviews(revPage-1);}} variant="secondary" size="sm">← Prev</Btn>
-                  <Btn disabled={revPage>=Math.ceil(revTotal/20)} onClick={()=>{setRevPage(p=>p+1);loadReviews(revPage+1);}} variant="secondary" size="sm">Next →</Btn>
+            {/* ── RIGHT: Reviews Feed ── */}
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              {/* Search bar for reviews */}
+              <Card p="14px 16px">
+                <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                  <div style={{position:"relative",flex:1}}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={S.muted} strokeWidth="2" style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",pointerEvents:"none"}}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <input value={revSearch} onChange={e=>setRevSearch(e.target.value)} onKeyDown={e=>e.key==="Enter"&&loadReviews(1,selectedHotel?.code,revSearch)} placeholder="Search reviews by keyword…" style={{background:S.bg,border:`1.5px solid ${S.border2}`,borderRadius:8,padding:"8px 12px 8px 34px",color:S.text,fontSize:12,outline:"none",width:"100%",boxSizing:"border-box"}}/>
+                  </div>
+                  <Btn onClick={()=>loadReviews(1,selectedHotel?.code,revSearch)} variant="primary" size="sm" style={{gap:5}}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    Search
+                  </Btn>
+                  {(revSearch||selectedHotel)&&<Btn onClick={()=>{setRevSearch("");setSelectedHotel(null);loadReviews(1,null,"");}} variant="secondary" size="sm">Clear</Btn>}
+                  <span style={{fontSize:12,color:S.muted,whiteSpace:"nowrap",fontWeight:500}}>{fmtN(revTotal)} reviews</span>
                 </div>
-              </div>
-            )}
-            <div style={{padding:16,display:"flex",flexDirection:"column",gap:12,maxHeight:600,overflowY:"auto"}}>
-              {reviews.length===0&&<div style={{textAlign:"center",padding:32,color:S.muted}}>No reviews found</div>}
-              {reviews.map((r,i)=>{
+                {/* Pagination */}
+                {revTotal>20&&(
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:10,paddingTop:10,borderTop:`1px solid ${S.border}`}}>
+                    <span style={{fontSize:11,color:S.muted}}>Page {revPage} of {Math.ceil(revTotal/20)}</span>
+                    <div style={{display:"flex",gap:5}}>
+                      <Btn disabled={revPage<=1} onClick={()=>loadReviews(revPage-1,selectedHotel?.code,revSearch)} variant="secondary" size="sm">← Prev</Btn>
+                      <Btn disabled={revPage>=Math.ceil(revTotal/20)} onClick={()=>loadReviews(revPage+1,selectedHotel?.code,revSearch)} variant="secondary" size="sm">Next →</Btn>
+                    </div>
+                  </div>
+                )}
+              </Card>
+
+              {/* Review cards */}
+              {revLoading&&(
+                <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"40px 20px",gap:10}}>
+                  <div style={{width:18,height:18,border:`3px solid ${S.border2}`,borderTop:`3px solid ${S.accent}`,borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
+                  <span style={{color:S.muted,fontSize:12}}>Loading reviews…</span>
+                </div>
+              )}
+
+              {!revLoading&&reviews.length===0&&(
+                <div style={{textAlign:"center",padding:"48px 20px",color:S.muted}}>
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={S.border2} strokeWidth="1.5" style={{display:"block",margin:"0 auto 12px"}}><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                  <div style={{fontSize:13,fontWeight:500}}>No reviews found</div>
+                </div>
+              )}
+
+              {!revLoading&&reviews.map((r,i)=>{
                 const score=parseFloat(r.overall_rating||0);
-                const scoreColor=score>=8?S.success:score>=6?S.warn:S.danger;
+                const sc=scoreColor(score);
+                const catScores=[["Sleep",r.category_sleep],["Location",r.category_location],["Cleanliness",r.category_cleanliness],["Service",r.category_service],["Facilities",r.category_facilities]].filter(([,v])=>v!=null&&v!=="");
                 return(
-                  <div key={i} style={{background:S.bg,border:`1px solid ${S.border}`,borderRadius:10,padding:"14px 16px"}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
-                      <div>
-                        <div style={{fontSize:13,fontWeight:700,color:S.text}}>{r.accommodation_name||"—"}</div>
-                        <div style={{fontSize:11,color:S.muted,marginTop:2}}>{r.reviewer_name||"Anonymous"} · {r.reviewer_city||""}{r.reviewer_country?`, ${r.reviewer_country}`:""} · {r.review_date?.split("T")[0]||"—"}</div>
+                  <div key={i} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:14,padding:"18px 20px",boxShadow:S.shadow,transition:"box-shadow 0.15s"}}
+                    onMouseEnter={e=>e.currentTarget.style.boxShadow=S.shadowMd}
+                    onMouseLeave={e=>e.currentTarget.style.boxShadow=S.shadow}>
+
+                    {/* Review header */}
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:13,fontWeight:700,color:S.text,marginBottom:3}}>{r.accommodation_name||"—"}</div>
+                        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                          {/* Reviewer avatar + name */}
+                          <div style={{display:"flex",alignItems:"center",gap:5}}>
+                            <div style={{width:24,height:24,borderRadius:"50%",background:`${S.accent}18`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:S.accent,flexShrink:0}}>
+                              {(r.reviewer_name||"A")[0].toUpperCase()}
+                            </div>
+                            <span style={{fontSize:11,fontWeight:600,color:S.textLight}}>{r.reviewer_name||"Anonymous"}</span>
+                          </div>
+                          {(r.reviewer_city||r.reviewer_country)&&(
+                            <div style={{display:"flex",alignItems:"center",gap:3,fontSize:11,color:S.muted}}>
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                              {[r.reviewer_city,r.reviewer_country].filter(Boolean).join(", ")}
+                            </div>
+                          )}
+                          {r.review_date&&(
+                            <div style={{display:"flex",alignItems:"center",gap:3,fontSize:11,color:S.muted}}>
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                              {r.review_date?.split("T")[0]}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div style={{display:"flex",alignItems:"center",gap:8}}>
-                        <span style={{background:`${scoreColor}15`,color:scoreColor,padding:"4px 10px",borderRadius:8,fontSize:14,fontWeight:800}}>{score.toFixed(1)}</span>
-                        {r.travel_type&&<span style={{background:S.accentLight,color:S.accent,padding:"2px 8px",borderRadius:6,fontSize:10,fontWeight:600}}>{r.travel_type}</span>}
+
+                      {/* Score badge + travel type */}
+                      <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:5,flexShrink:0,marginLeft:12}}>
+                        <div style={{background:sc.bg,border:`2px solid ${sc.c}33`,borderRadius:10,padding:"6px 12px",textAlign:"center"}}>
+                          <div style={{fontSize:20,fontWeight:900,color:sc.c,lineHeight:1}}>{score.toFixed(1)}</div>
+                          <div style={{fontSize:9,color:sc.c,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.04em",marginTop:1}}>/ 100</div>
+                        </div>
+                        {r.travel_type&&<span style={{background:`${S.purple}12`,color:S.purple,padding:"2px 8px",borderRadius:5,fontSize:10,fontWeight:600}}>{r.travel_type}</span>}
+                        {r.language&&r.language!=="nl"&&<span style={{background:`${S.muted2}15`,color:S.muted,padding:"2px 8px",borderRadius:5,fontSize:10,fontWeight:600,textTransform:"uppercase"}}>{r.language}</span>}
                       </div>
                     </div>
-                    {r.review_title&&<div style={{fontSize:12,fontWeight:600,color:S.textLight,marginBottom:4}}>{r.review_title}</div>}
-                    {r.review_text&&<div style={{fontSize:12,color:S.muted,lineHeight:1.5}}>{r.review_text.length>300?r.review_text.slice(0,300)+"…":r.review_text}</div>}
-                    <div style={{display:"flex",gap:8,marginTop:8,flexWrap:"wrap"}}>
-                      {[["Sleep",r.category_sleep],["Location",r.category_location],["Cleanliness",r.category_cleanliness],["Service",r.category_service],["Facilities",r.category_facilities]].filter(([,v])=>v).map(([l,v])=>(
-                        <span key={l} style={{fontSize:10,color:S.muted,background:S.card,border:`1px solid ${S.border}`,padding:"2px 7px",borderRadius:5}}>{l}: <strong style={{color:parseFloat(v)>=8?S.success:parseFloat(v)>=6?S.warn:S.danger}}>{parseFloat(v).toFixed(1)}</strong></span>
-                      ))}
-                    </div>
+
+                    {/* Review content */}
+                    {r.review_title&&<div style={{fontSize:13,fontWeight:700,color:S.textLight,marginBottom:6,lineHeight:1.4}}>"{r.review_title}"</div>}
+                    {r.review_text&&<div style={{fontSize:12,color:S.muted,lineHeight:1.65,marginBottom:12}}>{r.review_text.length>280?r.review_text.slice(0,280)+"…":r.review_text}</div>}
+
+                    {/* Category score bars */}
+                    {catScores.length>0&&(
+                      <div style={{borderTop:`1px solid ${S.border}`,paddingTop:12,display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:"6px 12px"}}>
+                        {catScores.map(([l,v])=>(
+                          <div key={l}>
+                            <div style={{fontSize:9,color:S.muted2,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3}}>{l}</div>
+                            <ScoreBar value={v}/>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </div>
-          </Card>
+          </div>
         </div>
       )}
     </div>
