@@ -452,7 +452,7 @@ function OverviewTab({token}){
                   const pct=ymMetric==="revenue"?r.diffPctRevenue:ymMetric==="pax"?r.diffPctPax:r.diffPctBookings;
                   const fmt=ymMetric==="revenue"?fmtM:fmtN;
                   return(
-                    <tr key={i} style={{borderBottom:`1px solid ${S.border}`,background:i%2===0?"transparent":"#f8faff"}}>
+                    <tr key={i} style={{borderBottom:"1px solid #dbeafe",background:i%2===0?"#ffffff":"#f0f7ff"}}>
                       <td style={{padding:"9px 14px",fontWeight:600,color:S.text,whiteSpace:"nowrap"}}>
                         <span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:YC[cy_]||S.accent,marginRight:8,verticalAlign:"middle"}}/>
                         {MONTHS[r.month-1]}-{cy_}
@@ -518,9 +518,9 @@ function BusTab({token}){
   feeder.forEach(r=>{const rk=`${r.RouteNo}||${r.RouteLabel}`;if(!froutes[rk])froutes[rk]={no:r.RouteNo,label:r.RouteLabel,stops:{},totals:{}};if(!froutes[rk].stops[r.StopName])froutes[rk].stops[r.StopName]={};froutes[rk].stops[r.StopName][r.DepartureDate]=(froutes[rk].stops[r.StopName][r.DepartureDate]||0)+(r.TotalPax||0);froutes[rk].totals[r.DepartureDate]=(froutes[rk].totals[r.DepartureDate]||0)+(r.TotalPax||0);});
   const rl=Object.values(froutes).sort((a,b)=>a.no-b.no);
 
-  const TH={padding:"9px 12px",textAlign:"right",fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderBottom:`1px solid ${S.border}`,background:"#f8faff"};
+  const TH={padding:"9px 12px",textAlign:"right",fontSize:11,fontWeight:700,color:"#ffffff",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",background:"#1a56db",borderRight:"1px solid #2563eb"};
   const THL={...TH,textAlign:"left"};
-  const TD={padding:"8px 12px",textAlign:"right",fontSize:12,color:S.text,whiteSpace:"nowrap",borderBottom:`1px solid ${S.border}`};
+  const TD={padding:"8px 12px",textAlign:"right",fontSize:12,color:S.text,whiteSpace:"nowrap",borderBottom:"1px solid #dbeafe",borderRight:"1px solid #dbeafe"};
   const TDL={...TD,textAlign:"left"};
   const lbl=l=><label style={{fontSize:10,color:S.muted,display:"block",marginBottom:4,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>{l}</label>;
   const sel=(val,set,opts)=><select value={val} onChange={e=>set(e.target.value)} style={{width:"100%",background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"6px 8px",color:S.text,fontSize:11,outline:"none"}}><option value="">All</option>{opts.map(o=><option key={o} value={o}>{o}</option>)}</select>;
@@ -539,7 +539,7 @@ function BusTab({token}){
           {loading&&<span style={{marginLeft:"auto",fontSize:11,color:S.muted,alignSelf:"center"}}>Loading…</span>}
         </div>
         <div style={{flex:1,overflowY:"auto",padding:18,display:"flex",flexDirection:"column",gap:14}}>
-          {busK&&(
+          {busK&&view==="deck"&&(
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
               {[
                 {l:"Total PAX",v:fmtN(busK.total_pax),c:S.accent,icon:<Users size={15}/>},
@@ -588,7 +588,7 @@ function BusTab({token}){
                   <tbody>
                     {pendel.length===0&&<tr><td colSpan={13} style={{padding:28,textAlign:"center",color:S.muted}}>No data — click Apply Filters</td></tr>}
                     {pendel.map((r,i)=>(
-                      <tr key={i} style={{borderBottom:"1px solid #e2e8f0",background:i%2===0?"#ffffff":"#f0f7ff"}}>
+                      <tr key={i} style={{borderBottom:"1px solid #dbeafe",background:i%2===0?"#ffffff":"#f0f7ff"}}>
                         <td style={{padding:"8px 12px",fontWeight:600,color:S.accent,whiteSpace:"nowrap",borderRight:"1px solid #bfdbfe"}}>{r.StartDate}</td>
                         <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:S.text,borderRight:"1px solid #bfdbfe"}}>{fmtN(r.Outbound_Total)}</td>
                         <td style={{padding:"8px 12px",textAlign:"right",color:S.warn,borderRight:"1px solid #bfdbfe"}}>{fmtN(r.ORC)}</td>
@@ -616,29 +616,29 @@ function BusTab({token}){
               <div style={{overflowX:"auto"}}>
                 <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
                   <thead><tr>
-                    <th style={THL}>Class</th>
-                    <th style={TH}>Total PAX</th>
-                    <th style={{...TH,color:S.accent}}>Lower</th>
-                    <th style={{...TH,color:S.success}}>Upper</th>
-                    <th style={{...TH,color:S.muted}}>No Deck</th>
-                    <th style={{...TH,color:S.accent}}>Lower %</th>
-                    <th style={{...TH,color:S.success}}>Upper %</th>
+                    <th style={{padding:"9px 12px",textAlign:"left",background:"#1a56db",color:"#fff",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderRight:"1px solid #2563eb"}}>Class</th>
+                    <th style={{padding:"9px 12px",textAlign:"right",background:"#1a56db",color:"#fff",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderRight:"1px solid #2563eb"}}>Total PAX</th>
+                    <th style={{padding:"9px 12px",textAlign:"right",background:"#1a56db",color:"#fff",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderRight:"1px solid #2563eb"}}>Lower</th>
+                    <th style={{padding:"9px 12px",textAlign:"right",background:"#1a56db",color:"#fff",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderRight:"1px solid #2563eb"}}>Upper</th>
+                    <th style={{padding:"9px 12px",textAlign:"right",background:"#1a56db",color:"#fff",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderRight:"1px solid #2563eb"}}>No Deck</th>
+                    <th style={{padding:"9px 12px",textAlign:"right",background:"#1a56db",color:"#fff",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderRight:"1px solid #2563eb"}}>Lower %</th>
+                    <th style={{padding:"9px 12px",textAlign:"right",background:"#1a56db",color:"#fff",fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>Upper %</th>
                   </tr></thead>
                   <tbody>
                     {[
-                      {label:"TOTAL",total:"Total",lower:"Total_Lower",upper:"Total_Upper",noDeck:"Total_NoDeck",c:S.text},
+                      {label:"TOTAL",total:"Total",lower:"Total_Lower",upper:"Total_Upper",noDeck:"Total_NoDeck",c:"#1a56db"},
                       {label:"Royal Class",total:"Royal_Total",lower:"Royal_Lower",upper:"Royal_Upper",noDeck:"Royal_NoDeck",c:S.warn},
                       {label:"First Class",total:"First_Total",lower:"First_Lower",upper:"First_Upper",noDeck:"First_NoDeck",c:S.success},
                       {label:"Premium Class",total:"Premium_Total",lower:"Premium_Lower",upper:"Premium_Upper",noDeck:"Premium_NoDeck",c:S.purple},
                     ].map((row,i)=>(
-                      <tr key={i} style={{borderBottom:`1px solid ${S.border}`,background:i===0?"#f8faff":i%2===0?"transparent":"#fafcff"}}>
-                        <td style={{...TDL,fontWeight:i===0?800:600,color:row.c}}>{row.label}</td>
-                        <td style={{...TD,fontWeight:700,color:row.c}}>{fmtN(deckTotals[row.total]||0)}</td>
-                        <td style={{...TD,color:S.accent}}>{fmtN(deckTotals[row.lower]||0)}</td>
-                        <td style={{...TD,color:S.success}}>{fmtN(deckTotals[row.upper]||0)}</td>
-                        <td style={{...TD,color:S.muted}}>{fmtN(deckTotals[row.noDeck]||0)}</td>
-                        <td style={{...TD,color:S.accent}}>{pct(deckTotals[row.lower]||0,deckTotals[row.total]||1)}</td>
-                        <td style={{...TD,color:S.success}}>{pct(deckTotals[row.upper]||0,deckTotals[row.total]||1)}</td>
+                      <tr key={i} style={{borderBottom:"1px solid #dbeafe",background:i%2===0?"#ffffff":"#f0f7ff"}}>
+                        <td style={{padding:"9px 12px",textAlign:"left",fontWeight:i===0?800:600,color:row.c,borderRight:"1px solid #dbeafe",fontSize:12}}>{row.label}</td>
+                        <td style={{padding:"9px 12px",textAlign:"right",fontWeight:700,color:row.c,borderRight:"1px solid #dbeafe",fontSize:12}}>{fmtN(deckTotals[row.total]||0)}</td>
+                        <td style={{padding:"9px 12px",textAlign:"right",color:"#1a56db",borderRight:"1px solid #dbeafe",fontSize:12}}>{fmtN(deckTotals[row.lower]||0)}</td>
+                        <td style={{padding:"9px 12px",textAlign:"right",color:S.success,borderRight:"1px solid #dbeafe",fontSize:12}}>{fmtN(deckTotals[row.upper]||0)}</td>
+                        <td style={{padding:"9px 12px",textAlign:"right",color:S.muted,borderRight:"1px solid #dbeafe",fontSize:12}}>{fmtN(deckTotals[row.noDeck]||0)}</td>
+                        <td style={{padding:"9px 12px",textAlign:"right",color:"#1a56db",borderRight:"1px solid #dbeafe",fontSize:12}}>{pct(deckTotals[row.lower]||0,deckTotals[row.total]||1)}</td>
+                        <td style={{padding:"9px 12px",textAlign:"right",color:S.success,fontSize:12}}>{pct(deckTotals[row.upper]||0,deckTotals[row.total]||1)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -651,7 +651,7 @@ function BusTab({token}){
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
                       <thead style={{position:"sticky",top:0,background:"#f8faff",zIndex:5}}>
                         <tr>
-                          <th style={{...THL,borderRight:`2px solid ${S.border2}`}} rowSpan={2}>Date</th>
+                          <th style={{...THL,borderRight:"2px solid #2563eb"}} rowSpan={2}>Date</th>
                           <th style={{...TH,textAlign:"center",borderRight:`1px solid ${S.border2}`,color:S.text}} colSpan={4}>Total</th>
                           <th style={{...TH,textAlign:"center",borderRight:`1px solid ${S.border2}`,color:S.warn}} colSpan={4}>Royal Class</th>
                           <th style={{...TH,textAlign:"center",borderRight:`1px solid ${S.border2}`,color:S.success}} colSpan={4}>First Class</th>
@@ -659,13 +659,13 @@ function BusTab({token}){
                           </tr>
                         <tr>
                           {["Total","Lower","Upper","No Deck","Total","Lower","Upper","No Deck","Total","Lower","Upper","No Deck","Total","Lower","Upper","No Deck"].map((h,i)=>(
-                            <th key={i} style={{...TH,fontSize:9,borderRight:i===3||i===7||i===11?`1px solid ${S.border2}`:"none"}}>{h}</th>
+                            <th key={i} style={{...TH,fontSize:9,borderRight:i===3||i===7||i===11?"2px solid #2563eb":"1px solid #2563eb"}}>{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
                         {deck.map((r,i)=>(
-                          <tr key={i} style={{borderBottom:`1px solid ${S.border}`,background:i%2===0?"transparent":"#f8faff"}}>
+                          <tr key={i} style={{borderBottom:"1px solid #dbeafe",background:i%2===0?"#ffffff":"#f0f7ff"}}>
                             <td style={{...TDL,fontSize:11,fontWeight:600,borderRight:`2px solid ${S.border2}`}}>{r.dateDeparture}</td>
                             <td style={{...TD,fontWeight:700}}>{fmtN(r.Total)}</td>
                             <td style={{...TD,color:S.accent}}>{fmtN(r.Total_Lower)}</td>
@@ -697,7 +697,7 @@ function BusTab({token}){
               <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,fontSize:13,fontWeight:700,color:S.text,display:"flex",alignItems:"center",gap:6}}><Map size={14} color={S.accent}/>Feeder Routes</div>
               <div style={{overflowX:"auto",maxHeight:540,overflowY:"auto"}}>
                 <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
-                  <thead style={{position:"sticky",top:0,background:"#f8faff",zIndex:5}}><tr>
+                  <thead style={{position:"sticky",top:0,zIndex:5}}><tr>
                     <th style={THL}>Route / Stop</th>
                     {fdates.map(d=><th key={d} style={TH}>{d}</th>)}
                     <th style={{...TH,color:S.warn}}>Total</th>
@@ -706,13 +706,13 @@ function BusTab({token}){
                     {rl.length===0&&<tr><td colSpan={fdates.length+2} style={{padding:28,textAlign:"center",color:S.muted}}>No feeder data</td></tr>}
                     {rl.map((route,ri)=>(
                       <React.Fragment key={ri}>
-                        <tr style={{background:S.accentLight}}>
+                        <tr style={{background:"#dbeafe"}}>
                           <td style={{...TDL,fontWeight:700,color:S.accent}}>Route {route.no} — {route.label}</td>
                           {fdates.map(d=><td key={d} style={{...TD,fontWeight:700,color:S.accent}}>{fmtN(route.totals[d]||0)}</td>)}
                           <td style={{...TD,fontWeight:700,color:S.warn}}>{fmtN(Object.values(route.totals).reduce((a,b)=>a+b,0))}</td>
                         </tr>
                         {Object.entries(route.stops).map(([stop,dates],si)=>(
-                          <tr key={si} style={{borderBottom:`1px solid ${S.border}`,background:si%2===0?"transparent":"#f8faff"}}>
+                          <tr key={si} style={{borderBottom:"1px solid #dbeafe",background:si%2===0?"#ffffff":"#f0f7ff"}}>
                             <td style={{...TDL,paddingLeft:24,color:S.muted}}>{stop}</td>
                             {fdates.map(d=><td key={d} style={TD}>{dates[d]||"—"}</td>)}
                             <td style={{...TD,color:S.muted}}>{fmtN(Object.values(dates).reduce((a,b)=>a+b,0))}</td>
@@ -767,8 +767,8 @@ function BusTab({token}){
                 </div>
               </div>
 
-              {/* STATUS — only for KPI & Deck */}
-              {view!=="feeder"&&(
+              {/* STATUS — only for Deck view */}
+              {view==="deck"&&(
                 <div style={{background:S.bg,borderRadius:8,padding:"10px 10px",border:`1px solid ${S.border}`}}>
                   <div style={{fontSize:10,fontWeight:700,color:S.accent,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8,display:"flex",alignItems:"center",gap:4}}>
                     <span style={{width:3,height:12,background:S.accent,borderRadius:2,display:"inline-block"}}/>Status
@@ -784,29 +784,24 @@ function BusTab({token}){
                     <option value="CTRL">🔍 CTRL</option>
                     <option value="IN_AANVRAAG">📋 IN_AANVRAAG</option>
                   </select>
-                  <div style={{marginTop:6,padding:"5px 7px",background:S.warnBg,borderRadius:5,border:`1px solid ${S.warn}22`}}>
-                    <div style={{fontSize:9,color:S.warn,fontWeight:600}}>⚠ Pendel tab ignores Status</div>
-                    <div style={{fontSize:9,color:S.muted2,marginTop:1}}>BUStrips has no Status column</div>
-                  </div>
                 </div>
               )}
 
-              {/* LABEL */}
+              {/* LABEL — dropdown for all views */}
               <div style={{background:S.bg,borderRadius:8,padding:"10px 10px",border:`1px solid ${S.border}`}}>
                 <div style={{fontSize:10,fontWeight:700,color:S.accent,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8,display:"flex",alignItems:"center",gap:4}}>
                   <span style={{width:3,height:12,background:S.accent,borderRadius:2,display:"inline-block"}}/>Label
                 </div>
-                <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-                  {["","STANDAARD","DEU","ITB"].map(v=>(
-                    <button key={v||"all"} onClick={()=>setF({...f,label:v})}
-                      style={{padding:"3px 9px",borderRadius:12,fontSize:11,cursor:"pointer",border:`1.5px solid ${f.label===v?S.purple:S.border2}`,background:f.label===v?`${S.purple}15`:"transparent",color:f.label===v?S.purple:S.textLight,fontWeight:f.label===v?700:400,transition:"all 0.12s"}}>
-                      {v||"All"}
-                    </button>
-                  ))}
-                </div>
+                <select value={f.label||""} onChange={e=>setF({...f,label:e.target.value})}
+                  style={{width:"100%",background:S.card,border:`1px solid ${S.border2}`,borderRadius:6,padding:"6px 8px",color:S.text,fontSize:11,outline:"none"}}>
+                  <option value="">All</option>
+                  <option value="STANDAARD">STANDAARD</option>
+                  <option value="DEU">DEU</option>
+                  <option value="ITB">ITB</option>
+                </select>
               </div>
 
-              {/* PENDEL & REGION & WEEKDAY — Pendel + Deck views */}
+              {/* ROUTE & SCHEDULE — Pendel + Deck views */}
               {view!=="feeder"&&(
                 <div style={{background:S.bg,borderRadius:8,padding:"10px 10px",border:`1px solid ${S.border}`}}>
                   <div style={{fontSize:10,fontWeight:700,color:S.accent,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8,display:"flex",alignItems:"center",gap:4}}>
@@ -831,23 +826,23 @@ function BusTab({token}){
                     </div>
                     <div>
                       {lbl("Weekday")}
-                      <div style={{display:"flex",gap:3,flexWrap:"wrap",marginTop:2}}>
-                        {["","Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map((d,i)=>{
-                          const full=["","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"][i];
-                          return(
-                            <button key={d||"all"} onClick={()=>setF({...f,weekday:full})}
-                              style={{padding:"2px 6px",borderRadius:4,fontSize:10,cursor:"pointer",border:`1.5px solid ${f.weekday===full?S.accent:S.border2}`,background:f.weekday===full?S.accentLight:"transparent",color:f.weekday===full?S.accent:S.textLight,fontWeight:f.weekday===full?700:400}}>
-                              {d||"All"}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      <select value={f.weekday||""} onChange={e=>setF({...f,weekday:e.target.value})}
+                        style={{width:"100%",background:S.card,border:`1px solid ${S.border2}`,borderRadius:6,padding:"6px 8px",color:S.text,fontSize:11,outline:"none"}}>
+                        <option value="">All Days</option>
+                        {["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map(d=><option key={d} value={d}>{d}</option>)}
+                      </select>
                     </div>
+                    {view==="pendel"&&(
+                      <div style={{marginTop:2,padding:"5px 7px",background:S.warnBg,borderRadius:5,border:`1px solid ${S.warn}22`}}>
+                        <div style={{fontSize:9,color:S.warn,fontWeight:600}}>⚠ Pendel tab ignores Status</div>
+                        <div style={{fontSize:9,color:S.muted2,marginTop:1}}>BUStrips has no Status column</div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
 
-              {/* FEEDER LINE — Feeder view only */}
+              {/* FEEDER LINE + WEEKDAY — Feeder view only */}
               {view==="feeder"&&(
                 <>
                   <div style={{background:S.bg,borderRadius:8,padding:"10px 10px",border:`1px solid ${S.border}`}}>
@@ -1142,9 +1137,9 @@ function PurchaseTab({token}){
     ["Base Price (€)","right"],["Sold (€)","right"],["Paid (€)","right"],["Deposit (€)","right"],
     ["Commission (€)","right"],["Margin (€)","right"],["Margin%","right"],["Margin+Comm (€)","right"],
   ];
-  const TH={padding:"9px 12px",textAlign:"right",fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",borderBottom:`1px solid ${S.border}`,background:"#f8faff"};
+  const TH={padding:"9px 12px",textAlign:"right",fontSize:11,fontWeight:700,color:"#ffffff",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",background:"#1a56db",borderRight:"1px solid #2563eb"};
   const THL={...TH,textAlign:"left"};
-  const TD={padding:"8px 12px",textAlign:"right",fontSize:12,color:S.text,whiteSpace:"nowrap",borderBottom:`1px solid ${S.border}`};
+  const TD={padding:"8px 12px",textAlign:"right",fontSize:12,color:S.text,whiteSpace:"nowrap",borderBottom:"1px solid #dbeafe",borderRight:"1px solid #dbeafe"};
   const TDL={...TD,textAlign:"left"};
 
   return(
@@ -1221,7 +1216,7 @@ function PurchaseTab({token}){
                       const margComm=parseFloat(r.MarginIncludingCommission||0);
                       const mPct=parseFloat(r.SalesBooking||0)>0?((margin/parseFloat(r.SalesBooking))*100):null;
                       return(
-                        <tr key={i} style={{borderBottom:`1px solid ${S.border}`,background:i%2===0?"transparent":"#f8faff"}}>
+                        <tr key={i} style={{borderBottom:"1px solid #dbeafe",background:i%2===0?"#ffffff":"#f0f7ff"}}>
                           <td style={{...TDL,color:S.accent,fontWeight:600,fontFamily:"monospace",fontSize:11}}>{r.BookingID||"—"}</td>
                           <td style={{...TDL,fontWeight:500}}>{r.DepartureDate||"—"}</td>
                           <td style={TDL}><span style={{background:confirmed?S.successBg:S.dangerBg,color:confirmed?S.success:S.danger,padding:"2px 7px",borderRadius:5,fontSize:10,fontWeight:700}}>{confirmed?"DEF":"DEF-GEANNULEERD"}</span></td>
@@ -1419,7 +1414,7 @@ function PurchaseTab({token}){
                           const mPct=parseFloat(r.SoldAmount||0)>0?((margin/parseFloat(r.SoldAmount))*100):null;
                           const confirmed=r.Status==="DEF";
                           return(
-                            <tr key={i} style={{borderBottom:`1px solid ${S.border}`,background:i%2===0?"transparent":"#f8faff"}}>
+                            <tr key={i} style={{borderBottom:"1px solid #dbeafe",background:i%2===0?"#ffffff":"#f0f7ff"}}>
                               <td style={{...TDL,color:S.accent,fontWeight:600,fontFamily:"monospace",fontSize:11}}>{r.BookingId||"—"}</td>
                               <td style={TDL}><span style={{background:`${cc}15`,color:cc,padding:"2px 8px",borderRadius:5,fontSize:11,fontWeight:700,display:"inline-flex",alignItems:"center",gap:3}}>{CAT_ICONS[r.MarginCategory]||"📦"} {r.MarginCategory||"—"}</span></td>
                               <td style={{...TDL,color:S.textLight,fontSize:11}}>{r.Dataset||"—"}</td>
