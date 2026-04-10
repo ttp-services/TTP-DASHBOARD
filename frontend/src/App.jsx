@@ -501,7 +501,7 @@ function BusTab({token}){
     if(f.weekday)p.weekday=f.weekday;
     if(f.status)p.status=f.status;
     if(f.label)p.label=f.label;
-    const fp={...p};if(f.feederLine)fp.feederLine=f.feederLine;
+    const fp={...p};if(f.feederLine)fp.feederLine=f.feederLine;if(f.weekday)fp.weekday=f.weekday;
     Promise.all([
       api("/api/dashboard/bus-kpis",p,token).catch(()=>({})),
       api("/api/dashboard/pendel-overview",p,token).catch(()=>[]),
@@ -540,13 +540,13 @@ function BusTab({token}){
         </div>
         <div style={{flex:1,overflowY:"auto",padding:18,display:"flex",flexDirection:"column",gap:14}}>
           {busK&&(
-            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
               {[
                 {l:"Total PAX",v:fmtN(busK.total_pax),c:S.accent,icon:<Users size={15}/>},
                 {l:"Royal Class",v:fmtN(busK.royal_pax),c:S.warn,icon:<Star size={15}/>},
                 {l:"First Class",v:fmtN(busK.first_pax),c:S.success,icon:<TrendingUp size={15}/>},
                 {l:"Premium",v:fmtN(busK.premium_pax),c:S.purple,icon:<CreditCard size={15}/>},
-                {l:"Comfort",v:fmtN(busK.comfort_pax),c:S.orange,icon:<Package size={15}/>},
+                {label:"Comfort Class",total:"Comfort_Total",lower:"Comfort_Lower",upper:"Comfort_Upper",noDeck:"Comfort_NoDeck",c:S.orange},
                 {l:"Lower Deck",v:fmtN(busK.lower_pax),c:S.accent2,icon:<ArrowDown size={15}/>},
                 {l:"Upper Deck",v:fmtN(busK.upper_pax),c:S.success,icon:<ArrowUp size={15}/>},
                 {l:"No Deck Pref",v:fmtN(busK.no_deck_pax),c:S.muted,icon:<CircleDot size={15}/>},
@@ -645,7 +645,10 @@ function BusTab({token}){
                           <th style={{...TH,textAlign:"center",borderRight:`1px solid ${S.border2}`,color:S.warn}} colSpan={4}>Royal Class</th>
                           <th style={{...TH,textAlign:"center",borderRight:`1px solid ${S.border2}`,color:S.success}} colSpan={4}>First Class</th>
                           <th style={{...TH,textAlign:"center",borderRight:`1px solid ${S.border2}`,color:S.purple}} colSpan={4}>Premium Class</th>
-                          <th style={{...TH,textAlign:"center",color:S.orange}} colSpan={4}>Comfort Class</th>
+                          <td style={{...TD,fontWeight:600,color:S.orange}}>{fmtN(r.Comfort_Total)}</td>
+                            <td style={TD}>{fmtN(r.Comfort_Lower)}</td>
+                            <td style={TD}>{fmtN(r.Comfort_Upper)}</td>
+                            <td style={TD}>{fmtN(r.Comfort_NoDeck)}</td>
                         </tr>
                         <tr>
                           {["Total","Lower","Upper","No Deck","Total","Lower","Upper","No Deck","Total","Lower","Upper","No Deck","Total","Lower","Upper","No Deck","Total","Lower","Upper","No Deck"].map((h,i)=>(
@@ -843,16 +846,28 @@ function BusTab({token}){
 
               {/* FEEDER LINE — Feeder view only */}
               {view==="feeder"&&(
-                <div style={{background:S.bg,borderRadius:8,padding:"10px 10px",border:`1px solid ${S.border}`}}>
-                  <div style={{fontSize:10,fontWeight:700,color:S.accent,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8,display:"flex",alignItems:"center",gap:4}}>
-                    <span style={{width:3,height:12,background:S.accent,borderRadius:2,display:"inline-block"}}/>Feeder Line
+                <>
+                  <div style={{background:S.bg,borderRadius:8,padding:"10px 10px",border:`1px solid ${S.border}`}}>
+                    <div style={{fontSize:10,fontWeight:700,color:S.accent,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8,display:"flex",alignItems:"center",gap:4}}>
+                      <span style={{width:3,height:12,background:S.accent,borderRadius:2,display:"inline-block"}}/>Feeder Line
+                    </div>
+                    <select value={f.feederLine||""} onChange={e=>setF({...f,feederLine:e.target.value})}
+                      style={{width:"100%",background:S.card,border:`1px solid ${S.border2}`,borderRadius:6,padding:"6px 8px",color:S.text,fontSize:11,outline:"none"}}>
+                      <option value="">All Lines</option>
+                      {sl.feederLines.map(o=><option key={o} value={o}>{o}</option>)}
+                    </select>
                   </div>
-                  <select value={f.feederLine||""} onChange={e=>setF({...f,feederLine:e.target.value})}
-                    style={{width:"100%",background:S.card,border:`1px solid ${S.border2}`,borderRadius:6,padding:"6px 8px",color:S.text,fontSize:11,outline:"none"}}>
-                    <option value="">All Lines</option>
-                    {sl.feederLines.map(o=><option key={o} value={o}>{o}</option>)}
-                  </select>
-                </div>
+                  <div style={{background:S.bg,borderRadius:8,padding:"10px 10px",border:`1px solid ${S.border}`}}>
+                    <div style={{fontSize:10,fontWeight:700,color:S.accent,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8,display:"flex",alignItems:"center",gap:4}}>
+                      <span style={{width:3,height:12,background:S.accent,borderRadius:2,display:"inline-block"}}/>Weekday
+                    </div>
+                    <select value={f.weekday||""} onChange={e=>setF({...f,weekday:e.target.value})}
+                      style={{width:"100%",background:S.card,border:`1px solid ${S.border2}`,borderRadius:6,padding:"6px 8px",color:S.text,fontSize:11,outline:"none"}}>
+                      <option value="">All Days</option>
+                      {["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map(d=><option key={d} value={d}>{d}</option>)}
+                    </select>
+                  </div>
+                </>
               )}
 
               {/* ACTIVE FILTERS SUMMARY */}
