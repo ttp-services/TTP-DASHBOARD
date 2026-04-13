@@ -1486,7 +1486,7 @@ function HotelTab({token}){
   const[subTab,setSubTab]=useState("overview");
 
   // ── Overview state ──
-  const[sl,setSl]=useState({regions:[],destinations:[],transports:[],labels:[]});
+  const[sl,setSl]=useState({destinations:[],transports:[],labels:[],datasets:[]});
   const[f,setF]=useState({depFrom:"",depTo:"",bkFrom:"",bkTo:"",region:"",destination:"",transport:"",label:[],status:[]});
   const[data,setData]=useState([]);
   const[kpis,setKpis]=useState(null);
@@ -1652,7 +1652,7 @@ function HotelTab({token}){
               </div>
             ))}
             <div style={{width:1,height:32,background:S.border2}}/>
-            {[["Region","region",sl.regions],["Destination","destination",sl.destinations],["Transport","transport",sl.transports]].map(([l,k,opts])=>(
+            {[["Destination","destination",sl.destinations],["Transport","transport",sl.transports]].map(([l,k,opts])=>(
               <div key={k}>
                 <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:3,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>{l}</label>
                 <select value={f[k]} onChange={e=>setF({...f,[k]:e.target.value})} style={{background:S.bg,border:`1.5px solid ${S.border2}`,borderRadius:7,padding:"5px 9px",color:S.text,fontSize:12,outline:"none",maxWidth:140}}>
@@ -1693,7 +1693,7 @@ function HotelTab({token}){
                   {l:"Total PAX",v:fmtN(kpis.totalPax),c:S.success,sub:"guests travelling",icon:(
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
                   )},
-                  {l:"Revenue",v:fmtM(kpis.totalRevenue),c:S.warn,sub:"gross income",icon:(
+                  {l:"Total Margin",v:fmtM(kpis.totalMargin),c:S.success,sub:"hotel margin",icon:(
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
                   )},
                 ].map(k=>(
@@ -1764,8 +1764,9 @@ function HotelTab({token}){
                   <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:1100}}>
                     <thead style={{position:"sticky",top:0,zIndex:5}}>
                       <tr>
-                        <SortTH col="hotel" right={false}>Hotel</SortTH>
-                        <th style={THL}>Region</th>
+                        <SortTH col="hotel" right={false}>Hotel Name</SortTH>
+                        <th style={THL}>Resort</th>
+                        <th style={THL}>Dataset</th>
                         <th style={THL}>First Dep</th>
                         <th style={THL}>Last Dep</th>
                         <SortTH col="bookings">Bookings</SortTH>
@@ -1787,8 +1788,9 @@ function HotelTab({token}){
                         <tr key={i} style={{borderBottom:"1px solid #dbeafe",background:i%2===0?"#ffffff":"#f7f9ff",transition:"background 0.1s"}}
                           onMouseEnter={e=>e.currentTarget.style.background="#eef4ff"}
                           onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"#ffffff":"#f7f9ff"}>
-                          <td style={{...TDL,fontWeight:600,color:S.accent,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis"}}>{r.hotel||"—"}</td>
-                          <td style={{...TDL,color:S.muted,fontSize:11}}>{r.region||"—"}</td>
+                          <td style={{...TDL,fontWeight:600,color:S.accent,maxWidth:180,overflow:"hidden",textOverflow:"ellipsis"}}>{r.hotel||"—"}</td>
+                          <td style={{...TDL,color:S.textLight,fontSize:11,maxWidth:140,overflow:"hidden",textOverflow:"ellipsis"}}>{r.resort||"—"}</td>
+                          <td style={{...TDL,color:S.muted,fontSize:11}}>{r.dataset||"—"}</td>
                           <td style={{...TDL,color:S.muted,fontSize:11}}>{r.firstDep||"—"}</td>
                           <td style={{...TDL,color:S.muted,fontSize:11}}>{r.lastDep||"—"}</td>
                           <td style={{...TD,fontWeight:700}}>{fmtN(r.bookingsCur)}</td>
