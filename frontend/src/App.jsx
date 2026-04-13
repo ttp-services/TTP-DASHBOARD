@@ -1858,56 +1858,134 @@ function HotelTab({token}){
             </div>
           )}
 
-          {/* Two-column layout: Ratings table (left) + Reviews (right) */}
-          <div style={{display:"grid",gridTemplateColumns:"420px 1fr",gap:14,alignItems:"start"}}>
+          {/* Stacked layout: Ratings table on top, Reviews below */}
+          <div style={{display:"flex",flexDirection:"column",gap:14}}>
 
             {/* ── LEFT: Ratings Table ── */}
-            <Card p="0" style={{position:"sticky",top:0}}>
-              <div style={{padding:"14px 16px",borderBottom:`1px solid ${S.border}`}}>
-                <div style={{fontSize:13,fontWeight:700,color:S.text,marginBottom:10}}>Hotel Ratings</div>
+            <Card p="0">
+              <div style={{padding:"14px 16px",borderBottom:`1px solid ${S.border}`,display:"flex",gap:10,alignItems:"center"}}>
+                <div style={{fontSize:13,fontWeight:700,color:S.text,flex:1}}>Hotel Ratings <span style={{fontSize:11,color:S.muted,fontWeight:400}}>({filteredRatings.length} hotels)</span></div>
                 <div style={{position:"relative"}}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={S.muted} strokeWidth="2" style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",pointerEvents:"none"}}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                  <input value={ratingSearch} onChange={e=>setRatingSearch(e.target.value)} placeholder="Filter hotels…" style={{background:S.bg,border:`1.5px solid ${S.border2}`,borderRadius:8,padding:"7px 10px 7px 30px",color:S.text,fontSize:12,outline:"none",width:"100%",boxSizing:"border-box"}}/>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={S.muted} strokeWidth="2" style={{position:"absolute",left:8,top:"50%",transform:"translateY(-50%)",pointerEvents:"none"}}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <input value={ratingSearch} onChange={e=>setRatingSearch(e.target.value)} placeholder="Search hotel…" style={{background:S.bg,border:`1.5px solid ${S.border2}`,borderRadius:7,padding:"5px 10px 5px 28px",color:S.text,fontSize:11,outline:"none",width:180}}/>
                 </div>
                 {selectedHotel&&(
-                  <div style={{marginTop:8,padding:"6px 10px",background:S.accentLight,borderRadius:7,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                    <span style={{fontSize:11,fontWeight:600,color:S.accent,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:280}}>{selectedHotel.name}</span>
-                    <button onClick={()=>{setSelectedHotel(null);loadReviews(1,null,"");}} style={{background:"none",border:"none",color:S.muted,cursor:"pointer",fontSize:16,padding:"0 2px",lineHeight:1,flexShrink:0}}>×</button>
-                  </div>
+                  <button onClick={()=>{setSelectedHotel(null);loadReviews(1,null,"");}} style={{padding:"4px 10px",background:S.dangerBg,border:`1px solid ${S.danger}33`,borderRadius:6,color:S.danger,fontSize:11,cursor:"pointer",fontWeight:600,whiteSpace:"nowrap"}}>✕ Clear</button>
                 )}
               </div>
-              <div style={{maxHeight:560,overflowY:"auto"}}>
-                {filteredRatings.map((r,i)=>{
-                  const score=parseFloat(r.avg_overall||0);
-                  const sc=scoreColor(score);
-                  const isSelected=selectedHotel?.code===r.accommodation_code;
-                  return(
-                    <div key={i} onClick={()=>{
-                      if(isSelected){setSelectedHotel(null);loadReviews(1,null,"");}
-                      else{setSelectedHotel({code:r.accommodation_code,name:r.accommodation_name});loadReviews(1,r.accommodation_code,"");}
-                    }} style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,cursor:"pointer",background:isSelected?S.accentLight:"transparent",transition:"background 0.15s"}}
-                      onMouseEnter={e=>{if(!isSelected)e.currentTarget.style.background=S.bg;}}
-                      onMouseLeave={e=>{e.currentTarget.style.background=isSelected?S.accentLight:"transparent";}}>
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                        <div style={{fontSize:12,fontWeight:600,color:isSelected?S.accent:S.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:280}}>{r.accommodation_name||"—"}</div>
-                        <span style={{background:sc.bg,color:sc.c,padding:"3px 8px",borderRadius:6,fontSize:12,fontWeight:800,flexShrink:0,marginLeft:8}}>{score.toFixed(1)}</span>
-                      </div>
-                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"3px 8px"}}>
-                        {[["Sleep",r.avg_sleep],["Location",r.avg_location],["Cleanliness",r.avg_cleanliness],["Service",r.avg_service]].map(([l,v])=>(
-                          <div key={l}>
-                            <div style={{fontSize:9,color:S.muted2,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:1}}>{l}</div>
-                            <ScoreBar value={v}/>
-                          </div>
-                        ))}
-                      </div>
-                      <div style={{display:"flex",gap:10,marginTop:6}}>
-                        <span style={{fontSize:10,color:S.muted}}>{fmtN(r.total_reviews)} reviews</span>
-                        {r.recommendation_pct&&<span style={{fontSize:10,color:S.success,fontWeight:600}}>👍 {parseFloat(r.recommendation_pct).toFixed(0)}% recommend</span>}
-                      </div>
-                    </div>
-                  );
-                })}
-                {filteredRatings.length===0&&<div style={{padding:24,textAlign:"center",color:S.muted,fontSize:12}}>No hotels match your search</div>}
+              <div style={{overflowX:"auto",maxHeight:580,overflowY:"auto"}}>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                  <thead style={{position:"sticky",top:0,zIndex:5}}>
+                    <tr>
+                      {[
+                        ["Hotel Name","left"],
+                        ["Overall","right"],
+                        ["Sleep","right"],
+                        ["Location","right"],
+                        ["Cleanliness","right"],
+                        ["Service","right"],
+                        ["Facilities","right"],
+                        ["Reviews","right"],
+                        ["Recommend","right"],
+                      ].map(([h,a],i)=>(
+                        <th key={i} style={{
+                          padding:"9px 12px",
+                          textAlign:a,
+                          fontSize:10,
+                          fontWeight:700,
+                          color:"#ffffff",
+                          textTransform:"uppercase",
+                          letterSpacing:"0.05em",
+                          whiteSpace:"nowrap",
+                          background:"#1e40af",
+                          borderRight:"1px solid #3b82f6",
+                        }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredRatings.length===0&&(
+                      <tr><td colSpan={9} style={{padding:24,textAlign:"center",color:S.muted}}>No hotels found</td></tr>
+                    )}
+                    {filteredRatings.map((r,i)=>{
+                      const score=parseFloat(r.avg_overall||0);
+                      const sc=scoreColor(score);
+                      const isSelected=selectedHotel?.code===r.accommodation_code;
+                      const TD2={
+                        padding:"8px 12px",
+                        textAlign:"right",
+                        fontSize:12,
+                        borderBottom:"1px solid #dbeafe",
+                        borderRight:"1px solid #e8f0fe",
+                        whiteSpace:"nowrap",
+                      };
+                      return(
+                        <tr key={i}
+                          onClick={()=>{
+                            if(isSelected){setSelectedHotel(null);loadReviews(1,null,"");}
+                            else{setSelectedHotel({code:r.accommodation_code,name:r.accommodation_name});loadReviews(1,r.accommodation_code,"");}
+                          }}
+                          style={{
+                            borderBottom:"1px solid #dbeafe",
+                            background:isSelected?"#eff6ff":i%2===0?"#ffffff":"#f7f9ff",
+                            cursor:"pointer",
+                            transition:"background 0.1s",
+                          }}
+                          onMouseEnter={e=>e.currentTarget.style.background="#eef4ff"}
+                          onMouseLeave={e=>e.currentTarget.style.background=isSelected?"#eff6ff":i%2===0?"#ffffff":"#f7f9ff"}
+                        >
+                          {/* Hotel Name */}
+                          <td style={{
+                            padding:"8px 12px",
+                            textAlign:"left",
+                            fontSize:12,
+                            fontWeight:600,
+                            color:isSelected?S.accent:S.text,
+                            borderBottom:"1px solid #dbeafe",
+                            borderRight:"1px solid #e8f0fe",
+                            maxWidth:200,
+                            overflow:"hidden",
+                            textOverflow:"ellipsis",
+                            whiteSpace:"nowrap",
+                          }}>{r.accommodation_name||"—"}</td>
+
+                          {/* Overall */}
+                          <td style={{...TD2}}>
+                            <span style={{
+                              background:sc.bg,
+                              color:sc.c,
+                              padding:"2px 8px",
+                              borderRadius:5,
+                              fontSize:12,
+                              fontWeight:800,
+                              display:"inline-block",
+                            }}>{score.toFixed(1)}</span>
+                          </td>
+
+                          {/* Category scores */}
+                          {["avg_sleep","avg_location","avg_cleanliness","avg_service","avg_facilities"].map(k=>{
+                            const v=parseFloat(r[k]||0);
+                            const cc=scoreColor(v);
+                            return(
+                              <td key={k} style={{...TD2,color:cc.c,fontWeight:600}}>{v.toFixed(1)}</td>
+                            );
+                          })}
+
+                          {/* Reviews count */}
+                          <td style={{...TD2,color:S.muted}}>{fmtN(r.total_reviews)}</td>
+
+                          {/* Recommend % */}
+                          <td style={{...TD2}}>
+                            {r.recommendation_pct
+                              ? <span style={{color:S.success,fontWeight:700}}>👍 {parseFloat(r.recommendation_pct).toFixed(0)}%</span>
+                              : <span style={{color:S.muted2}}>—</span>
+                            }
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </Card>
 
