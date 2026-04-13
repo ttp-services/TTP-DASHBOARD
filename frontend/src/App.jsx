@@ -266,346 +266,6 @@ function Login({onLogin}){
   );
 }
 
-function SummaryTab({token}){
-  const[kpis,setKpis]=useState(null);
-  const[chart,setChart]=useState([]);
-  const[topHotels,setTopHotels]=useState([]);
-  const[busKpis,setBusKpis]=useState(null);
-  const[marginKpis,setMarginKpis]=useState(null);
-  const[loading,setLoading]=useState(true);
-  const[yr,setYr]=useState(cy);
-  const[lastSync,setLastSync]=useState(null);
-
-  function loadAll(year){
-    setLoading(true);
-    const p=year?{year:[year]}:{};
-    const depFrom=year?`${year}-01-01`:`${cy-1}-12-01`;
-    const depTo=year?`${year}-12-31`:`${cy}-11-30`;
-
-    Promise.all([
-      api("/api/dashboard/kpis",{...p,departureDateFrom:depFrom,departureDateTo:depTo},token).catch(()=>null),
-      api("/api/dashboard/revenue-by-year",p,token).catch(()=>[]),
-      api("/api/dashboard/hotel-overview",{depFrom,depTo,page:1,limit:10},token).catch(()=>({data:[]})),
-      api("/api/dashboard/bus-kpis",{dateFrom:depFrom,dateTo:depTo},token).catch(()=>null),
-      api("/api/dashboard/margin-overview",{departureFrom:depFrom,departureTo:depTo,page:1,limit:1},token).catch(()=>null),
-    ]).then(([k,c,h,bk,mk])=>{
-      if(k)setKpis(k);
-      setChart(Array.isArray(c)?c:[]);
-      setTopHotels(Array.isArray(h?.data)?h.data.slice(0,10):[]);
-      if(bk)setBusKpis(bk);
-      if(mk)setMarginKpis(mk?.kpis||null);
-      setLastSync(new Date().toLocaleTimeString("nl-BE",{hour:"2-digit",minute:"2-digit"}));
-    }).finally(()=>setLoading(false));
-  }
-
-  useEffect(()=>{loadAll(yr);},[token]);
-
-  const pctColor=v=>v==null?"#94a3b8":v>=0?"#059669":"#dc2626";
-  const pctBg=v=>v==null?"#f1f5f9":v>=0?"#ecfdf5":"#fef2f2";
-  const pctFmt=v=>v==null?"—":`${v>=0?"▲":"▼"} ${Math.abs(v).toFixed(1)}%`;
-
-  // Mini sparkline from chart data
-  const Sparkline=({yearData,color})=>{
-    if(!yearData?.length)return null;
-    const vals=yearData.map(r=>Number(r.revenue)||0);
-    const max=Math.max(...vals,1);
-    const W=120,H=40;
-    const pts=vals.map((v,i)=>`${(i/(vals.length-1||1))*W},${H-(v/max)*H}`).join(" ");
-    return(
-      <svg width={W} height={H} style={{display:"block"}}>
-        <polyline points={pts} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" opacity={0.8}/>
-        <circle cx={(vals.length-1)/(vals.length-1||1)*W} cy={H-(vals[vals.length-1]/max)*H} r={3} fill={color}/>
-      </svg>
-    );
-  };
-
-  const curYearChart=chart.filter(r=>r.year===yr).sort((a,b)=>a.month-b.month);
-  const prevYearChart=chart.filter(r=>r.year===yr-1).sort((a,b)=>a.month-b.month);
-
-  return(
-    <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden",background:"#f0f5ff"}}>
-
-      {/* ── Top bar ── */}
-      <div style={{background:"#1e40af",padding:"14px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
-        <div>
-          <div style={{fontSize:18,fontWeight:800,color:"#fff",letterSpacing:"-0.02em"}}>Executive Summary</div>
-          <div style={{fontSize:11,color:"#93c5fd",marginTop:2}}>TTP Services Middle East · Real-time business overview</div>
-        </div>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          {/* Year selector */}
-          <div style={{display:"flex",gap:4,background:"rgba(255,255,255,0.1)",padding:4,borderRadius:8}}>
-            {[2023,2024,2025,2026].map(y=>(
-              <button key={y} onClick={()=>{setYr(y);loadAll(y);}} style={{
-                padding:"4px 12px",borderRadius:6,fontSize:12,cursor:"pointer",border:"none",
-                background:yr===y?"#fff":"transparent",
-                color:yr===y?"#1e40af":"#bfdbfe",
-                fontWeight:yr===y?700:500,transition:"all 0.15s",
-              }}>{y}</button>
-            ))}
-          </div>
-          <button onClick={()=>loadAll(yr)} style={{padding:"6px 14px",borderRadius:7,fontSize:12,cursor:"pointer",border:"1px solid rgba(255,255,255,0.3)",background:"rgba(255,255,255,0.1)",color:"#fff",fontWeight:600,display:"flex",alignItems:"center",gap:5}}>
-            ↻ Refresh
-          </button>
-          {lastSync&&<span style={{fontSize:11,color:"#93c5fd"}}>Synced {lastSync}</span>}
-        </div>
-      </div>
-
-      <div style={{flex:1,overflowY:"auto",padding:"18px 24px",display:"flex",flexDirection:"column",gap:16}}>
-        {loading&&(
-          <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:"80px 20px",gap:12}}>
-            <div style={{width:24,height:24,border:"3px solid #dbeafe",borderTop:"3px solid #1e40af",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
-            <span style={{color:S.muted,fontSize:14,fontWeight:500}}>Loading executive summary…</span>
-          </div>
-        )}
-
-        {!loading&&(
-          <>
-            {/* ── Row 1: Main KPI Cards ── */}
-            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14}}>
-              {[
-                {
-                  l:"Total Bookings",
-                  v:fmtN(kpis?.currentBookings),
-                  prev:fmtN(kpis?.previousBookings),
-                  pct:kpis?.percentBookings,
-                  c:"#1e40af",bg:"#eff6ff",
-                  icon:(
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                  ),
-                  spark:<Sparkline yearData={curYearChart} color="#1e40af"/>,
-                },
-                {
-                  l:"Total PAX",
-                  v:fmtN(kpis?.currentPax),
-                  prev:fmtN(kpis?.previousPax),
-                  pct:kpis?.percentPax,
-                  c:"#059669",bg:"#ecfdf5",
-                  icon:(
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
-                  ),
-                  spark:<Sparkline yearData={curYearChart} color="#059669"/>,
-                },
-                {
-                  l:"Gross Revenue",
-                  v:fmtM(kpis?.currentRevenue),
-                  prev:fmtM(kpis?.previousRevenue),
-                  pct:kpis?.percentRevenue,
-                  c:"#d97706",bg:"#fffbeb",
-                  icon:(
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-                  ),
-                  spark:<Sparkline yearData={curYearChart} color="#d97706"/>,
-                },
-                {
-                  l:"Net Margin",
-                  v:fmtM(marginKpis?.totalMargin),
-                  prev:"",
-                  pct:null,
-                  c:"#7c3aed",bg:"#f5f3ff",
-                  icon:(
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23,6 13.5,15.5 8.5,10.5 1,18"/><polyline points="17,6 23,6 23,12"/></svg>
-                  ),
-                  spark:null,
-                },
-              ].map((k,i)=>(
-                <div key={i} style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:16,padding:"20px",boxShadow:"0 1px 3px rgba(0,0,0,0.08)",display:"flex",flexDirection:"column",gap:12,position:"relative",overflow:"hidden"}}>
-                  {/* Background accent */}
-                  <div style={{position:"absolute",top:0,right:0,width:80,height:80,borderRadius:"0 16px 0 80px",background:`${k.c}08`}}/>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-                    <div style={{width:44,height:44,borderRadius:12,background:k.bg,display:"flex",alignItems:"center",justifyContent:"center",color:k.c}}>{k.icon}</div>
-                    {k.pct!=null&&(
-                      <span style={{background:pctBg(k.pct),color:pctColor(k.pct),padding:"3px 8px",borderRadius:6,fontSize:11,fontWeight:700}}>{pctFmt(k.pct)}</span>
-                    )}
-                  </div>
-                  <div>
-                    <div style={{fontSize:11,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>{k.l}</div>
-                    <div style={{fontSize:30,fontWeight:900,color:k.c,letterSpacing:"-0.03em",lineHeight:1}}>{k.v}</div>
-                  </div>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
-                    {k.prev&&<div style={{fontSize:11,color:S.muted}}>vs last year: <strong>{k.prev}</strong></div>}
-                    {k.spark&&<div>{k.spark}</div>}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* ── Row 2: Revenue Chart + Dataset Breakdown ── */}
-            <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:14}}>
-
-              {/* Revenue Monthly Chart */}
-              <div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:16,padding:"20px",boxShadow:"0 1px 3px rgba(0,0,0,0.08)"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-                  <div>
-                    <div style={{fontSize:14,fontWeight:700,color:S.text}}>Revenue Trend {yr}</div>
-                    <div style={{fontSize:11,color:S.muted,marginTop:1}}>Monthly revenue vs previous year</div>
-                  </div>
-                  <div style={{display:"flex",gap:12}}>
-                    {[{y:yr,c:YC[yr]||S.accent},{y:yr-1,c:YC[yr-1]||S.muted2}].map(({y,c})=>(
-                      <div key={y} style={{display:"flex",alignItems:"center",gap:4}}>
-                        <div style={{width:10,height:10,borderRadius:2,background:c}}/>
-                        <span style={{fontSize:11,color:S.muted,fontWeight:600}}>{y}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                {(()=>{
-                  const W=500,H=160,PL=60,PR=10,PT=10,PB=30,CW=W-PL-PR,CH=H-PT-PB;
-                  const allVals=[...curYearChart,...prevYearChart].map(r=>Number(r.revenue)||0);
-                  const maxV=Math.max(...allVals,1);
-                  const mx=mo=>PL+((mo-1)/11)*CW;
-                  const my=v=>PT+CH-(v/maxV)*CH;
-                  const fmtA=v=>v>=1e6?`€${(v/1e6).toFixed(1)}M`:v>=1e3?`€${(v/1e3).toFixed(0)}K`:`€${v}`;
-                  const mkPath=(d)=>{
-                    const pts=d.map(r=>({x:mx(r.month),y:my(Number(r.revenue)||0)}));
-                    return pts.map((p,i)=>`${i===0?"M":"L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
-                  };
-                  return(
-                    <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:"auto"}}>
-                      {[0,1,2,3].map(i=>{const y=PT+(CH/3)*i,v=maxV*(1-i/3);return<g key={i}><line x1={PL} x2={W-PR} y1={y} y2={y} stroke="#f1f5f9" strokeWidth={1}/><text x={PL-5} y={y+4} textAnchor="end" fontSize={8} fill={S.muted2}>{fmtA(v)}</text></g>;})}
-                      {MONTHS.map((m,i)=><text key={i} x={mx(i+1)} y={H-PB+14} textAnchor="middle" fontSize={8} fill={S.muted2}>{m}</text>)}
-                      {prevYearChart.length>0&&<path d={mkPath(prevYearChart)} fill="none" stroke={YC[yr-1]||S.muted2} strokeWidth={1.5} strokeDasharray="4,3" opacity={0.5}/>}
-                      {curYearChart.length>0&&(
-                        <>
-                          <path d={mkPath(curYearChart)} fill="none" stroke={YC[yr]||S.accent} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round"/>
-                          {curYearChart.map(r=>(
-                            <circle key={r.month} cx={mx(r.month)} cy={my(Number(r.revenue)||0)} r={3.5} fill={YC[yr]||S.accent} stroke="#fff" strokeWidth={1.5}/>
-                          ))}
-                        </>
-                      )}
-                    </svg>
-                  );
-                })()}
-              </div>
-
-              {/* Bus KPIs */}
-              <div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:16,padding:"20px",boxShadow:"0 1px 3px rgba(0,0,0,0.08)"}}>
-                <div style={{fontSize:14,fontWeight:700,color:S.text,marginBottom:4}}>Bus Occupancy</div>
-                <div style={{fontSize:11,color:S.muted,marginBottom:16}}>Class distribution overview</div>
-                {busKpis?(
-                  <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                    {[
-                      {l:"Total PAX",v:fmtN(busKpis.total_pax),c:S.accent,w:100},
-                      {l:"Royal Class",v:fmtN(busKpis.royal_pax),c:S.warn,w:busKpis.total_pax>0?Math.round((busKpis.royal_pax/busKpis.total_pax)*100):0},
-                      {l:"First Class",v:fmtN(busKpis.first_pax),c:S.success,w:busKpis.total_pax>0?Math.round((busKpis.first_pax/busKpis.total_pax)*100):0},
-                      {l:"Premium",v:fmtN(busKpis.premium_pax),c:S.purple,w:busKpis.total_pax>0?Math.round((busKpis.premium_pax/busKpis.total_pax)*100):0},
-                      {l:"Lower Deck",v:fmtN(busKpis.lower_pax),c:"#0284c7",w:busKpis.total_pax>0?Math.round((busKpis.lower_pax/busKpis.total_pax)*100):0},
-                      {l:"Upper Deck",v:fmtN(busKpis.upper_pax),c:"#0891b2",w:busKpis.total_pax>0?Math.round((busKpis.upper_pax/busKpis.total_pax)*100):0},
-                    ].map((k,i)=>(
-                      <div key={i}>
-                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
-                          <span style={{fontSize:11,fontWeight:600,color:S.textLight}}>{k.l}</span>
-                          <span style={{fontSize:11,fontWeight:700,color:k.c}}>{k.v}</span>
-                        </div>
-                        <div style={{height:5,background:"#f1f5f9",borderRadius:10,overflow:"hidden"}}>
-                          <div style={{width:`${k.w}%`,height:"100%",background:k.c,borderRadius:10,transition:"width 0.5s"}}/>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ):<div style={{color:S.muted,fontSize:12,textAlign:"center",padding:20}}>No bus data</div>}
-              </div>
-            </div>
-
-            {/* ── Row 3: Top Hotels + Purchase Obligations ── */}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-
-              {/* Top 10 Hotels */}
-              <div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:16,padding:"0",boxShadow:"0 1px 3px rgba(0,0,0,0.08)",overflow:"hidden"}}>
-                <div style={{padding:"16px 18px",borderBottom:"1px solid #e2e8f0"}}>
-                  <div style={{fontSize:14,fontWeight:700,color:S.text}}>Top 10 Hotels by PAX</div>
-                  <div style={{fontSize:11,color:S.muted,marginTop:1}}>Ranked by passenger volume</div>
-                </div>
-                <div style={{overflowX:"auto"}}>
-                  <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                    <thead>
-                      <tr>
-                        {[["#","center"],["Hotel","left"],["PAX","right"],["vs LY","right"],["Revenue","right"]].map(([h,a],i)=>(
-                          <th key={i} style={{padding:"8px 12px",textAlign:a,fontSize:10,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.05em",background:"#1e40af",borderRight:"1px solid #3b82f6",whiteSpace:"nowrap"}}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {topHotels.length===0&&<tr><td colSpan={5} style={{padding:20,textAlign:"center",color:S.muted}}>No data — click Apply in Hotel Insights first</td></tr>}
-                      {topHotels.map((r,i)=>(
-                        <tr key={i} style={{borderBottom:"1px solid #dbeafe",background:i%2===0?"#fff":"#f7f9ff"}}>
-                          <td style={{padding:"8px 12px",textAlign:"center",fontWeight:700,color:i<3?"#d97706":S.muted,fontSize:i<3?13:12}}>
-                            {i===0?"🥇":i===1?"🥈":i===2?"🥉":i+1}
-                          </td>
-                          <td style={{padding:"8px 12px",fontWeight:600,color:S.accent,maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.hotel||"—"}</td>
-                          <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:S.text}}>{fmtN(r.paxCur)}</td>
-                          <td style={{padding:"8px 12px",textAlign:"right"}}>
-                            {r.paxDiffPct!=null?(
-                              <span style={{background:pctBg(r.paxDiffPct),color:pctColor(r.paxDiffPct),padding:"2px 6px",borderRadius:4,fontSize:10,fontWeight:700}}>{pctFmt(r.paxDiffPct)}</span>
-                            ):<span style={{color:S.muted2}}>—</span>}
-                          </td>
-                          <td style={{padding:"8px 12px",textAlign:"right",color:S.success,fontWeight:600}}>{fmtM(r.revenueCur)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Purchase Obligations Summary */}
-              <div style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:16,padding:"20px",boxShadow:"0 1px 3px rgba(0,0,0,0.08)"}}>
-                <div style={{fontSize:14,fontWeight:700,color:S.text,marginBottom:4}}>Purchase Obligations</div>
-                <div style={{fontSize:11,color:S.muted,marginBottom:16}}>Financial overview · {yr}</div>
-                {marginKpis?(
-                  <div style={{display:"flex",flexDirection:"column",gap:12}}>
-                    {[
-                      {l:"Total Bookings",v:fmtN(marginKpis.totalBookings),c:S.accent,icon:"📋"},
-                      {l:"Confirmed",v:fmtN(marginKpis.confirmedCount),c:S.success,icon:"✅"},
-                      {l:"Cancelled",v:fmtN(marginKpis.cancelledCount),c:S.danger,icon:"❌"},
-                      {l:"Total Sales",v:fmtM(marginKpis.totalSales),c:S.success,icon:"💶"},
-                      {l:"Net Margin",v:fmtM(marginKpis.totalMargin),c:parseFloat(marginKpis.totalMargin||0)>=0?S.success:S.danger,icon:"📈"},
-                      {l:"Commission",v:fmtM(marginKpis.totalCommission),c:S.warn,icon:"💰"},
-                      {l:"Obligations",v:fmtM(marginKpis.totalObligation),c:S.orange,icon:"⚠️"},
-                      {l:"Margin + Comm",v:fmtM(marginKpis.totalMarginIncludingCommission),c:S.purple,icon:"🎯"},
-                    ].map((k,i)=>(
-                      <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 12px",borderRadius:8,background:i%2===0?"#f8faff":"#fff",border:"1px solid #e2e8f0"}}>
-                        <div style={{display:"flex",alignItems:"center",gap:8}}>
-                          <span style={{fontSize:14}}>{k.icon}</span>
-                          <span style={{fontSize:12,fontWeight:600,color:S.textLight}}>{k.l}</span>
-                        </div>
-                        <span style={{fontSize:13,fontWeight:800,color:k.c}}>{k.v}</span>
-                      </div>
-                    ))}
-                  </div>
-                ):(
-                  <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 20px",color:S.muted}}>
-                    <div style={{fontSize:32,marginBottom:10}}>📋</div>
-                    <div style={{fontSize:12,textAlign:"center"}}>No obligations data.<br/>Apply filters in Purchase tab first.</div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* ── Row 4: Footer Stats ── */}
-            <div style={{background:"#1e40af",borderRadius:16,padding:"16px 24px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div style={{display:"flex",gap:32}}>
-                {[
-                  {l:"Data Sources",v:"Solmar · Interbus · Solmar DE · Snowtravel"},
-                  {l:"Database",v:"Azure SQL · TTPDatabase"},
-                  {l:"Last Updated",v:lastSync||"—"},
-                ].map((k,i)=>(
-                  <div key={i}>
-                    <div style={{fontSize:9,color:"#93c5fd",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:2}}>{k.l}</div>
-                    <div style={{fontSize:11,color:"#fff",fontWeight:600}}>{k.v}</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{display:"flex",alignItems:"center",gap:6}}>
-                <div style={{width:8,height:8,borderRadius:"50%",background:"#34d399"}}/>
-                <span style={{fontSize:12,color:"#fff",fontWeight:600}}>Live · TTP Analytics v2.1</span>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ─── OVERVIEW TAB ──────────────────────────────────────────────────────────────
 
 function OverviewTab({token}){
@@ -1141,7 +801,7 @@ function BusTab({token}){
               </div>
 
               {/* STATUS */}
-              {(
+              {view!=="pendel"&&(
                 <div style={{background:S.bg,borderRadius:8,padding:"10px 10px",border:`1px solid ${S.border}`}}>
                   <div style={{fontSize:10,fontWeight:700,color:S.accent,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8,display:"flex",alignItems:"center",gap:4}}>
                     <span style={{width:3,height:12,background:S.accent,borderRadius:2,display:"inline-block"}}/>Status
@@ -1168,9 +828,10 @@ function BusTab({token}){
                 <select value={f.label||""} onChange={e=>setF({...f,label:e.target.value})}
                   style={{width:"100%",background:S.card,border:`1px solid ${S.border2}`,borderRadius:6,padding:"6px 8px",color:S.text,fontSize:11,outline:"none"}}>
                   <option value="">All</option>
-                  <option value="STANDAARD">STANDAARD</option>
-                  <option value="DEU">DEU</option>
-                  <option value="ITB">ITB</option>
+                  {view==="deck"
+                    ? <><option value="Solmar">Solmar</option><option value="Solmar DE">Solmar DE</option><option value="Interbus">Interbus</option></>
+                    : <><option value="STANDAARD">STANDAARD</option><option value="DEU">DEU</option></>
+                  }
                 </select>
               </div>
 
@@ -1189,14 +850,14 @@ function BusTab({token}){
                         {sl.pendels.map(o=><option key={o} value={o}>H-{o}</option>)}
                       </select>
                     </div>
-                    <div>
+                    {view==="deck"&&<div>
                       {lbl("Region")}
                       <select value={f.region||""} onChange={e=>setF({...f,region:e.target.value})}
                         style={{width:"100%",background:S.card,border:`1px solid ${S.border2}`,borderRadius:6,padding:"6px 8px",color:S.text,fontSize:11,outline:"none"}}>
                         <option value="">All Regions</option>
                         {sl.regions.map(o=><option key={o} value={o}>{o}</option>)}
                       </select>
-                    </div>
+                    </div>}
                     <div>
                       {lbl("Weekday")}
                       <select value={f.weekday||""} onChange={e=>setF({...f,weekday:e.target.value})}
