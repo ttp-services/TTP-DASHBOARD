@@ -847,7 +847,10 @@ function BusTab({token}){
                       <select value={f.pendel||""} onChange={e=>setF({...f,pendel:e.target.value})}
                         style={{width:"100%",background:S.card,border:`1px solid ${S.border2}`,borderRadius:6,padding:"6px 8px",color:S.text,fontSize:11,outline:"none"}}>
                         <option value="">All Pendels</option>
-                        {sl.pendels.map(o=><option key={o} value={o}>H-{o}</option>)}
+                        {view==="deck"
+                          ? sl.deckPendels.map(o=><option key={o} value={o}>{o}</option>)
+                          : sl.pendels.map(o=><option key={o} value={o}>{o}</option>)
+                        }
                       </select>
                     </div>
                     {view==="deck"&&<div>
