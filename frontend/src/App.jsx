@@ -2737,7 +2737,6 @@ export default function App(){
   const token=session.token;
   const isAdmin = session?.role === "admin";
   const NAV=[
-    {id:"summary",l:"Summary",ic:<PieChart size={16}/>},
     {id:"overview",l:"Overview",ic:<LayoutDashboard size={16}/>},
     {id:"bus",l:"Bus Occupancy",ic:<Bus size={16}/>},
     {id:"purchase",l:"Purchase Obligations",ic:<Briefcase size={16}/>},
@@ -2799,7 +2798,6 @@ export default function App(){
           </div>
         </div>
         <div style={{flex:1,overflow:"hidden"}}>
-          {tab==="summary"   &&<SummaryTab   token={token}/>}
           {tab==="overview"  &&<OverviewTab  token={token}/>}
           {tab==="bus"       &&<BusTab       token={token}/>}
           {tab==="purchase"  &&<PurchaseTab  token={token}/>}
