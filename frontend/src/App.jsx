@@ -485,7 +485,7 @@ function OverviewTab({token}){
 
 function BusTab({token}){
   const[view,setView]=useState("pendel");
-  const[sl,setSl]=useState({pendels:[],regions:[],statuses:[],feederLines:[],statusesEnglish:[]});
+  const[sl,setSl]=useState({pendels:[],deckPendels:[],regions:[],statuses:[],feederLines:[],feederLabels:[],statusesEnglish:[]});
   const[busK,setBusK]=useState(null);
   const[pendel,setPendel]=useState([]);
   const[feeder,setFeeder]=useState([]);
@@ -497,7 +497,7 @@ function BusTab({token}){
     api("/api/dashboard/bus-slicers",{},token).then(d=>{
       if(d&&!d.error){
         console.log("bus-slicers loaded:",d);
-        setSl(d);
+        setSl({...d, feederLabels: d.feederLabels||["Solmar","Interbus","Solmar DE"]});
       }
     }).catch(e=>console.error("bus-slicers error:",e));
   },[token]);
@@ -830,7 +830,9 @@ function BusTab({token}){
                   <option value="">All</option>
                   {view==="deck"
                     ? <><option value="Solmar">Solmar</option><option value="Solmar DE">Solmar DE</option><option value="Interbus">Interbus</option></>
-                    : <><option value="STANDAARD">STANDAARD</option><option value="DEU">DEU</option></>
+                    : view==="feeder"
+                      ? sl.feederLabels.map(o=><option key={o} value={o}>{o}</option>)
+                      : <><option value="STANDAARD">STANDAARD</option><option value="DEU">DEU</option></>
                   }
                 </select>
               </div>
