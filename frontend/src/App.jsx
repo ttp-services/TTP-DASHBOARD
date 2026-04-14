@@ -491,7 +491,7 @@ function BusTab({token}){
   const[feeder,setFeeder]=useState([]);
   const[deck,setDeck]=useState([]);
   const[loading,setLoading]=useState(false);
-  const[f,setF]=useState({dateFrom:`2020-01-01`,dateTo:`${cy}-12-31`,pendel:"",region:"",label:"",feederLine:"",weekday:"",status:"",_collapsed:false});
+  const[f,setF]=useState({dateFrom:`2020-01-01`,dateTo:`${cy}-12-31`,pendel:[],region:[],label:[],feederLine:[],weekday:[],status:[],_collapsed:false});
 
   useEffect(()=>{
     api("/api/dashboard/bus-slicers",{},token).then(d=>{
@@ -509,26 +509,26 @@ function BusTab({token}){
     const p={};
     if(f.dateFrom)p.dateFrom=f.dateFrom;
     if(f.dateTo)p.dateTo=f.dateTo;
-    if(f.pendel)p.pendel=f.pendel;
-    if(f.region)p.region=f.region;
-    if(f.weekday)p.weekday=f.weekday;
-    if(f.status)p.status=f.status;
-    if(f.label)p.label=f.label;
+    if(f.pendel?.length)p.pendel=f.pendel;
+    if(f.region?.length)p.region=f.region;
+    if(f.weekday?.length)p.weekday=f.weekday;
+    if(f.status?.length)p.status=f.status;
+    if(f.label?.length)p.label=f.label;
 
     // Params for pendel (BUStrips — only has dateFrom, dateTo, weekday, pendel — NO label, NO status)
     const pp={};
     if(f.dateFrom)pp.dateFrom=f.dateFrom;
     if(f.dateTo)pp.dateTo=f.dateTo;
-    if(f.pendel)pp.pendel=f.pendel;
-    if(f.weekday)pp.weekday=f.weekday;
+    if(f.pendel?.length)pp.pendel=f.pendel;
+    if(f.weekday?.length)pp.weekday=f.weekday;
 
     // Params for feeder (FeederOverview — has dateFrom, dateTo, feederLine, label, weekday)
     const fp={};
     if(f.dateFrom)fp.dateFrom=f.dateFrom;
     if(f.dateTo)fp.dateTo=f.dateTo;
-    if(f.feederLine)fp.feederLine=f.feederLine;
-    if(f.label)fp.label=f.label;
-    if(f.weekday)fp.weekday=f.weekday;
+    if(f.feederLine?.length)fp.feederLine=f.feederLine;
+    if(f.label?.length)fp.label=f.label;
+    if(f.weekday?.length)fp.weekday=f.weekday;
 
     Promise.all([
       api("/api/dashboard/bus-kpis",p,token).catch(()=>({})),
@@ -544,7 +544,7 @@ function BusTab({token}){
   }
   useEffect(()=>{applyLoad();},[token]);
 
-  function resetFilters(){setF({dateFrom:`2020-01-01`,dateTo:`${cy}-12-31`,pendel:"",region:"",label:"",feederLine:"",weekday:"",status:"",_collapsed:false});}
+  function resetFilters(){setF({dateFrom:`2020-01-01`,dateTo:`${cy}-12-31`,pendel:[],region:[],label:[],feederLine:[],weekday:[],status:[],_collapsed:false});}
 
   const fdates=[...new Set(feeder.map(r=>r.DepartureDate))].sort();
   const froutes={};
@@ -800,76 +800,104 @@ function BusTab({token}){
                 </div>
               </div>
 
-              {/* STATUS */}
+              {/* STATUS — Deck & Feeder only */}
               {view!=="pendel"&&(
                 <div style={{background:S.bg,borderRadius:8,padding:"10px 10px",border:`1px solid ${S.border}`}}>
-                  <div style={{fontSize:10,fontWeight:700,color:S.accent,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8,display:"flex",alignItems:"center",gap:4}}>
-                    <span style={{width:3,height:12,background:S.accent,borderRadius:2,display:"inline-block"}}/>Status
+                  <div style={{fontSize:10,fontWeight:700,color:S.accent,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                    <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:3,height:12,background:S.accent,borderRadius:2,display:"inline-block"}}/>Status</span>
+                    {f.status?.length>0&&<span onClick={()=>setF({...f,status:[]})} style={{fontSize:9,color:S.danger,cursor:"pointer",fontWeight:600}}>✕ Clear</span>}
                   </div>
-                  <select value={f.status||""} onChange={e=>setF({...f,status:e.target.value})}
-                    style={{width:"100%",background:S.card,border:`1px solid ${S.border2}`,borderRadius:6,padding:"6px 8px",color:S.text,fontSize:11,outline:"none"}}>
-                    <option value="">All Statuses</option>
-                    <option value="DEF">✅ DEF — Confirmed</option>
-                    <option value="TIJD">⏳ TIJD — Timed</option>
-                    <option value="VERV">🔄 VERV — Replaced</option>
-                    <option value="DEF-GEANNULEERD">❌ DEF-GEANNULEERD</option>
-                    <option value="ACC AV NIET OK">⚠ ACC AV NIET OK</option>
-                    <option value="CTRL">🔍 CTRL</option>
-                    <option value="IN_AANVRAAG">📋 IN_AANVRAAG</option>
-                  </select>
+                  {[{v:"DEF",l:"✅ DEF — Confirmed"},{v:"TIJD",l:"⏳ TIJD — Timed"},{v:"VERV",l:"🔄 VERV — Replaced"},{v:"DEF-GEANNULEERD",l:"❌ DEF-GEANNULEERD"},{v:"ACC AV NIET OK",l:"⚠ ACC AV NIET OK"},{v:"CTRL",l:"🔍 CTRL"},{v:"IN_AANVRAAG",l:"📋 IN_AANVRAAG"}].map(({v,l})=>{
+                    const active=f.status?.includes(v);
+                    return<div key={v} onClick={()=>setF({...f,status:active?f.status.filter(x=>x!==v):[...(f.status||[]),v]})} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 6px",borderRadius:5,cursor:"pointer",background:active?`${S.accent}12`:"transparent",marginBottom:2}}>
+                      <div style={{width:13,height:13,borderRadius:3,border:`1.5px solid ${active?S.accent:S.border2}`,background:active?S.accent:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                        {active&&<span style={{color:"#fff",fontSize:9,lineHeight:1}}>✓</span>}
+                      </div>
+                      <span style={{fontSize:10,color:active?S.accent:S.textLight,fontWeight:active?600:400}}>{l}</span>
+                    </div>;
+                  })}
                 </div>
               )}
 
-              {/* LABEL — dropdown for all views */}
+              {/* LABEL */}
               <div style={{background:S.bg,borderRadius:8,padding:"10px 10px",border:`1px solid ${S.border}`}}>
-                <div style={{fontSize:10,fontWeight:700,color:S.accent,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8,display:"flex",alignItems:"center",gap:4}}>
-                  <span style={{width:3,height:12,background:S.accent,borderRadius:2,display:"inline-block"}}/>Label
+                <div style={{fontSize:10,fontWeight:700,color:S.accent,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:3,height:12,background:S.accent,borderRadius:2,display:"inline-block"}}/>Label</span>
+                  {f.label?.length>0&&<span onClick={()=>setF({...f,label:[]})} style={{fontSize:9,color:S.danger,cursor:"pointer",fontWeight:600}}>✕ Clear</span>}
                 </div>
-                <select value={f.label||""} onChange={e=>setF({...f,label:e.target.value})}
-                  style={{width:"100%",background:S.card,border:`1px solid ${S.border2}`,borderRadius:6,padding:"6px 8px",color:S.text,fontSize:11,outline:"none"}}>
-                  <option value="">All</option>
-                  {view==="deck"
-                    ? <><option value="Solmar">Solmar</option><option value="Solmar DE">Solmar DE</option><option value="Interbus">Interbus</option></>
-                    : view==="feeder"
-                      ? sl.feederLabels.map(o=><option key={o} value={o}>{o}</option>)
-                      : <><option value="STANDAARD">STANDAARD</option><option value="DEU">DEU</option></>
-                  }
-                </select>
+                {(view==="deck"?["Solmar","Solmar DE","Interbus"]:view==="feeder"?(sl.feederLabels||[]):["STANDAARD","DEU"]).map(o=>{
+                  const active=f.label?.includes(o);
+                  return<div key={o} onClick={()=>setF({...f,label:active?f.label.filter(x=>x!==o):[...(f.label||[]),o]})} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 6px",borderRadius:5,cursor:"pointer",background:active?`${S.purple}12`:"transparent",marginBottom:2}}>
+                    <div style={{width:13,height:13,borderRadius:3,border:`1.5px solid ${active?S.purple:S.border2}`,background:active?S.purple:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                      {active&&<span style={{color:"#fff",fontSize:9,lineHeight:1}}>✓</span>}
+                    </div>
+                    <span style={{fontSize:10,color:active?S.purple:S.textLight,fontWeight:active?600:400}}>{o}</span>
+                  </div>;
+                })}
               </div>
 
-              {/* ROUTE & SCHEDULE — Pendel + Deck views */}
+              {/* PENDEL + REGION + WEEKDAY — Pendel & Deck views */}
               {view!=="feeder"&&(
                 <div style={{background:S.bg,borderRadius:8,padding:"10px 10px",border:`1px solid ${S.border}`}}>
                   <div style={{fontSize:10,fontWeight:700,color:S.accent,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8,display:"flex",alignItems:"center",gap:4}}>
                     <span style={{width:3,height:12,background:S.accent,borderRadius:2,display:"inline-block"}}/>Route & Schedule
                   </div>
-                  <div style={{display:"flex",flexDirection:"column",gap:7}}>
+                  <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                    {/* PENDEL multi-select */}
                     <div>
-                      {lbl("Pendel")}
-                      <select value={f.pendel||""} onChange={e=>setF({...f,pendel:e.target.value})}
-                        style={{width:"100%",background:S.card,border:`1px solid ${S.border2}`,borderRadius:6,padding:"6px 8px",color:S.text,fontSize:11,outline:"none"}}>
-                        <option value="">All Pendels</option>
-                        {view==="deck"
-                          ? sl.deckPendels.map(o=><option key={o} value={o}>{o}</option>)
-                          : sl.pendels.map(o=><option key={o} value={o}>{o}</option>)
-                        }
-                      </select>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                        {lbl("Pendel")}
+                        {f.pendel?.length>0&&<span onClick={()=>setF({...f,pendel:[]})} style={{fontSize:9,color:S.danger,cursor:"pointer",fontWeight:600}}>✕ Clear</span>}
+                      </div>
+                      <div style={{maxHeight:120,overflowY:"auto",border:`1px solid ${S.border2}`,borderRadius:6,background:S.card}}>
+                        {(view==="deck"?sl.deckPendels:sl.pendels).map(o=>{
+                          const active=f.pendel?.includes(o);
+                          return<div key={o} onClick={()=>setF({...f,pendel:active?f.pendel.filter(x=>x!==o):[...(f.pendel||[]),o]})} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",cursor:"pointer",background:active?`${S.success}10`:"transparent",borderBottom:`1px solid ${S.border}`}}>
+                            <div style={{width:12,height:12,borderRadius:3,border:`1.5px solid ${active?S.success:S.border2}`,background:active?S.success:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                              {active&&<span style={{color:"#fff",fontSize:8,lineHeight:1}}>✓</span>}
+                            </div>
+                            <span style={{fontSize:10,color:active?S.success:S.textLight,fontWeight:active?600:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{o}</span>
+                          </div>;
+                        })}
+                      </div>
                     </div>
-                    {view==="deck"&&<div>
-                      {lbl("Region")}
-                      <select value={f.region||""} onChange={e=>setF({...f,region:e.target.value})}
-                        style={{width:"100%",background:S.card,border:`1px solid ${S.border2}`,borderRadius:6,padding:"6px 8px",color:S.text,fontSize:11,outline:"none"}}>
-                        <option value="">All Regions</option>
-                        {sl.regions.map(o=><option key={o} value={o}>{o}</option>)}
-                      </select>
-                    </div>}
+                    {/* REGION multi-select — Deck only */}
+                    {view==="deck"&&(
+                      <div>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                          {lbl("Region")}
+                          {f.region?.length>0&&<span onClick={()=>setF({...f,region:[]})} style={{fontSize:9,color:S.danger,cursor:"pointer",fontWeight:600}}>✕ Clear</span>}
+                        </div>
+                        <div style={{maxHeight:100,overflowY:"auto",border:`1px solid ${S.border2}`,borderRadius:6,background:S.card}}>
+                          {sl.regions.map(o=>{
+                            const active=f.region?.includes(o);
+                            return<div key={o} onClick={()=>setF({...f,region:active?f.region.filter(x=>x!==o):[...(f.region||[]),o]})} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",cursor:"pointer",background:active?`${S.warn}10`:"transparent",borderBottom:`1px solid ${S.border}`}}>
+                              <div style={{width:12,height:12,borderRadius:3,border:`1.5px solid ${active?S.warn:S.border2}`,background:active?S.warn:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                                {active&&<span style={{color:"#fff",fontSize:8,lineHeight:1}}>✓</span>}
+                              </div>
+                              <span style={{fontSize:10,color:active?S.warn:S.textLight,fontWeight:active?600:400}}>{o}</span>
+                            </div>;
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {/* WEEKDAY multi-select */}
                     <div>
-                      {lbl("Weekday")}
-                      <select value={f.weekday||""} onChange={e=>setF({...f,weekday:e.target.value})}
-                        style={{width:"100%",background:S.card,border:`1px solid ${S.border2}`,borderRadius:6,padding:"6px 8px",color:S.text,fontSize:11,outline:"none"}}>
-                        <option value="">All Days</option>
-                        {["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map(d=><option key={d} value={d}>{d}</option>)}
-                      </select>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                        {lbl("Weekday")}
+                        {f.weekday?.length>0&&<span onClick={()=>setF({...f,weekday:[]})} style={{fontSize:9,color:S.danger,cursor:"pointer",fontWeight:600}}>✕ Clear</span>}
+                      </div>
+                      <div style={{border:`1px solid ${S.border2}`,borderRadius:6,background:S.card}}>
+                        {["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map(d=>{
+                          const active=f.weekday?.includes(d);
+                          return<div key={d} onClick={()=>setF({...f,weekday:active?f.weekday.filter(x=>x!==d):[...(f.weekday||[]),d]})} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",cursor:"pointer",background:active?`${S.orange}10`:"transparent",borderBottom:`1px solid ${S.border}`}}>
+                            <div style={{width:12,height:12,borderRadius:3,border:`1.5px solid ${active?S.orange:S.border2}`,background:active?S.orange:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                              {active&&<span style={{color:"#fff",fontSize:8,lineHeight:1}}>✓</span>}
+                            </div>
+                            <span style={{fontSize:10,color:active?S.orange:S.textLight,fontWeight:active?600:400}}>{d}</span>
+                          </div>;
+                        })}
+                      </div>
                     </div>
                     {view==="pendel"&&(
                       <div style={{marginTop:2,padding:"5px 7px",background:S.warnBg,borderRadius:5,border:`1px solid ${S.warn}22`}}>
@@ -883,41 +911,62 @@ function BusTab({token}){
 
               {/* FEEDER LINE + WEEKDAY — Feeder view only */}
               {view==="feeder"&&(
-                <>
-                  <div style={{background:S.bg,borderRadius:8,padding:"10px 10px",border:`1px solid ${S.border}`}}>
-                    <div style={{fontSize:10,fontWeight:700,color:S.accent,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8,display:"flex",alignItems:"center",gap:4}}>
-                      <span style={{width:3,height:12,background:S.accent,borderRadius:2,display:"inline-block"}}/>Feeder Line
-                    </div>
-                    <select value={f.feederLine||""} onChange={e=>setF({...f,feederLine:e.target.value})}
-                      style={{width:"100%",background:S.card,border:`1px solid ${S.border2}`,borderRadius:6,padding:"6px 8px",color:S.text,fontSize:11,outline:"none"}}>
-                      <option value="">All Lines</option>
-                      {sl.feederLines.map(o=><option key={o} value={o}>{o}</option>)}
-                    </select>
+                <div style={{background:S.bg,borderRadius:8,padding:"10px 10px",border:`1px solid ${S.border}`}}>
+                  <div style={{fontSize:10,fontWeight:700,color:S.accent,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8,display:"flex",alignItems:"center",gap:4}}>
+                    <span style={{width:3,height:12,background:S.accent,borderRadius:2,display:"inline-block"}}/>Feeder Filters
                   </div>
-                  <div style={{background:S.bg,borderRadius:8,padding:"10px 10px",border:`1px solid ${S.border}`}}>
-                    <div style={{fontSize:10,fontWeight:700,color:S.accent,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8,display:"flex",alignItems:"center",gap:4}}>
-                      <span style={{width:3,height:12,background:S.accent,borderRadius:2,display:"inline-block"}}/>Weekday
+                  <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                    {/* FEEDER LINE multi-select */}
+                    <div>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                        {lbl("Feeder Line")}
+                        {f.feederLine?.length>0&&<span onClick={()=>setF({...f,feederLine:[]})} style={{fontSize:9,color:S.danger,cursor:"pointer",fontWeight:600}}>✕ Clear</span>}
+                      </div>
+                      <div style={{maxHeight:120,overflowY:"auto",border:`1px solid ${S.border2}`,borderRadius:6,background:S.card}}>
+                        {sl.feederLines.map(o=>{
+                          const active=f.feederLine?.includes(o);
+                          return<div key={o} onClick={()=>setF({...f,feederLine:active?f.feederLine.filter(x=>x!==o):[...(f.feederLine||[]),o]})} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",cursor:"pointer",background:active?`${S.accent}10`:"transparent",borderBottom:`1px solid ${S.border}`}}>
+                            <div style={{width:12,height:12,borderRadius:3,border:`1.5px solid ${active?S.accent:S.border2}`,background:active?S.accent:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                              {active&&<span style={{color:"#fff",fontSize:8,lineHeight:1}}>✓</span>}
+                            </div>
+                            <span style={{fontSize:10,color:active?S.accent:S.textLight,fontWeight:active?600:400,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{o}</span>
+                          </div>;
+                        })}
+                      </div>
                     </div>
-                    <select value={f.weekday||""} onChange={e=>setF({...f,weekday:e.target.value})}
-                      style={{width:"100%",background:S.card,border:`1px solid ${S.border2}`,borderRadius:6,padding:"6px 8px",color:S.text,fontSize:11,outline:"none"}}>
-                      <option value="">All Days</option>
-                      {["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map(d=><option key={d} value={d}>{d}</option>)}
-                    </select>
+                    {/* WEEKDAY multi-select */}
+                    <div>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                        {lbl("Weekday")}
+                        {f.weekday?.length>0&&<span onClick={()=>setF({...f,weekday:[]})} style={{fontSize:9,color:S.danger,cursor:"pointer",fontWeight:600}}>✕ Clear</span>}
+                      </div>
+                      <div style={{border:`1px solid ${S.border2}`,borderRadius:6,background:S.card}}>
+                        {["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map(d=>{
+                          const active=f.weekday?.includes(d);
+                          return<div key={d} onClick={()=>setF({...f,weekday:active?f.weekday.filter(x=>x!==d):[...(f.weekday||[]),d]})} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",cursor:"pointer",background:active?`${S.orange}10`:"transparent",borderBottom:`1px solid ${S.border}`}}>
+                            <div style={{width:12,height:12,borderRadius:3,border:`1.5px solid ${active?S.orange:S.border2}`,background:active?S.orange:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                              {active&&<span style={{color:"#fff",fontSize:8,lineHeight:1}}>✓</span>}
+                            </div>
+                            <span style={{fontSize:10,color:active?S.orange:S.textLight,fontWeight:active?600:400}}>{d}</span>
+                          </div>;
+                        })}
+                      </div>
+                    </div>
                   </div>
-                </>
+                </div>
               )}
 
               {/* ACTIVE FILTERS SUMMARY */}
-              {(f.status||f.label||f.pendel||f.region||f.weekday||f.feederLine)&&(
+              {(f.status?.length||f.label?.length||f.pendel?.length||f.region?.length||f.weekday?.length||f.feederLine?.length)&&(
                 <div style={{background:`${S.accent}08`,borderRadius:8,padding:"8px 10px",border:`1px solid ${S.accent}22`}}>
                   <div style={{fontSize:9,fontWeight:700,color:S.accent,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:5}}>Active Filters</div>
                   <div style={{display:"flex",flexWrap:"wrap",gap:3}}>
-                    {f.status&&<span style={{background:S.accentLight,color:S.accent,borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:600}}>{f.status}</span>}
-                    {f.label&&<span style={{background:`${S.purple}15`,color:S.purple,borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:600}}>{f.label}</span>}
-                    {f.pendel&&<span style={{background:`${S.success}15`,color:S.success,borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:600}}>{f.pendel}</span>}
-                    {f.region&&<span style={{background:`${S.warn}15`,color:S.warn,borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:600}}>{f.region}</span>}
-                    {f.weekday&&<span style={{background:`${S.orange}15`,color:S.orange,borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:600}}>{f.weekday}</span>}
-                    {f.feederLine&&<span style={{background:`${S.purple}15`,color:S.purple,borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:600}}>{f.feederLine}</span>}
+                    {f.status?.map(v=><span key={v} style={{background:S.accentLight,color:S.accent,borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:600}}>{v}</span>)}
+                    {f.label?.map(v=><span key={v} style={{background:`${S.purple}15`,color:S.purple,borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:600}}>{v}</span>)}
+                    {f.pendel?.map(v=><span key={v} style={{background:`${S.success}15`,color:S.success,borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:600}}>{v}</span>)}
+                    {f.region?.map(v=><span key={v} style={{background:`${S.warn}15`,color:S.warn,borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:600}}>{v}</span>)}
+                    {f.weekday?.map(v=><span key={v} style={{background:`${S.orange}15`,color:S.orange,borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:600}}>{v}</span>)}
+                    {f.feederLine?.map(v=><span key={v} style={{background:`${S.purple}15`,color:S.purple,borderRadius:8,padding:"1px 6px",fontSize:9,fontWeight:600}}>{v}</span>)}
                   </div>
                 </div>
               )}
