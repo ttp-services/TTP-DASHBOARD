@@ -2249,6 +2249,58 @@ function SettingsTab({token,session,onLogout}){
     </button>
   );
 
+  // ── Data Refresh state ──
+  const TABLES=[
+    {key:"CustomerOverview",label:"Customer Overview",desc:"Solmar · Interbus · Solmar DE bookings",icon:"📋",endpoint:"/api/dashboard/kpis"},
+    {key:"ST_Bookings",label:"Snowtravel Bookings",desc:"Snowtravel dataset",icon:"❄️",endpoint:"/api/dashboard/kpis"},
+    {key:"BUStrips",label:"Bus Pendel (BUStrips)",desc:"Pendel overview data — Samir's ETL",icon:"🚌",endpoint:"/api/dashboard/pendel-overview"},
+    {key:"FeederOverview",label:"Feeder Routes",desc:"Pickup stop data per route",icon:"🗺️",endpoint:"/api/dashboard/feeder-overview"},
+    {key:"HotelOverview",label:"Hotel Overview",desc:"Hotel performance table",icon:"🏨",endpoint:"/api/dashboard/hotel-overview"},
+    {key:"solmar_bus_deck_choice",label:"Bus Deck & Class",desc:"Deck and class distribution",icon:"🪑",endpoint:"/api/dashboard/bus-kpis"},
+    {key:"MarginOverview",label:"Purchase Obligations",desc:"Margins, commissions, obligations",icon:"💶",endpoint:"/api/dashboard/margin-overview"},
+  ];
+  const INTERVALS=[
+    {v:0,l:"Manual only"},
+    {v:1,l:"Every 1 hour"},
+    {v:2,l:"Every 2 hours"},
+    {v:6,l:"Every 6 hours"},
+    {v:12,l:"Every 12 hours"},
+    {v:24,l:"Every 24 hours"},
+  ];
+  const[refreshStatus,setRefreshStatus]=useState(()=>Object.fromEntries(TABLES.map(t=>[t.key,{lastSync:null,loading:false,ok:null,ms:null}])));
+  const[refreshSchedule,setRefreshSchedule]=useState(()=>Object.fromEntries(TABLES.map(t=>[t.key,0])));
+  const refreshTimers=React.useRef({});
+
+  function pingTable(t){
+    setRefreshStatus(s=>({...s,[t.key]:{...s[t.key],loading:true,ok:null}}));
+    const start=Date.now();
+    fetch(`${BASE}${t.endpoint}`,{headers:{Authorization:`Bearer ${token}`}})
+      .then(r=>{
+        setRefreshStatus(s=>({...s,[t.key]:{loading:false,ok:r.ok,ms:Date.now()-start,lastSync:new Date().toLocaleTimeString("nl-BE",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}}));
+      })
+      .catch(()=>{
+        setRefreshStatus(s=>({...s,[t.key]:{loading:false,ok:false,ms:null,lastSync:new Date().toLocaleTimeString("nl-BE",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}}));
+      });
+  }
+
+  function pingAll(){
+    TABLES.forEach(t=>pingTable(t));
+  }
+
+  function setSchedule(key,hours){
+    setRefreshSchedule(s=>({...s,[key]:hours}));
+    if(refreshTimers.current[key]){clearInterval(refreshTimers.current[key]);}
+    if(hours>0){
+      const t=TABLES.find(x=>x.key===key);
+      refreshTimers.current[key]=setInterval(()=>pingTable(t),hours*60*60*1000);
+    }
+  }
+
+  // Cleanup timers on unmount
+  React.useEffect(()=>{
+    return()=>{Object.values(refreshTimers.current).forEach(clearInterval);};
+  },[]);
+
   const roleColor=role=>role==="admin"?{bg:S.accentLight,c:S.accent}:{bg:"#f0fdf4",c:S.success};
 
   const API_ENDPOINTS=[
@@ -2263,6 +2315,7 @@ function SettingsTab({token,session,onLogout}){
       <div style={{background:S.card,borderBottom:`1px solid ${S.border}`,padding:"10px 20px",display:"flex",gap:8,flexShrink:0,boxShadow:S.shadow}}>
         {sTabBtn("users","User Management",<Users size={14}/>)}
         {sTabBtn("api","API Status",<CircleDot size={14}/>)}
+        {sTabBtn("refresh","Data Refresh",<RotateCcw size={14}/>)}
         {sTabBtn("ai","AI Prompts",<Layers size={14}/>)}
         {sTabBtn("alerts","Email Alerts",<AlertCircle size={14}/>)}
       </div>
@@ -2407,6 +2460,88 @@ function SettingsTab({token,session,onLogout}){
               <textarea value={settings.aiPrompt||""} onChange={e=>setSettings({...settings,aiPrompt:e.target.value})} rows={8} placeholder="We are a Belgian travel company. Revenue in EUR. Fiscal year Dec–Nov…" style={{width:"100%",background:S.bg,border:`1.5px solid ${S.border2}`,borderRadius:8,padding:"10px 12px",color:S.text,fontSize:13,resize:"vertical",boxSizing:"border-box",outline:"none"}}/>
               <Btn onClick={saveSettings} variant="primary" size="md" style={{marginTop:10}}>{busy?"Saving…":"Save Prompt"}</Btn>
             </Card>
+          </div>
+        )}
+        {tab==="refresh"&&(
+          <div style={{maxWidth:860}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <div>
+                <div style={{fontSize:16,fontWeight:800,color:S.text}}>Data Refresh</div>
+                <div style={{fontSize:12,color:S.muted,marginTop:2}}>Manually refresh or set automatic schedule per table</div>
+              </div>
+              <Btn onClick={pingAll} variant="primary" size="md" style={{gap:6}}>
+                <RotateCcw size={13}/>Refresh All Now
+              </Btn>
+            </div>
+
+            {/* Schedule legend */}
+            <div style={{background:S.accentLight,border:`1px solid ${S.accent}33`,borderRadius:10,padding:"10px 16px",marginBottom:16,display:"flex",alignItems:"center",gap:8,fontSize:12}}>
+              <span style={{fontSize:16}}>ℹ️</span>
+              <span style={{color:S.accent,fontWeight:500}}>Automatic refresh pings the API endpoint to verify data is live. Set interval per table below. Timers reset when you reload the page.</span>
+            </div>
+
+            <Card p="0">
+              {TABLES.map((t,i)=>{
+                const st=refreshStatus[t.key];
+                const sch=refreshSchedule[t.key];
+                return(
+                  <div key={t.key} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 18px",borderBottom:i<TABLES.length-1?`1px solid ${S.border}`:"none",flexWrap:"wrap"}}>
+                    {/* Icon + info */}
+                    <div style={{fontSize:22,flexShrink:0}}>{t.icon}</div>
+                    <div style={{flex:1,minWidth:180}}>
+                      <div style={{fontSize:13,fontWeight:700,color:S.text}}>{t.label}</div>
+                      <div style={{fontSize:11,color:S.muted,marginTop:1}}>{t.desc}</div>
+                    </div>
+
+                    {/* Status */}
+                    <div style={{display:"flex",alignItems:"center",gap:6,minWidth:160}}>
+                      <div style={{width:9,height:9,borderRadius:"50%",background:st.loading?S.warn:st.ok===null?S.muted2:st.ok?S.success:S.danger,flexShrink:0}}/>
+                      <div>
+                        <div style={{fontSize:11,fontWeight:600,color:st.loading?S.warn:st.ok===null?S.muted:st.ok?S.success:S.danger}}>
+                          {st.loading?"Checking…":st.ok===null?"Not checked":st.ok?"✅ Online":"❌ Error"}
+                        </div>
+                        {st.lastSync&&<div style={{fontSize:10,color:S.muted2}}>Last: {st.lastSync}{st.ms?` · ${st.ms}ms`:""}</div>}
+                        {sch>0&&!st.lastSync&&<div style={{fontSize:10,color:S.accent}}>⏱ Auto every {sch}h</div>}
+                        {sch>0&&st.lastSync&&<div style={{fontSize:10,color:S.accent}}>⏱ Auto every {sch}h</div>}
+                      </div>
+                    </div>
+
+                    {/* Interval selector */}
+                    <div style={{display:"flex",flexDirection:"column",gap:3}}>
+                      <label style={{fontSize:9,color:S.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em"}}>Auto Refresh</label>
+                      <select value={sch} onChange={e=>setSchedule(t.key,Number(e.target.value))}
+                        style={{background:sch>0?S.accentLight:S.bg,border:`1.5px solid ${sch>0?S.accent:S.border2}`,borderRadius:7,padding:"5px 10px",color:sch>0?S.accent:S.textLight,fontSize:11,fontWeight:sch>0?700:400,outline:"none",cursor:"pointer"}}>
+                        {INTERVALS.map(iv=><option key={iv.v} value={iv.v}>{iv.l}</option>)}
+                      </select>
+                    </div>
+
+                    {/* Manual refresh button */}
+                    <button onClick={()=>pingTable(t)} disabled={st.loading}
+                      style={{padding:"7px 14px",borderRadius:7,fontSize:12,cursor:st.loading?"wait":"pointer",border:`1.5px solid ${S.border2}`,background:st.loading?"#f8faff":"transparent",color:S.textLight,fontWeight:600,display:"flex",alignItems:"center",gap:5,opacity:st.loading?0.6:1,whiteSpace:"nowrap"}}>
+                      <RotateCcw size={12}/>
+                      {st.loading?"Checking…":"Refresh Now"}
+                    </button>
+                  </div>
+                );
+              })}
+            </Card>
+
+            {/* Summary row */}
+            <div style={{marginTop:14,display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
+              {[
+                {l:"Tables Online",v:TABLES.filter(t=>refreshStatus[t.key].ok===true).length+"/"+TABLES.length,c:S.success},
+                {l:"Auto Scheduled",v:TABLES.filter(t=>refreshSchedule[t.key]>0).length+" tables",c:S.accent},
+                {l:"Last Full Refresh",v:TABLES.every(t=>refreshStatus[t.key].lastSync)?[...TABLES].map(t=>refreshStatus[t.key].lastSync).sort().pop():"Not yet",c:S.muted},
+              ].map(k=>(
+                <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:10,padding:"12px 16px",boxShadow:S.shadow,display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{width:8,height:8,borderRadius:"50%",background:k.c,flexShrink:0}}/>
+                  <div>
+                    <div style={{fontSize:10,color:S.muted,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em"}}>{k.l}</div>
+                    <div style={{fontSize:16,fontWeight:800,color:k.c}}>{k.v}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
         {tab==="alerts"&&(
