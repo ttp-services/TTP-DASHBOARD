@@ -544,11 +544,44 @@ function BusTab({token}){
   }
   useEffect(()=>{applyLoad();},[token]);
 
-  function resetFilters(){setF({dateFrom:`2020-01-01`,dateTo:`${cy}-12-31`,pendel:[],region:[],label:[],feederLine:[],weekday:[],status:[],_collapsed:false});}
+  function resetFilters(){
+    const e={dateFrom:`2020-01-01`,dateTo:`${cy}-12-31`,pendel:[],region:[],label:[],feederLine:[],weekday:[],status:[],_collapsed:false};
+    setF(e);
+    // Re-apply with empty filters
+    setLoading(true);
+    const pp={dateFrom:`2020-01-01`,dateTo:`${cy}-12-31`};
+    Promise.all([
+      api("/api/dashboard/bus-kpis",pp,token).catch(()=>({})),
+      api("/api/dashboard/pendel-overview",pp,token).catch(()=>[]),
+      api("/api/dashboard/feeder-overview",pp,token).catch(()=>[]),
+      api("/api/dashboard/deck-class",pp,token).catch(()=>[])
+    ]).then(([k,pd,fd,dc])=>{
+      setBusK(k||{});
+      setPendel(Array.isArray(pd)?pd:[]);
+      setFeeder(Array.isArray(fd)?fd:[]);
+      setDeck(Array.isArray(dc)?dc:[]);
+    }).finally(()=>setLoading(false));
+  }
 
-  const fdates=[...new Set(feeder.map(r=>r.DepartureDate))].sort();
+  // Exclude "Totaal vertrek" stop rows — totals come from RouteTotal on route header
+  const feederRows = feeder.filter(r => r.StopType !== 'TOTAL' && (r.StopName||'').toLowerCase() !== 'totaal vertrek');
+  // Sort dates properly as real dates
+  const fdates=[...new Set(feederRows.map(r=>r.DepartureDate))].sort((a,b)=>{
+    const pa=a.split('-'),pb=b.split('-');
+    const da=new Date(pa[2],pa[1]-1,pa[0]);
+    const db=new Date(pb[2],pb[1]-1,pb[0]);
+    return da-db;
+  });
   const froutes={};
-  feeder.forEach(r=>{const rk=`${r.RouteNo}||${r.RouteLabel}`;if(!froutes[rk])froutes[rk]={no:r.RouteNo,label:r.RouteLabel,stops:{},totals:{}};if(!froutes[rk].stops[r.StopName])froutes[rk].stops[r.StopName]={};froutes[rk].stops[r.StopName][r.DepartureDate]=(froutes[rk].stops[r.StopName][r.DepartureDate]||0)+(r.TotalPax||0);froutes[rk].totals[r.DepartureDate]=(froutes[rk].totals[r.DepartureDate]||0)+(r.TotalPax||0);});
+  const fgrand={}; // grand total per date across all routes
+  feederRows.forEach(r=>{
+    const rk=r.RouteNo+'||'+r.RouteLabel;
+    if(!froutes[rk])froutes[rk]={no:r.RouteNo,label:r.RouteLabel,stops:{},totals:{}};
+    if(!froutes[rk].stops[r.StopName])froutes[rk].stops[r.StopName]={};
+    froutes[rk].stops[r.StopName][r.DepartureDate]=(froutes[rk].stops[r.StopName][r.DepartureDate]||0)+(r.TotalPax||0);
+    froutes[rk].totals[r.DepartureDate]=(froutes[rk].totals[r.DepartureDate]||0)+(r.TotalPax||0);
+    fgrand[r.DepartureDate]=(fgrand[r.DepartureDate]||0)+(r.TotalPax||0);
+  });
   const rl=Object.values(froutes).sort((a,b)=>a.no-b.no);
 
   const TH={padding:"9px 12px",textAlign:"right",fontSize:11,fontWeight:700,color:"#ffffff",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",background:"#1e40af",borderRight:"1px solid #3b82f6"};
@@ -737,6 +770,13 @@ function BusTab({token}){
                   </tr></thead>
                   <tbody>
                     {rl.length===0&&<tr><td colSpan={fdates.length+2} style={{padding:28,textAlign:"center",color:S.muted}}>No feeder data</td></tr>}
+                    {rl.length>0&&(
+                      <tr style={{background:"#1e3a8a"}}>
+                        <td style={{...TDL,fontWeight:800,color:"#fff",fontSize:12}}>ALL ROUTES — TOTAL</td>
+                        {fdates.map(d=><td key={d} style={{...TD,fontWeight:800,color:"#fff",background:"#1e3a8a"}}>{fmtN(fgrand[d]||0)}</td>)}
+                        <td style={{...TD,fontWeight:800,color:"#fbbf24",background:"#1e3a8a"}}>{fmtN(Object.values(fgrand).reduce((a,b)=>a+b,0))}</td>
+                      </tr>
+                    )}
                     {rl.map((route,ri)=>(
                       <React.Fragment key={ri}>
                         <tr style={{background:"#dbeafe"}}>
@@ -800,8 +840,8 @@ function BusTab({token}){
                 </div>
               </div>
 
-              {/* STATUS — Deck & Feeder only */}
-              {view!=="pendel"&&(
+              {/* STATUS — All views */}
+              {(
                 <div style={{background:S.bg,borderRadius:8,padding:"10px 10px",border:`1px solid ${S.border}`}}>
                   <div style={{fontSize:10,fontWeight:700,color:S.accent,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                     <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:3,height:12,background:S.accent,borderRadius:2,display:"inline-block"}}/>Status</span>
@@ -900,9 +940,8 @@ function BusTab({token}){
                       </div>
                     </div>
                     {view==="pendel"&&(
-                      <div style={{marginTop:2,padding:"5px 7px",background:S.warnBg,borderRadius:5,border:`1px solid ${S.warn}22`}}>
-                        <div style={{fontSize:9,color:S.warn,fontWeight:600}}>⚠ Pendel tab ignores Status</div>
-                        <div style={{fontSize:9,color:S.muted2,marginTop:1}}>BUStrips has no Status column</div>
+                      <div style={{marginTop:2,padding:"5px 7px",background:S.accentLight,borderRadius:5,border:`1px solid ${S.accent}22`}}>
+                        <div style={{fontSize:9,color:S.accent,fontWeight:600}}>ℹ Status filter reloads BUStrips via ETL</div>
                       </div>
                     )}
                   </div>
