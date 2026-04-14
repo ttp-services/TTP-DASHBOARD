@@ -699,11 +699,11 @@ function BusTab({token}){
                     ].map((row,i)=>(
                       <tr key={i} style={{borderBottom:"1px solid #dbeafe",background:i===0?"#eff6ff":i%2===0?"#ffffff":"#f0f7ff"}}>
                         <td style={{padding:"9px 12px",textAlign:"left",fontWeight:i===0?800:600,color:row.c,borderRight:"1px solid #dbeafe",fontSize:12}}>{row.label}</td>
-                        <td style={{padding:"9px 12px",textAlign:"right",fontWeight:700,color:row.c,borderRight:"1px solid #dbeafe",fontSize:12}}>{fmtN(deckTotals[row.total]||0)}</td>
+                        <td style={{padding:"9px 12px",textAlign:"right",fontWeight:700,color:row.c,borderRight:"1px solid #dbeafe",fontSize:12}}>{fmtN(get(deckTotals, row.total))}</td>
                         <td style={{padding:"9px 12px",textAlign:"right",color:S.accent,borderRight:"1px solid #dbeafe",fontSize:12}}>{fmtN(deckTotals[row.lower]||0)}</td>
                         <td style={{padding:"9px 12px",textAlign:"right",color:S.success,borderRight:"1px solid #dbeafe",fontSize:12}}>{fmtN(deckTotals[row.upper]||0)}</td>
                         <td style={{padding:"9px 12px",textAlign:"right",color:S.muted,borderRight:"1px solid #dbeafe",fontSize:12}}>{fmtN(deckTotals[row.noDeck]||0)}</td>
-                        <td style={{padding:"9px 12px",textAlign:"right",color:S.accent,borderRight:"1px solid #dbeafe",fontSize:12}}>{pct(deckTotals[row.lower]||0,deckTotals[row.total]||1)}</td>
+                        <td style={{padding:"9px 12px",textAlign:"right",color:S.accent,borderRight:"1px solid #dbeafe",fontSize:12}}>{pct(get(deckTotals,row.lower), get(deckTotals,row.total))}</td>
                         <td style={{padding:"9px 12px",textAlign:"right",color:S.success,fontSize:12}}>{pct(deckTotals[row.upper]||0,deckTotals[row.total]||1)}</td>
                       </tr>
                     ))}
@@ -732,7 +732,7 @@ function BusTab({token}){
                       <tbody>
                         {deck.map((r,i)=>(
                           <tr key={i} style={{borderBottom:"1px solid #dbeafe",background:i%2===0?"#ffffff":"#f0f7ff"}}>
-                            <td style={{...TDL,fontSize:11,fontWeight:600,borderRight:`2px solid ${S.border2}`}}>{r.dateDeparture}</td>
+                            <td style={{...TDL,fontSize:11,fontWeight:600,borderRight:`2px solid ${S.border2}`}}>{r.BusStartDate}</td>
                             <td style={{...TD,fontWeight:700}}>{fmtN(r.Total)}</td>
                             <td style={{...TD,color:S.accent}}>{fmtN(r.Total_Lower)}</td>
                             <td style={{...TD,color:S.success}}>{fmtN(r.Total_Upper)}</td>
