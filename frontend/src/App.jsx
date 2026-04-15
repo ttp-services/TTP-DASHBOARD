@@ -2221,6 +2221,18 @@ function SettingsTab({token,session,onLogout}){
   const[users,setUsers]=useState([]);
   const[loading,setLoading]=useState(false);
   const[userMsg,setUserMsg]=useState({text:"",type:""});
+  const[showAdd,setShowAdd]=useState(false);
+  const[newUser,setNewUser]=useState({username:"",password:"",role:"viewer",name:"",email:""});
+  const[busy,setBusy]=useState(false);
+  const[editUser,setEditUser]=useState(null);
+  const[editForm,setEditForm]=useState({name:"",username:"",email:"",role:"viewer",password:""});
+  const[editMsg,setEditMsg]=useState(null);
+  const[editBusy,setEditBusy]=useState(false);
+  const[showEditPw,setShowEditPw]=useState(false);
+  const[apiStatus,setApiStatus]=useState({});
+  const[settings,setSettings]=useState({aiPrompt:"",emailAlerts:{enabled:false,revenueDropThreshold:10,bookingSpikethreshold:20,recipients:""}});
+  const[settingsMsg,setSettingsMsg]=useState("");
+
   function loadUsers(){
     setLoading(true);
     api("/api/dashboard/users",{},token).then(d=>setUsers(Array.isArray(d)?d:[])).catch(()=>{}).finally(()=>setLoading(false));
@@ -2249,19 +2261,6 @@ function SettingsTab({token,session,onLogout}){
       setTimeout(()=>setEditUser(null),1200);
     }catch(e){setEditMsg({err:true,t:e.message});}
     finally{setEditBusy(false);}
-  }
-  const[editUser,setEditUser]=useState(null); // {id,name,username,email,role}
-  const[editForm,setEditForm]=useState({name:"",username:"",email:"",role:"viewer",password:""});
-  const[editMsg,setEditMsg]=useState(null);
-  const[editBusy,setEditBusy]=useState(false);
-  const[showEditPw,setShowEditPw]=useState(false);
-  const[apiStatus,setApiStatus]=useState({});
-  const[settings,setSettings]=useState({aiPrompt:"",emailAlerts:{enabled:false,revenueDropThreshold:10,bookingSpikethreshold:20,recipients:""}});
-  const[settingsMsg,setSettingsMsg]=useState("");
-
-  function loadUsers(){
-    setLoading(true);
-    api("/api/dashboard/users",{},token).then(d=>setUsers(Array.isArray(d)?d:[])).catch(()=>{}).finally(()=>setLoading(false));
   }
 
   useEffect(()=>{
