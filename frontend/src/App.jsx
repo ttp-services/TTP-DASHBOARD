@@ -491,7 +491,7 @@ function BusTab({token}){
   const[feeder,setFeeder]=useState([]);
   const[deck,setDeck]=useState([]);
   const[loading,setLoading]=useState(false);
-  const[f,setF]=useState({dateFrom:`2020-01-01`,dateTo:`${cy}-12-31`,pendel:[],region:[],label:[],feederLine:[],weekday:[],status:[],_collapsed:false});
+  const[f,setF]=useState({dateFrom:`${cy}-01-01`,dateTo:`${cy}-12-31`,pendel:[],region:[],label:[],feederLine:[],weekday:[],status:[],_collapsed:false});
 
   useEffect(()=>{
     api("/api/dashboard/bus-slicers",{},token).then(d=>{
@@ -546,14 +546,14 @@ function BusTab({token}){
   useEffect(()=>{applyLoad();},[token]);
 
   function resetFilters(){
-    const e={dateFrom:`2020-01-01`,dateTo:`${cy}-12-31`,pendel:[],region:[],label:[],feederLine:[],weekday:[],status:[],_collapsed:false};
+    const e={dateFrom:`${cy}-01-01`,dateTo:`${cy}-12-31`,pendel:[],region:[],label:[],feederLine:[],weekday:[],status:[],_collapsed:false};
     setF(e);
     setLoading(true);
     Promise.all([
-      api("/api/dashboard/bus-kpis",{dateFrom:`2020-01-01`,dateTo:`${cy}-12-31`},token).catch(()=>({})),
-      api("/api/dashboard/pendel-overview",{dateFrom:`2020-01-01`,dateTo:`${cy}-12-31`},token).catch(()=>[]),
-      api("/api/dashboard/feeder-overview",{dateFrom:`2020-01-01`,dateTo:`${cy}-12-31`},token).catch(()=>[]),
-      api("/api/dashboard/deck-class",{dateFrom:`2020-01-01`,dateTo:`${cy}-12-31`},token).catch(()=>[])
+      api("/api/dashboard/bus-kpis",{dateFrom:`${cy}-01-01`,dateTo:`${cy}-12-31`},token).catch(()=>({})),
+      api("/api/dashboard/pendel-overview",{dateFrom:`${cy}-01-01`,dateTo:`${cy}-12-31`},token).catch(()=>[]),
+      api("/api/dashboard/feeder-overview",{dateFrom:`${cy}-01-01`,dateTo:`${cy}-12-31`},token).catch(()=>[]),
+      api("/api/dashboard/deck-class",{dateFrom:`${cy}-01-01`,dateTo:`${cy}-12-31`},token).catch(()=>[])
     ]).then(([k,pd,fd,dc])=>{
       setBusK(k||{});
       setPendel(Array.isArray(pd)?pd:[]);
@@ -731,7 +731,7 @@ function BusTab({token}){
                       <tbody>
                         {deck.map((r,i)=>(
                           <tr key={i} style={{borderBottom:"1px solid #dbeafe",background:i%2===0?"#ffffff":"#f0f7ff"}}>
-                            <td style={{...TDL,fontSize:11,fontWeight:600,borderRight:`2px solid ${S.border2}`}}>{r.BusStartDate}</td>
+                            <td style={{...TDL,fontSize:11,fontWeight:600,borderRight:`2px solid ${S.border2}`}}>{r.BusStartDate?r.BusStartDate.split('-').reverse().join('-'):''}</td>
                             <td style={{...TD,fontWeight:700}}>{fmtN(r.Total)}</td>
                             <td style={{...TD,color:S.accent}}>{fmtN(r.Total_Lower)}</td>
                             <td style={{...TD,color:S.success}}>{fmtN(r.Total_Upper)}</td>
