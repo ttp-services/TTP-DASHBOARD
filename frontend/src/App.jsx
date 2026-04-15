@@ -612,9 +612,9 @@ function BusTab({token}){
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
               {[
                 {l:"Total PAX",v:fmtN(busK.total_pax),c:S.accent,icon:<Users size={15}/>},
-                {l:"Royal Class",v:fmtN(busK.royal_pax),c:S.warn,icon:<Star size={15}/>},
-                {l:"First Class",v:fmtN(busK.first_pax),c:S.success,icon:<TrendingUp size={15}/>},
-                {l:"Premium",v:fmtN(busK.premium_pax),c:S.purple,icon:<CreditCard size={15}/>},
+                {l:"Royal Class (RC)",v:fmtN(busK.royal_pax),c:S.warn,icon:<Star size={15}/>},
+                {l:"First Class (FC)",v:fmtN(busK.first_pax),c:S.success,icon:<TrendingUp size={15}/>},
+                {l:"Premium (PRE)",v:fmtN(busK.premium_pax),c:S.purple,icon:<CreditCard size={15}/>},
                 {l:"Lower Deck",v:fmtN(busK.lower_pax),c:S.accent2,icon:<ArrowDown size={15}/>},
                 {l:"Upper Deck",v:fmtN(busK.upper_pax),c:S.success,icon:<ArrowUp size={15}/>},
                 {l:"No Deck Pref",v:fmtN(busK.no_deck_pax),c:S.muted,icon:<CircleDot size={15}/>},
