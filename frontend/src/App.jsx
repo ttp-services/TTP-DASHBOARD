@@ -843,8 +843,8 @@ function BusTab({token}){
                 </div>
               </div>
 
-              {/* STATUS — All views */}
-              {(
+              {/* STATUS — Pendel and Deck only, NOT Feeder */}
+              {view!=="feeder"&&(
                 <div style={{background:S.bg,borderRadius:8,padding:"10px 10px",border:`1px solid ${S.border}`}}>
                   <div style={{fontSize:10,fontWeight:700,color:S.accent,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                     <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:3,height:12,background:S.accent,borderRadius:2,display:"inline-block"}}/>Status</span>
