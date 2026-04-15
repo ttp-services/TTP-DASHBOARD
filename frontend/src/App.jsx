@@ -668,7 +668,7 @@ function BusTab({token}){
                   </thead>
                   <tbody>
                     {pendel.length===0&&<tr><td colSpan={13} style={{padding:28,textAlign:"center",color:S.muted}}>No data — click Apply Filters</td></tr>}
-                    {pendel.map((r,i)=>(
+                    {[...pendel].sort((a,b)=>{const pa=a.StartDate.split('-'),pb=b.StartDate.split('-');return new Date(pa[2],pa[1]-1,pa[0])-new Date(pb[2],pb[1]-1,pb[0]);}).map((r,i)=>(
                       <tr key={i} style={{borderBottom:"1px solid #dbeafe",background:i%2===0?"#ffffff":"#f0f7ff"}}>
                         <td style={{padding:"8px 12px",fontWeight:600,color:S.accent,whiteSpace:"nowrap",borderRight:"1px solid #bfdbfe"}}>{r.StartDate}</td>
                         <td style={{padding:"8px 12px",textAlign:"right",fontWeight:700,color:S.text,borderRight:"1px solid #bfdbfe"}}>{fmtN(r.Outbound_Total)}</td>
@@ -745,7 +745,7 @@ function BusTab({token}){
                         </tr>
                       </thead>
                       <tbody>
-                        {deck.map((r,i)=>(
+                        {[...deck].sort((a,b)=>{const pa=(a.BusStartDate||'').split('-'),pb=(b.BusStartDate||'').split('-');return new Date(pa[2],pa[1]-1,pa[0])-new Date(pb[2],pb[1]-1,pb[0]);}).map((r,i)=>(
                           <tr key={i} style={{borderBottom:"1px solid #dbeafe",background:i%2===0?"#ffffff":"#f0f7ff"}}>
                             <td style={{...TDL,fontSize:11,fontWeight:600,borderRight:`2px solid ${S.border2}`}}>{r.BusStartDate||''}</td>
                             <td style={{...TD,fontWeight:700}}>{fmtN(r.Total)}</td>
