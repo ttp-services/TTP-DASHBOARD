@@ -601,7 +601,12 @@ function BusTab({token}){
           {[["pendel","Pendel Overview",<Bus size={13}/>],["deck","Deck & Class",<Layers size={13}/>],["feeder","Feeder Routes",<Map size={13}/>]].map(([v,l,ic])=>(
             <button key={v} onClick={()=>setView(v)} style={{padding:"6px 14px",borderRadius:7,fontSize:12,cursor:"pointer",border:`1.5px solid ${view===v?S.accent:S.border2}`,background:view===v?S.accent:"transparent",color:view===v?"#fff":S.textLight,fontWeight:600,transition:"all 0.15s",display:"flex",alignItems:"center",gap:5}}>{ic}{l}</button>
           ))}
-          {loading&&<span style={{marginLeft:"auto",fontSize:11,color:S.muted,alignSelf:"center"}}>Loading…</span>}
+          <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:8}}>
+            {loading&&<span style={{fontSize:11,color:S.muted}}>Loading…</span>}
+            <button onClick={applyLoad} style={{padding:"5px 12px",borderRadius:7,fontSize:11,cursor:"pointer",border:`1px solid ${S.border2}`,background:"transparent",color:S.muted,display:"flex",alignItems:"center",gap:4,fontWeight:600}}>
+              <RotateCcw size={11}/>Refresh
+            </button>
+          </div>
         </div>
         <div style={{flex:1,overflowY:"auto",padding:18,display:"flex",flexDirection:"column",gap:14}}>
           {busK&&view==="deck"&&(
@@ -627,7 +632,18 @@ function BusTab({token}){
           )}
 {view==="pendel"&&(
             <Card p="0">
-              <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,fontSize:13,fontWeight:700,color:S.text,display:"flex",alignItems:"center",gap:6}}><Bus size={14} color={S.accent}/>Pendel Overview</div>
+              <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,fontSize:13,fontWeight:700,color:S.text,display:"flex",alignItems:"center",gap:6,justifyContent:"space-between"}}>
+                <span style={{display:"flex",alignItems:"center",gap:6}}><Bus size={14} color={S.accent}/>Pendel Overview</span>
+                <button onClick={()=>{
+                  const statusParams = f.status?.length ? '&'+f.status.map(s=>`status=${s}`).join('&') : '';
+                  fetch(`${BASE}/api/dashboard/reload-bustrips?${statusParams}`,{headers:{Authorization:`Bearer ${token}`}})
+                    .then(r=>r.json()).then(d=>{
+                      if(d.ok){console.log('[ETL] BUStrips reloaded:',d);applyLoad();}
+                    }).catch(()=>{});
+                }} style={{padding:"4px 10px",borderRadius:6,fontSize:11,cursor:"pointer",border:`1px solid ${S.accent}33`,background:S.accentLight,color:S.accent,fontWeight:600,display:"flex",alignItems:"center",gap:4}}>
+                  <RotateCcw size={10}/>Reload ETL
+                </button>
+              </div>
               <div style={{overflowX:"auto",maxHeight:560,overflowY:"auto"}}>
                 <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
                   <thead>
