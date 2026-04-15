@@ -2631,6 +2631,27 @@ export default function App(){
   const[session,setSession]=useState(()=>loadAuth());
   const[tab,setTab]=useState("overview");
   const[navCollapsed,setNavCollapsed]=useState(false);
+  const[showPwModal,setShowPwModal]=useState(false);
+  const[pwForm,setPwForm]=useState({current:'',next:'',confirm:''});
+  const[pwMsg,setPwMsg]=useState(null);
+  const[pwBusy,setPwBusy]=useState(false);
+  const[showCur,setShowCur]=useState(false);
+  const[showNext,setShowNext]=useState(false);
+  const[showConf,setShowConf]=useState(false);
+
+  async function changePassword(){
+    setPwMsg(null);
+    if(pwForm.next!==pwForm.confirm){setPwMsg({err:true,t:'New passwords do not match'});return;}
+    if(pwForm.next.length<6){setPwMsg({err:true,t:'Password must be at least 6 characters'});return;}
+    setPwBusy(true);
+    try{
+      const r=await fetch(`${BASE}/api/auth/change-password`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.token}`},body:JSON.stringify({currentPassword:pwForm.current,newPassword:pwForm.next})});
+      const d=await r.json();
+      if(!r.ok)setPwMsg({err:true,t:d.error||'Failed'});
+      else{setPwMsg({err:false,t:'✓ Password changed successfully!'});setPwForm({current:'',next:'',confirm:''});setTimeout(()=>{setShowPwModal(false);setPwMsg(null);},1800);}
+    }catch{setPwMsg({err:true,t:'Network error'});}
+    finally{setPwBusy(false);}
+  }
   useEffect(()=>{if(tab==="settings"&&session?.role!=="admin")setTab("overview");},[tab,session]);
 
   useEffect(()=>{document.body.style.background=S.bg;},[]);
@@ -2639,8 +2660,64 @@ export default function App(){
     return<Login onLogin={d=>{saveAuth(d.token,d);setSession(d);}}/>;
   }
 
+  const pwInp=(field,show,setShow,placeholder)=>(
+    <div style={{marginBottom:14}}>
+      <label style={{fontSize:11,fontWeight:700,color:S.muted,display:"block",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.06em"}}>{placeholder}</label>
+      <div style={{position:"relative"}}>
+        <div style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)",color:S.muted2,display:"flex",pointerEvents:"none"}}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+        </div>
+        <input type={show?"text":"password"} value={pwForm[field]} onChange={e=>setPwForm(p=>({...p,[field]:e.target.value}))}
+          placeholder={placeholder}
+          style={{width:"100%",padding:"9px 40px 9px 36px",borderRadius:8,border:`1.5px solid ${S.border2}`,background:S.bg,color:S.text,fontSize:13,boxSizing:"border-box",outline:"none",fontFamily:"inherit"}}/>
+        <button type="button" onClick={()=>setShow(p=>!p)} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:S.muted2,display:"flex",alignItems:"center",padding:2}}>
+          {show
+            ?<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            :<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          }
+        </button>
+      </div>
+    </div>
+  );
+
   const token=session.token;
   const isAdmin = session?.role === "admin";
+
+  const PwModal = showPwModal&&(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(2px)"}}
+      onClick={e=>{if(e.target===e.currentTarget){setShowPwModal(false);setPwMsg(null);setPwForm({current:'',next:'',confirm:''}); }}}>
+      <div style={{background:S.card,borderRadius:16,padding:32,width:380,boxShadow:"0 20px 60px rgba(0,0,0,0.2)",border:`1px solid ${S.border}`,position:"relative"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:24}}>
+          <div style={{width:40,height:40,borderRadius:10,background:`${S.accent}15`,display:"flex",alignItems:"center",justifyContent:"center",color:S.accent}}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          </div>
+          <div>
+            <div style={{fontSize:16,fontWeight:800,color:S.text}}>Change Password</div>
+            <div style={{fontSize:11,color:S.muted}}>Signed in as <strong>{session.username}</strong></div>
+          </div>
+          <button onClick={()=>{setShowPwModal(false);setPwMsg(null);setPwForm({current:'',next:'',confirm:''}); }} style={{marginLeft:"auto",background:"none",border:"none",cursor:"pointer",color:S.muted2,fontSize:20,lineHeight:1,padding:4}}>×</button>
+        </div>
+        {pwInp("current",showCur,setShowCur,"Current Password")}
+        {pwInp("next",showNext,setShowNext,"New Password")}
+        {pwInp("confirm",showConf,setShowConf,"Confirm New Password")}
+        {pwMsg&&(
+          <div style={{padding:"9px 12px",borderRadius:8,background:pwMsg.err?"#fef2f2":"#f0fdf4",color:pwMsg.err?S.danger:S.success,fontSize:12,fontWeight:600,marginBottom:14,display:"flex",alignItems:"center",gap:6}}>
+            {pwMsg.err
+              ?<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              :<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20,6 9,17 4,12"/></svg>
+            }
+            {pwMsg.t}
+          </div>
+        )}
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setShowPwModal(false);setPwMsg(null);setPwForm({current:'',next:'',confirm:''}); }} style={{flex:1,padding:"9px",borderRadius:8,border:`1.5px solid ${S.border2}`,background:"transparent",color:S.muted,cursor:"pointer",fontSize:13,fontWeight:600}}>Cancel</button>
+          <button onClick={changePassword} disabled={pwBusy||!pwForm.current||!pwForm.next||!pwForm.confirm} style={{flex:2,padding:"9px",borderRadius:8,border:"none",background:S.accent,color:"#fff",cursor:pwBusy?"wait":"pointer",fontSize:13,fontWeight:700,opacity:pwBusy||!pwForm.current||!pwForm.next||!pwForm.confirm?0.6:1}}>
+            {pwBusy?"Changing…":"Change Password"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
   const NAV=[
     {id:"overview",l:"Overview",ic:<LayoutDashboard size={16}/>},
     {id:"bus",l:"Bus Occupancy",ic:<Bus size={16}/>},
@@ -2653,6 +2730,7 @@ export default function App(){
 
   return(
     <div style={{display:"flex",height:"100vh",background:S.bg,color:S.text,fontFamily:"system-ui,-apple-system,sans-serif",letterSpacing:"0.01em",overflow:"hidden"}}>
+      {PwModal}
       <div style={{width:navW,background:S.side,borderRight:`1px solid ${S.border}`,display:"flex",flexDirection:"column",flexShrink:0,transition:"width 0.2s",boxShadow:"2px 0 8px rgba(0,0,0,0.04)"}}>
         <div style={{padding:"16px 14px",borderBottom:`1px solid ${S.border}`,display:"flex",alignItems:"center",gap:10,minHeight:64}}>
           <div style={{width:36,height:36,borderRadius:9,background:`linear-gradient(135deg,${S.accent},#3b82f6)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:900,color:"#fff",flexShrink:0,cursor:"pointer",boxShadow:"0 2px 8px rgba(26,86,219,0.3)"}} onClick={()=>setNavCollapsed(p=>!p)}>
@@ -2684,6 +2762,9 @@ export default function App(){
                 <div style={{fontSize:12,fontWeight:600,color:S.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{session.name||session.username}</div>
                 <div style={{fontSize:10,color:S.muted,textTransform:"capitalize"}}>{session.role||"viewer"}</div>
               </div>
+              <button onClick={()=>setShowPwModal(true)} title="Change password" style={{background:"none",border:"none",color:S.muted2,cursor:"pointer",padding:4,flexShrink:0,display:"flex",alignItems:"center"}}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+              </button>
               <button onClick={()=>{clearAuth();setSession(null);}} title="Sign out" style={{background:"none",border:"none",color:S.muted2,cursor:"pointer",padding:4,flexShrink:0,fontSize:14}}>→</button>
             </>
           )}
