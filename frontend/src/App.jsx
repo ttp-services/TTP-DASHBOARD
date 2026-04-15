@@ -747,7 +747,7 @@ function BusTab({token}){
                       <tbody>
                         {deck.map((r,i)=>(
                           <tr key={i} style={{borderBottom:"1px solid #dbeafe",background:i%2===0?"#ffffff":"#f0f7ff"}}>
-                            <td style={{...TDL,fontSize:11,fontWeight:600,borderRight:`2px solid ${S.border2}`}}>{r.BusStartDate?r.BusStartDate.split('-').reverse().join('-'):''}</td>
+                            <td style={{...TDL,fontSize:11,fontWeight:600,borderRight:`2px solid ${S.border2}`}}>{r.BusStartDate||''}</td>
                             <td style={{...TD,fontWeight:700}}>{fmtN(r.Total)}</td>
                             <td style={{...TD,color:S.accent}}>{fmtN(r.Total_Lower)}</td>
                             <td style={{...TD,color:S.success}}>{fmtN(r.Total_Upper)}</td>
