@@ -905,7 +905,7 @@ function BusTab({token}){
                         {f.pendel?.length>0&&<span onClick={()=>setF({...f,pendel:[]})} style={{fontSize:9,color:S.danger,cursor:"pointer",fontWeight:600}}>✕ Clear</span>}
                       </div>
                       <div style={{maxHeight:120,overflowY:"auto",border:`1px solid ${S.border2}`,borderRadius:6,background:S.card}}>
-                        {(view==="deck"?sl.deckPendels:sl.pendels).map(o=>{
+                        {(view==="deck"?sl.deckPendels:(sl.pendels?.length?sl.pendels:["ACB","BEN","CBL","CBR","CLP","COB","CSE","KRO","LES","LLO","PEN","SAL","SSE"])).map(o=>{
                           const active=f.pendel?.includes(o);
                           return<div key={o} onClick={()=>setF({...f,pendel:active?f.pendel.filter(x=>x!==o):[...(f.pendel||[]),o]})} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",cursor:"pointer",background:active?`${S.success}10`:"transparent",borderBottom:`1px solid ${S.border}`}}>
                             <div style={{width:12,height:12,borderRadius:3,border:`1.5px solid ${active?S.success:S.border2}`,background:active?S.success:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
@@ -2656,7 +2656,7 @@ export default function App(){
       <div style={{width:navW,background:S.side,borderRight:`1px solid ${S.border}`,display:"flex",flexDirection:"column",flexShrink:0,transition:"width 0.2s",boxShadow:"2px 0 8px rgba(0,0,0,0.04)"}}>
         <div style={{padding:"16px 14px",borderBottom:`1px solid ${S.border}`,display:"flex",alignItems:"center",gap:10,minHeight:64}}>
           <div style={{width:36,height:36,borderRadius:9,background:`linear-gradient(135deg,${S.accent},#3b82f6)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:900,color:"#fff",flexShrink:0,cursor:"pointer",boxShadow:"0 2px 8px rgba(26,86,219,0.3)"}} onClick={()=>setNavCollapsed(p=>!p)}>
-            <img src="/assets/logo.png" alt="TTP" style={{width:28,height:28,objectFit:"contain"}} onError={e=>{e.target.style.display="none";e.target.parentNode.innerHTML='<span style="font-size:13px;font-weight:900;color:#fff">TTP</span>';}}/>
+            <span style={{fontSize:13,fontWeight:900,color:"#fff"}}>TTP</span>
           </div>
           {!navCollapsed&&(
             <div style={{flex:1,minWidth:0}}>
