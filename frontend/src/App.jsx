@@ -2221,9 +2221,40 @@ function SettingsTab({token,session,onLogout}){
   const[users,setUsers]=useState([]);
   const[loading,setLoading]=useState(false);
   const[userMsg,setUserMsg]=useState({text:"",type:""});
-  const[showAdd,setShowAdd]=useState(false);
-  const[newUser,setNewUser]=useState({username:"",password:"",role:"viewer",name:"",email:""});
-  const[busy,setBusy]=useState(false);
+  function loadUsers(){
+    setLoading(true);
+    api("/api/dashboard/users",{},token).then(d=>setUsers(Array.isArray(d)?d:[])).catch(()=>{}).finally(()=>setLoading(false));
+  }
+
+  function openEdit(u){
+    setEditUser(u);
+    setEditForm({name:u.name||"",username:u.username||"",email:u.email||"",role:u.role||"viewer",password:""});
+    setEditMsg(null);
+    setShowEditPw(false);
+  }
+
+  async function saveEdit(){
+    setEditBusy(true);setEditMsg(null);
+    try{
+      const body={name:editForm.name,username:editForm.username,email:editForm.email,role:editForm.role};
+      if(editForm.password){
+        if(editForm.password.length<6){setEditMsg({err:true,t:"Password min 6 characters"});setEditBusy(false);return;}
+        body.password=editForm.password;
+      }
+      const r=await fetch(`${BASE}/api/dashboard/users/${editUser.id}`,{method:"PUT",headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},body:JSON.stringify(body)});
+      const d=await r.json();
+      if(!r.ok){setEditMsg({err:true,t:d.error||"Failed"});return;}
+      setUsers(u=>u.map(x=>x.id===editUser.id?{...x,...d}:x));
+      setEditMsg({err:false,t:"✓ User updated successfully"});
+      setTimeout(()=>setEditUser(null),1200);
+    }catch(e){setEditMsg({err:true,t:e.message});}
+    finally{setEditBusy(false);}
+  }
+  const[editUser,setEditUser]=useState(null); // {id,name,username,email,role}
+  const[editForm,setEditForm]=useState({name:"",username:"",email:"",role:"viewer",password:""});
+  const[editMsg,setEditMsg]=useState(null);
+  const[editBusy,setEditBusy]=useState(false);
+  const[showEditPw,setShowEditPw]=useState(false);
   const[apiStatus,setApiStatus]=useState({});
   const[settings,setSettings]=useState({aiPrompt:"",emailAlerts:{enabled:false,revenueDropThreshold:10,bookingSpikethreshold:20,recipients:""}});
   const[settingsMsg,setSettingsMsg]=useState("");
@@ -2358,6 +2389,86 @@ function SettingsTab({token,session,onLogout}){
 
   const roleColor=role=>role==="admin"?{bg:S.accentLight,c:S.accent}:{bg:"#f0fdf4",c:S.success};
 
+  const EditModal = editUser&&(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(2px)"}}
+      onClick={e=>{if(e.target===e.currentTarget)setEditUser(null);}}>
+      <div style={{background:S.card,borderRadius:16,padding:32,width:420,boxShadow:"0 20px 60px rgba(0,0,0,0.2)",border:`1px solid ${S.border}`}}>
+        {/* Header */}
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:24}}>
+          <div style={{width:44,height:44,borderRadius:12,background:`${S.accent}15`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:800,color:S.accent}}>
+            {(editUser.name||editUser.username||"?")[0].toUpperCase()}
+          </div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:15,fontWeight:800,color:S.text}}>Edit User</div>
+            <div style={{fontSize:11,color:S.muted}}>@{editUser.username}</div>
+          </div>
+          <button onClick={()=>setEditUser(null)} style={{background:"none",border:"none",cursor:"pointer",color:S.muted2,fontSize:22,lineHeight:1,padding:4}}>×</button>
+        </div>
+
+        {/* Fields */}
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {[["Full Name","name","text","Enter full name"],["Username","username","text","Enter username"],["Email","email","email","Enter email"]].map(([label,field,type,ph])=>(
+            <div key={field}>
+              <label style={{fontSize:11,fontWeight:700,color:S.muted,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.05em"}}>{label}</label>
+              <input type={type} value={editForm[field]} onChange={e=>setEditForm(p=>({...p,[field]:e.target.value}))}
+                placeholder={ph}
+                style={{width:"100%",padding:"9px 12px",borderRadius:8,border:`1.5px solid ${S.border2}`,background:S.bg,color:S.text,fontSize:13,boxSizing:"border-box",outline:"none"}}/>
+            </div>
+          ))}
+
+          {/* Role */}
+          <div>
+            <label style={{fontSize:11,fontWeight:700,color:S.muted,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.05em"}}>Role</label>
+            <div style={{display:"flex",gap:8}}>
+              {["viewer","admin"].map(r=>{
+                const active=editForm.role===r;
+                const c=r==="admin"?S.accent:S.success;
+                return<button key={r} onClick={()=>setEditForm(p=>({...p,role:r}))} style={{flex:1,padding:"8px",borderRadius:8,border:`1.5px solid ${active?c:S.border2}`,background:active?`${c}15`:"transparent",color:active?c:S.textLight,fontWeight:active?700:400,cursor:"pointer",fontSize:13,transition:"all 0.15s"}}>
+                  {r==="admin"?"🔑 Admin":"👁 Viewer"}
+                </button>;
+              })}
+            </div>
+          </div>
+
+          {/* Password reset */}
+          <div style={{borderTop:`1px solid ${S.border}`,paddingTop:12}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:showEditPw?8:0}}>
+              <label style={{fontSize:11,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.05em"}}>Reset Password</label>
+              <button onClick={()=>{setShowEditPw(p=>!p);setEditForm(p=>({...p,password:""}));}} style={{fontSize:11,color:showEditPw?S.danger:S.accent,fontWeight:600,background:"none",border:"none",cursor:"pointer"}}>
+                {showEditPw?"✕ Cancel":"+ Set New Password"}
+              </button>
+            </div>
+            {showEditPw&&(
+              <div style={{position:"relative"}}>
+                <div style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)",color:S.muted2,display:"flex",pointerEvents:"none"}}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                </div>
+                <input type="password" value={editForm.password} onChange={e=>setEditForm(p=>({...p,password:e.target.value}))}
+                  placeholder="New password (min 6 chars)"
+                  style={{width:"100%",padding:"9px 12px 9px 34px",borderRadius:8,border:`1.5px solid ${S.border2}`,background:S.bg,color:S.text,fontSize:13,boxSizing:"border-box",outline:"none"}}/>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Message */}
+        {editMsg&&(
+          <div style={{marginTop:14,padding:"9px 12px",borderRadius:8,background:editMsg.err?"#fef2f2":"#f0fdf4",color:editMsg.err?S.danger:S.success,fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:6}}>
+            {editMsg.err?"⚠":"✓"} {editMsg.t}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div style={{display:"flex",gap:8,marginTop:20}}>
+          <button onClick={()=>setEditUser(null)} style={{flex:1,padding:"10px",borderRadius:8,border:`1.5px solid ${S.border2}`,background:"transparent",color:S.muted,cursor:"pointer",fontSize:13,fontWeight:600}}>Cancel</button>
+          <button onClick={saveEdit} disabled={editBusy} style={{flex:2,padding:"10px",borderRadius:8,border:"none",background:S.accent,color:"#fff",cursor:editBusy?"wait":"pointer",fontSize:13,fontWeight:700,opacity:editBusy?0.7:1}}>
+            {editBusy?"Saving…":"Save Changes"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   const API_ENDPOINTS=[
     {name:"Dashboard KPIs",path:"/api/dashboard/kpis"},
     {name:"Revenue by Year",path:"/api/dashboard/revenue-by-year"},
@@ -2367,6 +2478,7 @@ function SettingsTab({token,session,onLogout}){
 
   return(
     <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden",background:S.bg}}>
+      {EditModal}
       <div style={{background:S.card,borderBottom:`1px solid ${S.border}`,padding:"10px 20px",display:"flex",gap:8,flexShrink:0,boxShadow:S.shadow}}>
         {sTabBtn("users","User Management",<Users size={14}/>)}
         {sTabBtn("api","API Status",<CircleDot size={14}/>)}
@@ -2453,8 +2565,10 @@ function SettingsTab({token,session,onLogout}){
                           <td style={{padding:"12px 16px"}}>
                             <span style={{background:S.successBg,color:S.success,padding:"2px 8px",borderRadius:5,fontSize:11,fontWeight:600}}>● Active</span>
                           </td>
-                          <td style={{padding:"12px 16px",textAlign:"right"}}>
-                            {isSelf?<span style={{fontSize:11,color:S.muted,fontStyle:"italic"}}>You</span>:<Btn onClick={()=>deleteUser(u.id,u.username)} variant="danger" size="sm">🗑 Delete</Btn>}
+                          <td style={{padding:"12px 16px",textAlign:"right",display:"flex",gap:6,justifyContent:"flex-end"}}>
+                            <Btn onClick={()=>openEdit(u)} variant="secondary" size="sm">✏ Edit</Btn>
+                            {!isSelf&&<Btn onClick={()=>deleteUser(u.id,u.username)} variant="danger" size="sm">🗑 Delete</Btn>}
+                            {isSelf&&<span style={{fontSize:11,color:S.muted,fontStyle:"italic",alignSelf:"center"}}>You</span>}
                           </td>
                         </tr>
                       );
