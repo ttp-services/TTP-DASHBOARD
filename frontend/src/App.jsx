@@ -515,12 +515,13 @@ function BusTab({token}){
     if(f.status?.length)p.status=f.status;
     if(f.label?.length)p.label=f.label;
 
-    // Params for pendel (BUStrips — only has dateFrom, dateTo, weekday, pendel — NO label, NO status)
+    // Params for pendel (BUStrips — status triggers ETL reload with those statuses)
     const pp={};
     if(f.dateFrom)pp.dateFrom=f.dateFrom;
     if(f.dateTo)pp.dateTo=f.dateTo;
     if(f.pendel?.length)pp.pendel=f.pendel;
     if(f.weekday?.length)pp.weekday=f.weekday;
+    if(f.status?.length)pp.status=f.status;
 
     // Params for feeder (FeederOverview — has dateFrom, dateTo, feederLine, label, weekday)
     const fp={};
@@ -547,20 +548,22 @@ function BusTab({token}){
   function resetFilters(){
     const e={dateFrom:`2020-01-01`,dateTo:`${cy}-12-31`,pendel:[],region:[],label:[],feederLine:[],weekday:[],status:[],_collapsed:false};
     setF(e);
-    // Re-apply with empty filters
     setLoading(true);
-    const pp={dateFrom:`2020-01-01`,dateTo:`${cy}-12-31`};
+    const pp={};
+    pp.dateFrom=`2020-01-01`;
+    pp.dateTo=`${cy}-12-31`;
     Promise.all([
       api("/api/dashboard/bus-kpis",pp,token).catch(()=>({})),
       api("/api/dashboard/pendel-overview",pp,token).catch(()=>[]),
       api("/api/dashboard/feeder-overview",pp,token).catch(()=>[]),
       api("/api/dashboard/deck-class",pp,token).catch(()=>[])
-    ]).then(([k,pd,fd,dc])=>{
+    ]).then(function(results){
+      var k=results[0];var pd=results[1];var fd=results[2];var dc=results[3];
       setBusK(k||{});
       setPendel(Array.isArray(pd)?pd:[]);
       setFeeder(Array.isArray(fd)?fd:[]);
       setDeck(Array.isArray(dc)?dc:[]);
-    }).finally(()=>setLoading(false));
+    }).finally(function(){setLoading(false);});
   }
 
   // Exclude "Totaal vertrek" stop rows — totals come from RouteTotal on route header
@@ -699,11 +702,11 @@ function BusTab({token}){
                     ].map((row,i)=>(
                       <tr key={i} style={{borderBottom:"1px solid #dbeafe",background:i===0?"#eff6ff":i%2===0?"#ffffff":"#f0f7ff"}}>
                         <td style={{padding:"9px 12px",textAlign:"left",fontWeight:i===0?800:600,color:row.c,borderRight:"1px solid #dbeafe",fontSize:12}}>{row.label}</td>
-                        <td style={{padding:"9px 12px",textAlign:"right",fontWeight:700,color:row.c,borderRight:"1px solid #dbeafe",fontSize:12}}>{fmtN(get(deckTotals, row.total))}</td>
+                        <td style={{padding:"9px 12px",textAlign:"right",fontWeight:700,color:row.c,borderRight:"1px solid #dbeafe",fontSize:12}}>{fmtN(deckTotals[row.total]||0)}</td>
                         <td style={{padding:"9px 12px",textAlign:"right",color:S.accent,borderRight:"1px solid #dbeafe",fontSize:12}}>{fmtN(deckTotals[row.lower]||0)}</td>
                         <td style={{padding:"9px 12px",textAlign:"right",color:S.success,borderRight:"1px solid #dbeafe",fontSize:12}}>{fmtN(deckTotals[row.upper]||0)}</td>
                         <td style={{padding:"9px 12px",textAlign:"right",color:S.muted,borderRight:"1px solid #dbeafe",fontSize:12}}>{fmtN(deckTotals[row.noDeck]||0)}</td>
-                        <td style={{padding:"9px 12px",textAlign:"right",color:S.accent,borderRight:"1px solid #dbeafe",fontSize:12}}>{pct(get(deckTotals,row.lower), get(deckTotals,row.total))}</td>
+                        <td style={{padding:"9px 12px",textAlign:"right",color:S.accent,borderRight:"1px solid #dbeafe",fontSize:12}}>{pct(deckTotals[row.lower]||0,deckTotals[row.total]||1)}</td>
                         <td style={{padding:"9px 12px",textAlign:"right",color:S.success,fontSize:12}}>{pct(deckTotals[row.upper]||0,deckTotals[row.total]||1)}</td>
                       </tr>
                     ))}
@@ -847,7 +850,7 @@ function BusTab({token}){
                     <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:3,height:12,background:S.accent,borderRadius:2,display:"inline-block"}}/>Status</span>
                     {f.status?.length>0&&<span onClick={()=>setF({...f,status:[]})} style={{fontSize:9,color:S.danger,cursor:"pointer",fontWeight:600}}>✕ Clear</span>}
                   </div>
-                  {[{v:"DEF",l:"✅ DEF — Confirmed"},{v:"TIJD",l:"⏳ TIJD — Timed"},{v:"VERV",l:"🔄 VERV — Replaced"},{v:"DEF-GEANNULEERD",l:"❌ DEF-GEANNULEERD"},{v:"ACC AV NIET OK",l:"⚠ ACC AV NIET OK"},{v:"CTRL",l:"🔍 CTRL"},{v:"IN_AANVRAAG",l:"📋 IN_AANVRAAG"}].map(({v,l})=>{
+                  {[{v:"DEF",l:"DEF"},{v:"TIJD",l:"TIJD"},{v:"DEF-GEANNULEERD",l:"DEF-GEANNULEERD"},{v:"CTRL",l:"CTRL"},{v:"IN_AANVRAAG",l:"IN_AANVRAAG"},{v:"ACC AV NIET OK",l:"ACC AV NIET OK"}].map(({v,l})=>{
                     const active=f.status?.includes(v);
                     return<div key={v} onClick={()=>setF({...f,status:active?f.status.filter(x=>x!==v):[...(f.status||[]),v]})} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 6px",borderRadius:5,cursor:"pointer",background:active?`${S.accent}12`:"transparent",marginBottom:2}}>
                       <div style={{width:13,height:13,borderRadius:3,border:`1.5px solid ${active?S.accent:S.border2}`,background:active?S.accent:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
@@ -940,8 +943,9 @@ function BusTab({token}){
                       </div>
                     </div>
                     {view==="pendel"&&(
-                      <div style={{marginTop:2,padding:"5px 7px",background:S.accentLight,borderRadius:5,border:`1px solid ${S.accent}22`}}>
-                        <div style={{fontSize:9,color:S.accent,fontWeight:600}}>ℹ Status filter reloads BUStrips via ETL</div>
+                      <div style={{marginTop:2,padding:"5px 7px",background:S.warnBg,borderRadius:5,border:`1px solid ${S.warn}22`}}>
+                        <div style={{fontSize:9,color:S.warn,fontWeight:600}}>⚠ Status filter reloads BUStrips data</div>
+                        <div style={{fontSize:9,color:S.muted2,marginTop:1}}>VERV is always excluded</div>
                       </div>
                     )}
                   </div>
