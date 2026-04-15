@@ -2700,6 +2700,30 @@ export default function App(){
         {pwInp("current",showCur,setShowCur,"Current Password")}
         {pwInp("next",showNext,setShowNext,"New Password")}
         {pwInp("confirm",showConf,setShowConf,"Confirm New Password")}
+        {pwForm.next&&(()=>{
+          const p=pwForm.next;
+          const checks=[p.length>=8,/[A-Z]/.test(p),/[0-9]/.test(p),/[^A-Za-z0-9]/.test(p)];
+          const score=checks.filter(Boolean).length;
+          const colors=["#ef4444","#f97316","#eab308","#22c55e"];
+          const labels=["Weak","Fair","Good","Strong"];
+          return(
+            <div style={{marginBottom:14}}>
+              <div style={{display:"flex",gap:4,marginBottom:5}}>
+                {[0,1,2,3].map(i=>(
+                  <div key={i} style={{flex:1,height:4,borderRadius:4,background:i<score?colors[score-1]:"#e2e8f0",transition:"background 0.2s"}}/>
+                ))}
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:10}}>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  {[["8+ chars",p.length>=8],["Uppercase",/[A-Z]/.test(p)],["Number",/[0-9]/.test(p)],["Symbol",/[^A-Za-z0-9]/.test(p)]].map(([l,ok])=>(
+                    <span key={l} style={{color:ok?"#22c55e":"#94a3b8",fontWeight:600}}>{ok?"✓":"○"} {l}</span>
+                  ))}
+                </div>
+                <span style={{fontWeight:700,color:score>0?colors[score-1]:"#94a3b8"}}>{score>0?labels[score-1]:""}</span>
+              </div>
+            </div>
+          );
+        })()}
         {pwMsg&&(
           <div style={{padding:"9px 12px",borderRadius:8,background:pwMsg.err?"#fef2f2":"#f0fdf4",color:pwMsg.err?S.danger:S.success,fontSize:12,fontWeight:600,marginBottom:14,display:"flex",alignItems:"center",gap:6}}>
             {pwMsg.err
