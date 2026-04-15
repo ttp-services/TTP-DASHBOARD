@@ -549,21 +549,17 @@ function BusTab({token}){
     const e={dateFrom:`2020-01-01`,dateTo:`${cy}-12-31`,pendel:[],region:[],label:[],feederLine:[],weekday:[],status:[],_collapsed:false};
     setF(e);
     setLoading(true);
-    const pp={};
-    pp.dateFrom=`2020-01-01`;
-    pp.dateTo=`${cy}-12-31`;
     Promise.all([
-      api("/api/dashboard/bus-kpis",pp,token).catch(()=>({})),
-      api("/api/dashboard/pendel-overview",pp,token).catch(()=>[]),
-      api("/api/dashboard/feeder-overview",pp,token).catch(()=>[]),
-      api("/api/dashboard/deck-class",pp,token).catch(()=>[])
-    ]).then(function(results){
-      var k=results[0];var pd=results[1];var fd=results[2];var dc=results[3];
+      api("/api/dashboard/bus-kpis",{dateFrom:`2020-01-01`,dateTo:`${cy}-12-31`},token).catch(()=>({})),
+      api("/api/dashboard/pendel-overview",{dateFrom:`2020-01-01`,dateTo:`${cy}-12-31`},token).catch(()=>[]),
+      api("/api/dashboard/feeder-overview",{dateFrom:`2020-01-01`,dateTo:`${cy}-12-31`},token).catch(()=>[]),
+      api("/api/dashboard/deck-class",{dateFrom:`2020-01-01`,dateTo:`${cy}-12-31`},token).catch(()=>[])
+    ]).then(([k,pd,fd,dc])=>{
       setBusK(k||{});
       setPendel(Array.isArray(pd)?pd:[]);
       setFeeder(Array.isArray(fd)?fd:[]);
       setDeck(Array.isArray(dc)?dc:[]);
-    }).finally(function(){setLoading(false);});
+    }).finally(()=>setLoading(false));
   }
 
   // Exclude "Totaal vertrek" stop rows — totals come from RouteTotal on route header
@@ -868,7 +864,7 @@ function BusTab({token}){
                   <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:3,height:12,background:S.accent,borderRadius:2,display:"inline-block"}}/>Label</span>
                   {f.label?.length>0&&<span onClick={()=>setF({...f,label:[]})} style={{fontSize:9,color:S.danger,cursor:"pointer",fontWeight:600}}>✕ Clear</span>}
                 </div>
-                {(view==="deck"?["Solmar","Solmar DE","Interbus"]:view==="feeder"?(sl.feederLabels||[]):["STANDAARD","DEU"]).map(o=>{
+                {(view==="deck"?["STANDAARD","ITB","DEU"]:view==="feeder"?(sl.feederLabels||[]):["STANDAARD","DEU"]).map(o=>{
                   const active=f.label?.includes(o);
                   return<div key={o} onClick={()=>setF({...f,label:active?f.label.filter(x=>x!==o):[...(f.label||[]),o]})} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 6px",borderRadius:5,cursor:"pointer",background:active?`${S.purple}12`:"transparent",marginBottom:2}}>
                     <div style={{width:13,height:13,borderRadius:3,border:`1.5px solid ${active?S.purple:S.border2}`,background:active?S.purple:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
