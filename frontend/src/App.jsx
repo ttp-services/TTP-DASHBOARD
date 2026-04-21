@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { LayoutDashboard, Bus, Briefcase, Settings, Users, BarChart2, TrendingUp, Package, Star, ArrowDown, ArrowUp, CircleDot, ChevronDown, ChevronUp, RotateCcw, Play, Filter, AlertCircle, CheckCircle, XCircle, Download, Search, Layers, Map, Table2, PieChart, CreditCard, Percent, FileText } from "lucide-react";
+import { LayoutDashboard, Bus, Briefcase, Settings, Users, BarChart2, TrendingUp, Package, Star, ArrowDown, ArrowUp, CircleDot, ChevronDown, ChevronUp, RotateCcw, Play, Filter, AlertCircle, CheckCircle, XCircle, Download, Search, Layers, Map, Table2, PieChart, CreditCard, Percent, FileText, Plane } from "lucide-react";
 
 const BASE = import.meta.env?.VITE_API_URL || "https://ttp-dashboard-api.azurewebsites.net";
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -2216,6 +2216,214 @@ function HotelTab({token}){
     </div>
   );
 }
+function FlightsTab({token}){
+  const[slicers,setSlicers]=useState({departures:[],arrivals:[]});
+  const[f,setF]=useState({dateFrom:"",dateTo:"",departure:[],arrival:[]});
+  const[data,setData]=useState([]);
+  const[loading,setLoading]=useState(false);
+  const[err,setErr]=useState(null);
+
+  useEffect(()=>{
+    api("/api/dashboard/flight-slicers",{},token).then(d=>{if(d&&!d.error)setSlicers(d);}).catch(()=>{});
+    loadData({});
+  },[token]);
+
+  function buildParams(filters){
+    const p={};
+    if(filters.dateFrom)p.dateFrom=filters.dateFrom;
+    if(filters.dateTo)p.dateTo=filters.dateTo;
+    if(filters.departure?.length)p.departure=filters.departure;
+    if(filters.arrival?.length)p.arrival=filters.arrival;
+    return p;
+  }
+
+  function loadData(filters){
+    setLoading(true);setErr(null);
+    api("/api/dashboard/flights",buildParams(filters),token)
+      .then(d=>setData(Array.isArray(d)?d:[]))
+      .catch(e=>setErr(e.message))
+      .finally(()=>setLoading(false));
+  }
+
+  function apply(){loadData(f);}
+  function reset(){const e={dateFrom:"",dateTo:"",departure:[],arrival:[]};setF(e);loadData(e);}
+  const tog=(arr,v)=>arr.includes(v)?arr.filter(x=>x!==v):[...arr,v];
+
+  // Aggregate total PAX per flight date for the bar chart
+  const chartData=(()=>{
+    const byDate={};
+    data.forEach(r=>{
+      const d=r.FlightDate?.split("T")[0]||r.FlightDate||"";
+      if(!d)return;
+      byDate[d]=(byDate[d]||0)+Number(r.TotalPAX||0);
+    });
+    return Object.entries(byDate).sort(([a],[b])=>a.localeCompare(b)).map(([date,pax])=>({date,pax}));
+  })();
+
+  const totalPAX=data.reduce((s,r)=>s+Number(r.TotalPAX||0),0);
+
+  // Simple bar chart for PAX per date
+  function FlightBarChart({items}){
+    const[tooltip,setTooltip]=useState(null);
+    if(!items?.length)return<div style={{color:S.muted,textAlign:"center",padding:32,fontSize:12}}>No chart data</div>;
+    const maxV=Math.max(...items.map(i=>i.pax),1);
+    const W=600,H=180,PL=50,PR=10,PT=12,PB=50,CW=W-PL-PR,CH=H-PT-PB;
+    const bw=Math.max(4,Math.floor(CW/items.length)-2);
+    return(
+      <div style={{position:"relative"}}>
+        {tooltip&&(
+          <div style={{position:"absolute",left:tooltip.x,top:tooltip.y,background:S.text,borderRadius:8,padding:"7px 11px",fontSize:11,color:"#fff",pointerEvents:"none",zIndex:10,whiteSpace:"nowrap",transform:"translate(-50%,-110%)",boxShadow:S.shadowLg}}>
+            <div style={{fontWeight:700,color:"#60a5fa",marginBottom:2}}>{tooltip.date}</div>
+            <div>PAX: <strong>{fmtN(tooltip.pax)}</strong></div>
+          </div>
+        )}
+        <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:"auto"}} onMouseLeave={()=>setTooltip(null)}>
+          {[0,1,2,3,4].map(i=>{const y=PT+(CH/4)*i,v=maxV*(1-i/4);return<g key={i}><line x1={PL} x2={W-PR} y1={y} y2={y} stroke={S.border} strokeWidth={0.7}/><text x={PL-4} y={y+4} textAnchor="end" fontSize={8} fill={S.muted2}>{Math.round(v)}</text></g>;})}
+          {items.map((item,mi)=>{
+            const x=PL+(mi/items.length)*CW+(CW/items.length-bw)/2;
+            const bh=Math.max(2,(item.pax/maxV)*CH);
+            const y=PT+CH-bh;
+            const label=item.date?.slice(5); // MM-DD
+            return<g key={mi}
+              onMouseEnter={e=>{const sv=e.target.closest("svg");const rc=sv.getBoundingClientRect();setTooltip({x:(x+bw/2)*(rc.width/W),y:y*(rc.height/H),date:item.date,pax:item.pax});}}
+              onClick={e=>{const sv=e.target.closest("svg");const rc=sv.getBoundingClientRect();setTooltip({x:(x+bw/2)*(rc.width/W),y:y*(rc.height/H),date:item.date,pax:item.pax});}}
+            >
+              <rect x={x} y={y} width={bw} height={bh} fill={S.accent} rx={2} opacity={0.85} style={{cursor:"pointer"}}/>
+              {items.length<=30&&<text x={x+bw/2} y={H-PB+12} textAnchor="middle" fontSize={6} fill={S.muted2} transform={`rotate(-45,${x+bw/2},${H-PB+12})`}>{label}</text>}
+            </g>;
+          })}
+        </svg>
+      </div>
+    );
+  }
+
+  const chipBtn=(active,onClick,label,clr=S.accent)=>(
+    <button onClick={onClick} style={{padding:"3px 9px",borderRadius:20,fontSize:11,fontWeight:600,cursor:"pointer",border:`1.5px solid ${active?clr:S.border2}`,background:active?`${clr}18`:"transparent",color:active?clr:S.textLight,transition:"all 0.15s"}}>
+      {label}
+    </button>
+  );
+
+  const TH={padding:"9px 12px",textAlign:"right",fontSize:11,fontWeight:700,color:"#ffffff",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",background:"#1e40af",borderRight:"1px solid #3b82f6"};
+  const THL={...TH,textAlign:"left"};
+  const TD={padding:"8px 12px",textAlign:"right",fontSize:12,color:S.text,whiteSpace:"nowrap",borderBottom:"1px solid #dbeafe",borderRight:"1px solid #e8f0fe"};
+  const TDL={...TD,textAlign:"left"};
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden",background:S.bg}}>
+      {/* Filter bar */}
+      <div style={{background:S.card,borderBottom:`1px solid ${S.border}`,flexShrink:0,boxShadow:S.shadow}}>
+        <div style={{padding:"10px 16px",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+          <span style={{fontSize:10,fontWeight:700,color:S.muted2,textTransform:"uppercase",letterSpacing:"0.06em"}}>From</span>
+          {slicers.departures.map(d=>chipBtn(f.departure.includes(d),()=>setF({...f,departure:tog(f.departure,d)}),d,S.accent))}
+          <div style={{width:1,height:18,background:S.border2}}/>
+          <span style={{fontSize:10,fontWeight:700,color:S.muted2,textTransform:"uppercase",letterSpacing:"0.06em"}}>To</span>
+          {slicers.arrivals.map(a=>chipBtn(f.arrival.includes(a),()=>setF({...f,arrival:tog(f.arrival,a)}),a,S.success))}
+          <div style={{width:1,height:18,background:S.border2}}/>
+          <span style={{fontSize:10,fontWeight:700,color:S.muted2,textTransform:"uppercase",letterSpacing:"0.06em"}}>Date</span>
+          <input type="date" value={f.dateFrom} onChange={e=>setF({...f,dateFrom:e.target.value})} style={{background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"4px 8px",color:S.text,fontSize:11,outline:"none"}}/>
+          <span style={{fontSize:10,color:S.muted2}}>–</span>
+          <input type="date" value={f.dateTo} onChange={e=>setF({...f,dateTo:e.target.value})} style={{background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"4px 8px",color:S.text,fontSize:11,outline:"none"}}/>
+          {[
+            {l:"2025",from:"2025-01-01",to:"2025-12-31"},
+            {l:"2026",from:"2026-01-01",to:"2026-12-31"},
+            {l:"All",from:"",to:""},
+          ].map(q=>(
+            <button key={q.l} onClick={()=>setF({...f,dateFrom:q.from,dateTo:q.to})} style={{padding:"3px 8px",borderRadius:5,fontSize:10,cursor:"pointer",border:`1px solid ${f.dateFrom===q.from&&f.dateTo===q.to?S.warn:S.border2}`,background:f.dateFrom===q.from&&f.dateTo===q.to?S.warnBg:"transparent",color:f.dateFrom===q.from&&f.dateTo===q.to?S.warn:S.textLight,fontWeight:600}}>{q.l}</button>
+          ))}
+          <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+            <Btn onClick={reset} variant="secondary" size="sm">Reset</Btn>
+            <Btn onClick={apply} variant="primary" size="sm">Apply Filters</Btn>
+          </div>
+        </div>
+        {(f.departure.length>0||f.arrival.length>0)&&(
+          <div style={{padding:"4px 16px 8px",display:"flex",gap:5,flexWrap:"wrap"}}>
+            {f.departure.map(v=><span key={v} style={{background:S.accentLight,color:S.accent,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>✈ From: {v}</span>)}
+            {f.arrival.map(v=><span key={v} style={{background:`${S.success}15`,color:S.success,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>✈ To: {v}</span>)}
+          </div>
+        )}
+      </div>
+
+      <div style={{flex:1,overflowY:"auto",padding:"16px 20px",display:"flex",flexDirection:"column",gap:14}}>
+        {err&&<div style={{background:S.dangerBg,border:`1px solid ${S.danger}33`,borderRadius:10,padding:"10px 14px",fontSize:12,color:S.danger}}>⚠ {err}</div>}
+        {loading&&<div style={{color:S.muted,textAlign:"center",padding:40,fontSize:13}}>Loading flight data…</div>}
+
+        {/* KPI */}
+        {!loading&&(
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
+            {[
+              {l:"Total PAX",v:fmtN(totalPAX),c:S.accent,icon:<Plane size={16}/>},
+              {l:"Flight Dates",v:fmtN(chartData.length),c:S.purple,icon:<BarChart2 size={16}/>},
+              {l:"Routes",v:fmtN([...new Set(data.map(r=>r.ElementCode))].length),c:S.success,icon:<Map size={16}/>},
+            ].map(k=>(
+              <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:"16px 18px",boxShadow:S.shadow,display:"flex",alignItems:"center",gap:14}}>
+                <div style={{width:38,height:38,borderRadius:10,background:`${k.c}12`,display:"flex",alignItems:"center",justifyContent:"center",color:k.c,flexShrink:0}}>{k.icon}</div>
+                <div>
+                  <div style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:2}}>{k.l}</div>
+                  <div style={{fontSize:22,fontWeight:800,color:k.c}}>{k.v}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Chart */}
+        {!loading&&chartData.length>0&&(
+          <Card>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:700,color:S.text}}>Total PAX per Flight Date</div>
+                <div style={{fontSize:11,color:S.muted,marginTop:1}}>All selected routes combined</div>
+              </div>
+              <span style={{fontSize:11,color:S.muted2,background:S.bg,padding:"3px 8px",borderRadius:6,border:`1px solid ${S.border}`}}>{chartData.length} dates</span>
+            </div>
+            <FlightBarChart items={chartData}/>
+          </Card>
+        )}
+
+        {/* Table */}
+        {!loading&&data.length>0&&(
+          <Card p="0">
+            <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{fontSize:13,fontWeight:700,color:S.text}}>Flight Routes — PAX per Date <span style={{fontSize:11,color:S.muted,fontWeight:400}}>({fmtN(data.length)} rows)</span></div>
+              <button onClick={()=>{
+                const cols=["Route","Name","From","To","Date","PAX"];
+                const rows=data.map(r=>[r.ElementCode,`"${(r.RouteName||"").replace(/"/g,'""')}"`,r.Departure,r.Arrival,r.FlightDate?.split("T")[0]||r.FlightDate,r.TotalPAX].join(","));
+                const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\uFEFF"+[cols.join(","),...rows].join("\n")],{type:"text/csv;charset=utf-8"}));a.download=`flights-${new Date().toISOString().split("T")[0]}.csv`;a.click();
+              }} style={{padding:"5px 10px",background:"transparent",border:`1px solid ${S.border2}`,borderRadius:6,color:S.muted,fontSize:11,cursor:"pointer",fontWeight:600}}>↓ CSV</button>
+            </div>
+            <div style={{overflowX:"auto",maxHeight:480,overflowY:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                <thead style={{position:"sticky",top:0,zIndex:5}}>
+                  <tr>
+                    <th style={THL}>Route</th>
+                    <th style={THL}>Route Name</th>
+                    <th style={TH}>From</th>
+                    <th style={TH}>To</th>
+                    <th style={TH}>Flight Date</th>
+                    <th style={TH}>PAX</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.map((r,i)=>(
+                    <tr key={i} style={{borderBottom:"1px solid #dbeafe",background:i%2===0?"#ffffff":"#f0f7ff"}}>
+                      <td style={{...TDL,fontWeight:700,color:S.accent,fontFamily:"monospace"}}>{r.ElementCode}</td>
+                      <td style={{...TDL,color:S.textLight,fontSize:11}}>{r.RouteName||"—"}</td>
+                      <td style={{...TD,fontWeight:600,color:S.accent}}>{r.Departure}</td>
+                      <td style={{...TD,fontWeight:600,color:S.success}}>{r.Arrival}</td>
+                      <td style={TD}>{r.FlightDate?.split("T")[0]||r.FlightDate}</td>
+                      <td style={{...TD,fontWeight:700,color:S.text}}>{fmtN(r.TotalPAX)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SettingsTab({token,session,onLogout}){
   const[tab,setTab]=useState("users");
   const[users,setUsers]=useState([]);
@@ -2860,6 +3068,7 @@ export default function App(){
     {id:"bus",l:"Bus Occupancy",ic:<Bus size={16}/>},
     {id:"purchase",l:"Purchase Obligations",ic:<Briefcase size={16}/>},
     {id:"hotel",l:"Hotel Insights",ic:<Star size={16}/>},
+    {id:"flights",l:"Flights",ic:<Plane size={16}/>},
     ...(isAdmin?[{id:"settings",l:"Settings",ic:<Settings size={16}/>}]:[]),
   ];
 
@@ -2925,6 +3134,7 @@ export default function App(){
           {tab==="bus"       &&<BusTab       token={token}/>}
           {tab==="purchase"  &&<PurchaseTab  token={token}/>}
           {tab==="hotel"     &&<HotelTab     token={token}/>}
+          {tab==="flights"   &&<FlightsTab   token={token}/>}
           {tab==="settings" && isAdmin &&<SettingsTab token={token} session={session} onLogout={()=>{clearAuth();setSession(null);}}/>}
         </div>
       </div>
