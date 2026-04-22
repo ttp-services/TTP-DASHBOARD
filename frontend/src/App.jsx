@@ -775,7 +775,18 @@ function BusTab({token}){
           )}
           {view==="feeder"&&(
             <Card p="0">
-              <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,fontSize:13,fontWeight:700,color:S.text,display:"flex",alignItems:"center",gap:6}}><Map size={14} color={S.accent}/>Feeder Routes</div>
+              <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,fontSize:13,fontWeight:700,color:S.text,display:"flex",alignItems:"center",gap:6,justifyContent:"space-between"}}>
+                <span style={{display:"flex",alignItems:"center",gap:6}}><Map size={14} color={S.accent}/>Feeder Routes</span>
+                <button onClick={()=>{
+                  const statusParams = f.status?.length ? '&'+f.status.map(s=>`status=${s}`).join('&') : '';
+                  fetch(`${BASE}/api/dashboard/reload-feeder?${statusParams}`,{headers:{Authorization:`Bearer ${token}`}})
+                    .then(r=>r.json()).then(d=>{
+                      if(d.ok){console.log('[ETL] Feeder reloaded:',d);applyLoad();}
+                    }).catch(()=>{});
+                }} style={{padding:"4px 10px",borderRadius:6,fontSize:11,cursor:"pointer",border:`1px solid ${S.accent}33`,background:S.accentLight,color:S.accent,fontWeight:600,display:"flex",alignItems:"center",gap:4}}>
+                  <RotateCcw size={10}/>Reload ETL
+                </button>
+              </div>
               <div style={{overflowX:"auto",maxHeight:540,overflowY:"auto"}}>
                 <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
                   <thead style={{position:"sticky",top:0,zIndex:5}}><tr>
