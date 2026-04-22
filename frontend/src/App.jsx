@@ -2217,8 +2217,8 @@ function HotelTab({token}){
   );
 }
 function FlightsTab({token}){
-  const[slicers,setSlicers]=useState({departures:[],arrivals:[]});
-  const[f,setF]=useState({dateFrom:"",dateTo:"",departure:[],arrival:[]});
+  const[slicers,setSlicers]=useState({departures:[],arrivals:[],statuses:[]});
+  const[f,setF]=useState({dateFrom:"",dateTo:"",departure:[],arrival:[],status:[]});
   const[data,setData]=useState([]);
   const[loading,setLoading]=useState(false);
   const[err,setErr]=useState(null);
@@ -2234,6 +2234,7 @@ function FlightsTab({token}){
     if(filters.dateTo)p.dateTo=filters.dateTo;
     if(filters.departure?.length)p.departure=filters.departure;
     if(filters.arrival?.length)p.arrival=filters.arrival;
+    if(filters.status?.length)p.status=filters.status;
     return p;
   }
 
@@ -2246,7 +2247,7 @@ function FlightsTab({token}){
   }
 
   function apply(){loadData(f);}
-  function reset(){const e={dateFrom:"",dateTo:"",departure:[],arrival:[]};setF(e);loadData(e);}
+  function reset(){const e={dateFrom:"",dateTo:"",departure:[],arrival:[],status:[]};setF(e);loadData(e);}
   const tog=(arr,v)=>arr.includes(v)?arr.filter(x=>x!==v):[...arr,v];
 
   // Aggregate total PAX per flight date for the bar chart
@@ -2262,34 +2263,70 @@ function FlightsTab({token}){
 
   const totalPAX=data.reduce((s,r)=>s+Number(r.TotalPAX||0),0);
 
-  // Simple bar chart for PAX per date
-  function FlightBarChart({items}){
+  // Grouped bar chart: PAX by month, grouped by year
+  function FlightBarChart({data}){
     const[tooltip,setTooltip]=useState(null);
-    if(!items?.length)return<div style={{color:S.muted,textAlign:"center",padding:32,fontSize:12}}>No chart data</div>;
-    const maxV=Math.max(...items.map(i=>i.pax),1);
-    const W=600,H=180,PL=50,PR=10,PT=12,PB=50,CW=W-PL-PR,CH=H-PT-PB;
-    const bw=Math.max(4,Math.floor(CW/items.length)-2);
+    if(!data?.length)return<div style={{color:S.muted,textAlign:"center",padding:32,fontSize:12}}>No chart data</div>;
+
+    // Build month×year grid from raw flight rows
+    const yrs=[...new Set(data.map(r=>{
+      const d=r.FlightDate?.split('T')[0]||r.FlightDate||'';
+      return d?new Date(d).getFullYear():null;
+    }).filter(Boolean))].sort((a,b)=>a-b);
+
+    const grid={};
+    for(let m=1;m<=12;m++){grid[m]={};yrs.forEach(y=>{grid[m][y]=0;});}
+    data.forEach(r=>{
+      const d=r.FlightDate?.split('T')[0]||r.FlightDate||'';
+      if(!d)return;
+      const dt=new Date(d);
+      const mo=dt.getMonth()+1;
+      const yr=dt.getFullYear();
+      if(grid[mo]&&grid[mo][yr]!==undefined)grid[mo][yr]+=Number(r.TotalPAX||0);
+    });
+
+    const allVals=Object.values(grid).flatMap(mv=>Object.values(mv));
+    const maxV=Math.max(...allVals,1);
+    const W=520,H=200,PL=52,PR=10,PT=12,PB=44,CW=W-PL-PR,CH=H-PT-PB;
+    const groupW=CW/12;
+    const gap=1.5;
+    const bw=Math.max(3,Math.floor((groupW-gap*(yrs.length+1))/Math.max(yrs.length,1)));
+    const groupPad=(groupW-(bw*yrs.length+gap*(yrs.length-1)))/2;
+
     return(
       <div style={{position:"relative"}}>
         {tooltip&&(
-          <div style={{position:"absolute",left:tooltip.x,top:tooltip.y,background:S.text,borderRadius:8,padding:"7px 11px",fontSize:11,color:"#fff",pointerEvents:"none",zIndex:10,whiteSpace:"nowrap",transform:"translate(-50%,-110%)",boxShadow:S.shadowLg}}>
-            <div style={{fontWeight:700,color:"#60a5fa",marginBottom:2}}>{tooltip.date}</div>
-            <div>PAX: <strong>{fmtN(tooltip.pax)}</strong></div>
+          <div style={{position:"absolute",left:tooltip.x,top:tooltip.y,background:S.text,borderRadius:8,padding:"8px 12px",fontSize:11,color:"#fff",pointerEvents:"none",zIndex:10,whiteSpace:"nowrap",transform:"translate(-50%,-110%)",boxShadow:S.shadowLg}}>
+            <div style={{fontWeight:700,color:YC[tooltip.year]||S.accent,marginBottom:2}}>{tooltip.year} — {MONTHS[tooltip.month-1]}</div>
+            <div>PAX: <strong>{fmtN(tooltip.value)}</strong></div>
           </div>
         )}
+        <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginBottom:6,flexWrap:"wrap"}}>
+          {yrs.map(yr=>(
+            <div key={yr} style={{display:"flex",alignItems:"center",gap:4}}>
+              <div style={{width:10,height:10,borderRadius:2,background:YC[yr]||S.accent}}/>
+              <span style={{fontSize:11,color:S.muted,fontWeight:600}}>{yr}</span>
+            </div>
+          ))}
+        </div>
         <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:"auto"}} onMouseLeave={()=>setTooltip(null)}>
           {[0,1,2,3,4].map(i=>{const y=PT+(CH/4)*i,v=maxV*(1-i/4);return<g key={i}><line x1={PL} x2={W-PR} y1={y} y2={y} stroke={S.border} strokeWidth={0.7}/><text x={PL-4} y={y+4} textAnchor="end" fontSize={8} fill={S.muted2}>{Math.round(v)}</text></g>;})}
-          {items.map((item,mi)=>{
-            const x=PL+(mi/items.length)*CW+(CW/items.length-bw)/2;
-            const bh=Math.max(2,(item.pax/maxV)*CH);
-            const y=PT+CH-bh;
-            const label=item.date?.slice(5); // MM-DD
-            return<g key={mi}
-              onMouseEnter={e=>{const sv=e.target.closest("svg");const rc=sv.getBoundingClientRect();setTooltip({x:(x+bw/2)*(rc.width/W),y:y*(rc.height/H),date:item.date,pax:item.pax});}}
-              onClick={e=>{const sv=e.target.closest("svg");const rc=sv.getBoundingClientRect();setTooltip({x:(x+bw/2)*(rc.width/W),y:y*(rc.height/H),date:item.date,pax:item.pax});}}
-            >
-              <rect x={x} y={y} width={bw} height={bh} fill={S.accent} rx={2} opacity={0.85} style={{cursor:"pointer"}}/>
-              {items.length<=30&&<text x={x+bw/2} y={H-PB+12} textAnchor="middle" fontSize={6} fill={S.muted2} transform={`rotate(-45,${x+bw/2},${H-PB+12})`}>{label}</text>}
+          {Array.from({length:12},(_,mi)=>{
+            const mo=mi+1;
+            const gx=PL+mi*groupW;
+            return<g key={mo}>
+              {yrs.map((yr,yi)=>{
+                const v=grid[mo][yr]||0;
+                const bh=(v/maxV)*CH;
+                const x=gx+groupPad+yi*(bw+gap);
+                const y=PT+CH-bh;
+                const color=YC[yr]||S.accent;
+                return<rect key={yr} x={x} y={y} width={bw} height={Math.max(bh,0)} fill={color} rx={1.5} opacity={0.88} style={{cursor:"pointer"}}
+                  onMouseEnter={e=>{const sv=e.currentTarget.closest("svg");const rc=sv.getBoundingClientRect();setTooltip({x:(x+bw/2)*(rc.width/W),y:y*(rc.height/H),year:yr,month:mo,value:v});}}
+                  onClick={e=>{const sv=e.currentTarget.closest("svg");const rc=sv.getBoundingClientRect();setTooltip({x:(x+bw/2)*(rc.width/W),y:y*(rc.height/H),year:yr,month:mo,value:v});}}
+                />;
+              })}
+              <text x={gx+groupW/2} y={H-PB+13} textAnchor="middle" fontSize={7.5} fill={S.muted2}>{MONTHS[mi]}</text>
             </g>;
           })}
         </svg>
@@ -2319,6 +2356,14 @@ function FlightsTab({token}){
           <span style={{fontSize:10,fontWeight:700,color:S.muted2,textTransform:"uppercase",letterSpacing:"0.06em"}}>To</span>
           {slicers.arrivals.map(a=>chipBtn(f.arrival.includes(a),()=>setF({...f,arrival:tog(f.arrival,a)}),a,S.success))}
           <div style={{width:1,height:18,background:S.border2}}/>
+          <span style={{fontSize:10,fontWeight:700,color:S.muted2,textTransform:"uppercase",letterSpacing:"0.06em"}}>Status</span>
+          {(slicers.statuses||[]).map(s=>chipBtn(
+            f.status.includes(s),
+            ()=>setF({...f,status:tog(f.status,s)}),
+            s,
+            s==='DEF'?S.success:s==='DEF-GEANNULEERD'?S.danger:s==='VERV'?S.muted:S.warn
+          ))}
+          <div style={{width:1,height:18,background:S.border2}}/>
           <span style={{fontSize:10,fontWeight:700,color:S.muted2,textTransform:"uppercase",letterSpacing:"0.06em"}}>Date</span>
           <input type="date" value={f.dateFrom} onChange={e=>setF({...f,dateFrom:e.target.value})} style={{background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"4px 8px",color:S.text,fontSize:11,outline:"none"}}/>
           <span style={{fontSize:10,color:S.muted2}}>–</span>
@@ -2335,10 +2380,11 @@ function FlightsTab({token}){
             <Btn onClick={apply} variant="primary" size="sm">Apply Filters</Btn>
           </div>
         </div>
-        {(f.departure.length>0||f.arrival.length>0)&&(
+        {(f.departure.length>0||f.arrival.length>0||f.status.length>0)&&(
           <div style={{padding:"4px 16px 8px",display:"flex",gap:5,flexWrap:"wrap"}}>
             {f.departure.map(v=><span key={v} style={{background:S.accentLight,color:S.accent,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>✈ From: {v}</span>)}
             {f.arrival.map(v=><span key={v} style={{background:`${S.success}15`,color:S.success,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>✈ To: {v}</span>)}
+            {f.status.map(v=><span key={v} style={{background:`${S.warn}15`,color:S.warn,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>● {v}</span>)}
           </div>
         )}
       </div>
@@ -2352,8 +2398,8 @@ function FlightsTab({token}){
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
             {[
               {l:"Total PAX",v:fmtN(totalPAX),c:S.accent,icon:<Plane size={16}/>},
-              {l:"Flight Dates",v:fmtN(chartData.length),c:S.purple,icon:<BarChart2 size={16}/>},
-              {l:"Routes",v:fmtN([...new Set(data.map(r=>r.ElementCode))].length),c:S.success,icon:<Map size={16}/>},
+              {l:"Total Revenue",v:fmtM(data.reduce((s,r)=>s+Number(r.TotalRevenue||0),0)),c:S.success,icon:<BarChart2 size={16}/>},
+              {l:"Routes",v:fmtN([...new Set(data.map(r=>r.ElementCode))].length),c:S.purple,icon:<Map size={16}/>},
             ].map(k=>(
               <div key={k.l} style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:"16px 18px",boxShadow:S.shadow,display:"flex",alignItems:"center",gap:14}}>
                 <div style={{width:38,height:38,borderRadius:10,background:`${k.c}12`,display:"flex",alignItems:"center",justifyContent:"center",color:k.c,flexShrink:0}}>{k.icon}</div>
@@ -2376,7 +2422,7 @@ function FlightsTab({token}){
               </div>
               <span style={{fontSize:11,color:S.muted2,background:S.bg,padding:"3px 8px",borderRadius:6,border:`1px solid ${S.border}`}}>{chartData.length} dates</span>
             </div>
-            <FlightBarChart items={chartData}/>
+            <FlightBarChart data={data}/>
           </Card>
         )}
 
@@ -2386,8 +2432,8 @@ function FlightsTab({token}){
             <div style={{padding:"12px 16px",borderBottom:`1px solid ${S.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <div style={{fontSize:13,fontWeight:700,color:S.text}}>Flight Routes — PAX per Date <span style={{fontSize:11,color:S.muted,fontWeight:400}}>({fmtN(data.length)} rows)</span></div>
               <button onClick={()=>{
-                const cols=["Route","Name","From","To","Date","PAX"];
-                const rows=data.map(r=>[r.ElementCode,`"${(r.RouteName||"").replace(/"/g,'""')}"`,r.Departure,r.Arrival,r.FlightDate?.split("T")[0]||r.FlightDate,r.TotalPAX].join(","));
+                const cols=["Route","Name","From","To","Date","PAX","Revenue"];
+                const rows=data.map(r=>[r.ElementCode,`"${(r.RouteName||"").replace(/"/g,'""')}"`,r.Departure,r.Arrival,r.FlightDate?.split("T")[0]||r.FlightDate,r.TotalPAX,r.TotalRevenue??0].join(","));
                 const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\uFEFF"+[cols.join(","),...rows].join("\n")],{type:"text/csv;charset=utf-8"}));a.download=`flights-${new Date().toISOString().split("T")[0]}.csv`;a.click();
               }} style={{padding:"5px 10px",background:"transparent",border:`1px solid ${S.border2}`,borderRadius:6,color:S.muted,fontSize:11,cursor:"pointer",fontWeight:600}}>↓ CSV</button>
             </div>
@@ -2401,6 +2447,7 @@ function FlightsTab({token}){
                     <th style={TH}>To</th>
                     <th style={TH}>Flight Date</th>
                     <th style={TH}>PAX</th>
+                    <th style={TH}>Revenue</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2412,6 +2459,7 @@ function FlightsTab({token}){
                       <td style={{...TD,fontWeight:600,color:S.success}}>{r.Arrival}</td>
                       <td style={TD}>{r.FlightDate?.split("T")[0]||r.FlightDate}</td>
                       <td style={{...TD,fontWeight:700,color:S.text}}>{fmtN(r.TotalPAX)}</td>
+                      <td style={{...TD,fontWeight:600,color:S.success}}>{fmtM(r.TotalRevenue)}</td>
                     </tr>
                   ))}
                 </tbody>
