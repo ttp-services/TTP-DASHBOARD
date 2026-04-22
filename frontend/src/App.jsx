@@ -523,13 +523,14 @@ function BusTab({token}){
     if(f.weekday?.length)pp.weekday=f.weekday;
     if(f.status?.length)pp.status=f.status;
 
-    // Params for feeder (FeederOverview — has dateFrom, dateTo, feederLine, label, weekday)
+    // Params for feeder (FeederOverview — has dateFrom, dateTo, feederLine, label, weekday, status)
     const fp={};
     if(f.dateFrom)fp.dateFrom=f.dateFrom;
     if(f.dateTo)fp.dateTo=f.dateTo;
     if(f.feederLine?.length)fp.feederLine=f.feederLine;
     if(f.label?.length)fp.label=f.label;
     if(f.weekday?.length)fp.weekday=f.weekday;
+    if(f.status?.length)fp.status=f.status;
 
     Promise.all([
       api("/api/dashboard/bus-kpis",p,token).catch(()=>({})),
@@ -982,6 +983,28 @@ function BusTab({token}){
                     <span style={{width:3,height:12,background:S.accent,borderRadius:2,display:"inline-block"}}/>Feeder Filters
                   </div>
                   <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                    {/* STATUS — Feeder view */}
+                    <div>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                        {lbl("Status")}
+                        {f.status?.length>0&&<span onClick={()=>setF({...f,status:[]})} style={{fontSize:9,color:S.danger,cursor:"pointer",fontWeight:600}}>✕ Clear</span>}
+                      </div>
+                      <div style={{border:`1px solid ${S.border2}`,borderRadius:6,background:S.card}}>
+                        {[{v:"DEF",l:"DEF"},{v:"TIJD",l:"TIJD"},{v:"DEF-GEANNULEERD",l:"DEF-GEANNULEERD"},{v:"CTRL",l:"CTRL"},{v:"IN_AANVRAAG",l:"IN_AANVRAAG"},{v:"ACC AV NIET OK",l:"ACC AV NIET OK"}].map(({v,l})=>{
+                          const active=f.status?.includes(v);
+                          return<div key={v} onClick={()=>setF({...f,status:active?f.status.filter(x=>x!==v):[...(f.status||[]),v]})} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",cursor:"pointer",background:active?`${S.accent}12`:"transparent",borderBottom:`1px solid ${S.border}`}}>
+                            <div style={{width:12,height:12,borderRadius:3,border:`1.5px solid ${active?S.accent:S.border2}`,background:active?S.accent:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                              {active&&<span style={{color:"#fff",fontSize:8,lineHeight:1}}>✓</span>}
+                            </div>
+                            <span style={{fontSize:10,color:active?S.accent:S.textLight,fontWeight:active?600:400}}>{l}</span>
+                          </div>;
+                        })}
+                      </div>
+                      <div style={{marginTop:4,padding:"5px 7px",background:S.warnBg,borderRadius:5,border:`1px solid ${S.warn}22`}}>
+                        <div style={{fontSize:9,color:S.warn,fontWeight:600}}>⚠ Status filter reloads Feeder data</div>
+                        <div style={{fontSize:9,color:S.muted2,marginTop:1}}>VERV + DEF-GEANNULEERD excluded by default</div>
+                      </div>
+                    </div>
                     {/* FEEDER LINE multi-select */}
                     <div>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
