@@ -3030,6 +3030,9 @@ function SettingsTab({token,session,onLogout}){
   );
 }
 
+const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+const WARN_BEFORE_MS  = 2 * 60 * 1000;  // warn 2 min before
+
 export default function App(){
   const[session,setSession]=useState(()=>loadAuth());
   const[tab,setTab]=useState("overview");
@@ -3041,6 +3044,51 @@ export default function App(){
   const[showCur,setShowCur]=useState(false);
   const[showNext,setShowNext]=useState(false);
   const[showConf,setShowConf]=useState(false);
+  const[idleWarning,setIdleWarning]=useState(false);
+  const[idleCountdown,setIdleCountdown]=useState(120);
+  const idleTimer=React.useRef(null);
+  const warnTimer=React.useRef(null);
+  const countdownTimer=React.useRef(null);
+
+  function logout(){
+    clearAuth();
+    setSession(null);
+    setIdleWarning(false);
+  }
+
+  function resetIdleTimer(){
+    clearTimeout(idleTimer.current);
+    clearTimeout(warnTimer.current);
+    clearInterval(countdownTimer.current);
+    setIdleWarning(false);
+    if(!session?.token) return;
+    warnTimer.current=setTimeout(()=>{
+      setIdleWarning(true);
+      setIdleCountdown(WARN_BEFORE_MS/1000);
+      countdownTimer.current=setInterval(()=>{
+        setIdleCountdown(c=>{
+          if(c<=1){ clearInterval(countdownTimer.current); logout(); return 0; }
+          return c-1;
+        });
+      },1000);
+    }, IDLE_TIMEOUT_MS - WARN_BEFORE_MS);
+    idleTimer.current=setTimeout(()=>{ logout(); }, IDLE_TIMEOUT_MS);
+  }
+
+  // Start idle timer and listen for activity
+  useEffect(()=>{
+    if(!session?.token) return;
+    const events=['mousemove','mousedown','keydown','touchstart','scroll','click'];
+    const handler=()=>resetIdleTimer();
+    events.forEach(e=>window.addEventListener(e,handler,{passive:true}));
+    resetIdleTimer();
+    return()=>{
+      events.forEach(e=>window.removeEventListener(e,handler));
+      clearTimeout(idleTimer.current);
+      clearTimeout(warnTimer.current);
+      clearInterval(countdownTimer.current);
+    };
+  },[session?.token]);
 
   async function changePassword(){
     setPwMsg(null);
@@ -3085,6 +3133,25 @@ export default function App(){
 
   const token=session.token;
   const isAdmin = session?.role === "admin";
+
+  const IdleWarningModal = idleWarning&&(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
+      <div style={{background:S.card,borderRadius:16,padding:36,width:360,boxShadow:"0 20px 60px rgba(0,0,0,0.3)",border:`2px solid ${S.warn}44`,textAlign:"center"}}>
+        <div style={{width:56,height:56,borderRadius:"50%",background:S.warnBg,border:`2px solid ${S.warn}44`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px",fontSize:24}}>⏱</div>
+        <div style={{fontSize:16,fontWeight:800,color:S.text,marginBottom:8}}>Session Expiring</div>
+        <div style={{fontSize:13,color:S.muted,marginBottom:20,lineHeight:1.6}}>
+          You've been inactive. Your session will expire in
+          <div style={{fontSize:32,fontWeight:900,color:S.warn,margin:"10px 0"}}>{Math.floor(idleCountdown/60)}:{String(idleCountdown%60).padStart(2,'0')}</div>
+        </div>
+        <div style={{display:"flex",gap:10}}>
+          <button onClick={logout} style={{flex:1,padding:"10px",borderRadius:8,border:`1.5px solid ${S.border2}`,background:"transparent",color:S.muted,cursor:"pointer",fontSize:13,fontWeight:600}}>Sign Out</button>
+          <button onClick={()=>{setIdleWarning(false);resetIdleTimer();}} style={{flex:2,padding:"10px",borderRadius:8,border:"none",background:S.accent,color:"#fff",cursor:"pointer",fontSize:13,fontWeight:700}}>
+            Stay Signed In
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
   const PwModal = showPwModal&&(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(2px)"}}
@@ -3158,6 +3225,7 @@ export default function App(){
 
   return(
     <div style={{display:"flex",height:"100vh",background:S.bg,color:S.text,fontFamily:"system-ui,-apple-system,sans-serif",letterSpacing:"0.01em",overflow:"hidden"}}>
+      {IdleWarningModal}
       {PwModal}
       <div style={{width:navW,background:S.side,borderRight:`1px solid ${S.border}`,display:"flex",flexDirection:"column",flexShrink:0,transition:"width 0.2s",boxShadow:"2px 0 8px rgba(0,0,0,0.04)"}}>
         <div style={{padding:"16px 14px",borderBottom:`1px solid ${S.border}`,display:"flex",alignItems:"center",gap:10,minHeight:64}}>
