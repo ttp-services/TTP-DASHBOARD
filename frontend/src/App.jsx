@@ -548,7 +548,21 @@ function BusTab({token}){
       setDeck(Array.isArray(dc)?dc:[]);
     }).finally(()=>setLoading(false));
   }
-  useEffect(()=>{applyLoad();},[token]);
+  useEffect(()=>{
+    const defaultDate={dateFrom:`${cy}-01-01`,dateTo:`${cy}-12-31`};
+    setLoading(true);
+    Promise.all([
+      api("/api/dashboard/bus-kpis",defaultDate,token).catch(()=>({})),
+      api("/api/dashboard/pendel-overview",defaultDate,token).catch(()=>[]),
+      api("/api/dashboard/feeder-overview",defaultDate,token).catch(()=>[]),
+      api("/api/dashboard/deck-class",defaultDate,token).catch(()=>[])
+    ]).then(([k,pd,fd,dc])=>{
+      setBusK(k||{});
+      setPendel(Array.isArray(pd)?pd:[]);
+      setFeeder(Array.isArray(fd)?fd:[]);
+      setDeck(Array.isArray(dc)?dc:[]);
+    }).finally(()=>setLoading(false));
+  },[token]);
 
   function resetFilters(){
     const defaultDate={dateFrom:`${cy}-01-01`,dateTo:`${cy}-12-31`};
@@ -1018,7 +1032,8 @@ function BusTab({token}){
                         {f.feederLine?.length>0&&<span onClick={()=>setF({...f,feederLine:[]})} style={{fontSize:9,color:S.danger,cursor:"pointer",fontWeight:600}}>✕ Clear</span>}
                       </div>
                       <div style={{maxHeight:120,overflowY:"auto",border:`1px solid ${S.border2}`,borderRadius:6,background:S.card}}>
-                        {sl.feederLines.map(o=>{
+                        {sl.feederLines?.length===0&&<div style={{padding:"8px",fontSize:10,color:S.muted2,textAlign:"center"}}>Loading…</div>}
+                        {(sl.feederLines?.length?sl.feederLines:[]).map(o=>{
                           const active=f.feederLine?.includes(o);
                           return<div key={o} onClick={()=>setF({...f,feederLine:active?f.feederLine.filter(x=>x!==o):[...(f.feederLine||[]),o]})} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",cursor:"pointer",background:active?`${S.accent}10`:"transparent",borderBottom:`1px solid ${S.border}`}}>
                             <div style={{width:12,height:12,borderRadius:3,border:`1.5px solid ${active?S.accent:S.border2}`,background:active?S.accent:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
