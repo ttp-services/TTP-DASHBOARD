@@ -498,12 +498,18 @@ function BusTab({token}){
   const setF = view==="pendel"?setFPendel:view==="deck"?setFDeck:setFFeeder;
 
   useEffect(()=>{
-    api("/api/dashboard/bus-slicers",{},token).then(d=>{
-      if(d&&!d.error){
-        console.log("bus-slicers loaded:",d);
-        setSl({...d, feederLabels: d.feederLabels||["Solmar","Interbus","Solmar DE"]});
-      }
-    }).catch(e=>console.error("bus-slicers error:",e));
+    function loadSlicers(){
+      api("/api/dashboard/bus-slicers",{},token).then(d=>{
+        if(d&&!d.error){
+          setSl({...d, feederLabels: d.feederLabels||["Solmar","Interbus","Solmar DE"]});
+          // If feeder lines empty, retry after 10s (feeder ETL might still be running)
+          if(!d.feederLines?.length){
+            setTimeout(loadSlicers, 10000);
+          }
+        }
+      }).catch(e=>console.error("bus-slicers error:",e));
+    }
+    loadSlicers();
   },[token]);
 
   function applyLoad(){
@@ -551,6 +557,7 @@ function BusTab({token}){
   useEffect(()=>{
     const defaultDate={dateFrom:`${cy}-01-01`,dateTo:`${cy}-12-31`};
     setLoading(true);
+    // Load all 3 views in parallel — each independent
     Promise.all([
       api("/api/dashboard/bus-kpis",defaultDate,token).catch(()=>({})),
       api("/api/dashboard/pendel-overview",defaultDate,token).catch(()=>[]),
@@ -558,9 +565,17 @@ function BusTab({token}){
       api("/api/dashboard/deck-class",defaultDate,token).catch(()=>[])
     ]).then(([k,pd,fd,dc])=>{
       setBusK(k||{});
-      setPendel(Array.isArray(pd)?pd:[]);
+      setPendel(Array.isArray(pd)&&pd.length>0?pd:[]);
       setFeeder(Array.isArray(fd)?fd:[]);
       setDeck(Array.isArray(dc)?dc:[]);
+      // If pendel empty, retry once after 8s (ETL might still be running on startup)
+      if(!Array.isArray(pd)||pd.length===0){
+        setTimeout(()=>{
+          api("/api/dashboard/pendel-overview",defaultDate,token)
+            .then(d=>{if(Array.isArray(d)&&d.length>0)setPendel(d);})
+            .catch(()=>{});
+        },8000);
+      }
     }).finally(()=>setLoading(false));
   },[token]);
 
@@ -1032,7 +1047,7 @@ function BusTab({token}){
                         {f.feederLine?.length>0&&<span onClick={()=>setF({...f,feederLine:[]})} style={{fontSize:9,color:S.danger,cursor:"pointer",fontWeight:600}}>✕ Clear</span>}
                       </div>
                       <div style={{maxHeight:120,overflowY:"auto",border:`1px solid ${S.border2}`,borderRadius:6,background:S.card}}>
-                        {sl.feederLines?.length===0&&<div style={{padding:"8px",fontSize:10,color:S.muted2,textAlign:"center"}}>Loading…</div>}
+                        {sl.feederLines?.length===0&&<div style={{padding:"8px",fontSize:10,color:S.muted2,textAlign:"center"}}>⏳ Loading feeder lines…</div>}
                         {(sl.feederLines?.length?sl.feederLines:[]).map(o=>{
                           const active=f.feederLine?.includes(o);
                           return<div key={o} onClick={()=>setF({...f,feederLine:active?f.feederLine.filter(x=>x!==o):[...(f.feederLine||[]),o]})} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",cursor:"pointer",background:active?`${S.accent}10`:"transparent",borderBottom:`1px solid ${S.border}`}}>
