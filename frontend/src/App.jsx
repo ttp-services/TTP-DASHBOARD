@@ -982,26 +982,6 @@ function BusTab({token}){
                 </div>
               )}
 
-              {/* LABEL — Feeder view only */}
-              {view==="feeder"&&(
-                <div style={{background:S.bg,borderRadius:8,padding:"10px 10px",border:`1px solid ${S.border}`}}>
-                  <div style={{fontSize:10,fontWeight:700,color:S.accent,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                    <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:3,height:12,background:S.accent,borderRadius:2,display:"inline-block"}}/>Label</span>
-                    {f.label?.length>0&&<span onClick={()=>setF({...f,label:[]})} style={{fontSize:9,color:S.danger,cursor:"pointer",fontWeight:600}}>✕ Clear</span>}
-                  </div>
-                  <div style={{maxHeight:100,overflowY:"auto",border:`1px solid ${S.border2}`,borderRadius:6,background:S.card}}>
-                    {(sl.feederLabels?.length?sl.feederLabels:["Solmar","Interbus","Solmar DE"]).map(o=>{
-                      const active=f.label?.includes(o);
-                      return<div key={o} onClick={()=>setF({...f,label:active?f.label.filter(x=>x!==o):[...(f.label||[]),o]})} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",cursor:"pointer",background:active?`${S.purple}10`:"transparent",borderBottom:`1px solid ${S.border}`}}>
-                        <div style={{width:12,height:12,borderRadius:3,border:`1.5px solid ${active?S.purple:S.border2}`,background:active?S.purple:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                          {active&&<span style={{color:"#fff",fontSize:8,lineHeight:1}}>✓</span>}
-                        </div>
-                        <span style={{fontSize:10,color:active?S.purple:S.textLight,fontWeight:active?600:400}}>{o}</span>
-                      </div>;
-                    })}
-                  </div>
-                </div>
-              )}
               {/* FEEDER LINE + WEEKDAY + STATUS — Feeder view only */}
               {view==="feeder"&&(
                 <div style={{background:S.bg,borderRadius:8,padding:"10px 10px",border:`1px solid ${S.border}`}}>
