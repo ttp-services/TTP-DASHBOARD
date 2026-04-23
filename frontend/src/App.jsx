@@ -491,7 +491,11 @@ function BusTab({token}){
   const[feeder,setFeeder]=useState([]);
   const[deck,setDeck]=useState([]);
   const[loading,setLoading]=useState(false);
-  const[f,setF]=useState({dateFrom:`${cy}-01-01`,dateTo:`${cy}-12-31`,pendel:[],region:[],label:[],feederLine:[],weekday:[],status:[],_collapsed:false});
+  const[fPendel,setFPendel]=useState({dateFrom:`${cy}-01-01`,dateTo:`${cy}-12-31`,pendel:[],weekday:[],status:[],_collapsed:false});
+  const[fDeck,setFDeck]=useState({dateFrom:`${cy}-01-01`,dateTo:`${cy}-12-31`,pendel:[],region:[],label:[],weekday:[],status:[],_collapsed:false});
+  const[fFeeder,setFFeeder]=useState({dateFrom:`${cy}-01-01`,dateTo:`${cy}-12-31`,feederLine:[],label:[],weekday:[],_collapsed:false});
+  const f = view==="pendel"?fPendel:view==="deck"?fDeck:fFeeder;
+  const setF = view==="pendel"?setFPendel:view==="deck"?setFDeck:setFFeeder;
 
   useEffect(()=>{
     api("/api/dashboard/bus-slicers",{},token).then(d=>{
@@ -505,32 +509,32 @@ function BusTab({token}){
   function applyLoad(){
     setLoading(true);
 
-    // Params for deck & kpis (solmar_bus_deck_choice — has Label, Region, Status, Pendel)
+    // Deck params — always from fDeck
     const p={};
-    if(f.dateFrom)p.dateFrom=f.dateFrom;
-    if(f.dateTo)p.dateTo=f.dateTo;
-    if(f.pendel?.length)p.pendel=f.pendel;
-    if(f.region?.length)p.region=f.region;
-    if(f.weekday?.length)p.weekday=f.weekday;
-    if(f.status?.length)p.status=f.status;
-    if(f.label?.length)p.label=f.label;
+    if(fDeck.dateFrom)p.dateFrom=fDeck.dateFrom;
+    if(fDeck.dateTo)p.dateTo=fDeck.dateTo;
+    if(fDeck.pendel?.length)p.pendel=fDeck.pendel;
+    if(fDeck.region?.length)p.region=fDeck.region;
+    if(fDeck.weekday?.length)p.weekday=fDeck.weekday;
+    if(fDeck.status?.length)p.status=fDeck.status;
+    if(fDeck.label?.length)p.label=fDeck.label;
 
-    // Params for pendel (BUStrips — status triggers ETL reload with those statuses)
+    // Pendel params — always from fPendel
     const pp={};
-    if(f.dateFrom)pp.dateFrom=f.dateFrom;
-    if(f.dateTo)pp.dateTo=f.dateTo;
-    if(f.pendel?.length)pp.pendel=f.pendel;
-    if(f.weekday?.length)pp.weekday=f.weekday;
-    if(f.status?.length)pp.status=f.status;
+    if(fPendel.dateFrom)pp.dateFrom=fPendel.dateFrom;
+    if(fPendel.dateTo)pp.dateTo=fPendel.dateTo;
+    if(fPendel.pendel?.length)pp.pendel=fPendel.pendel;
+    if(fPendel.weekday?.length)pp.weekday=fPendel.weekday;
+    if(fPendel.status?.length)pp.status=fPendel.status;
 
-    // Params for feeder (FeederOverview — has dateFrom, dateTo, feederLine, label, weekday, status)
+    // Feeder params — always from fFeeder
     const fp={};
-    if(f.dateFrom)fp.dateFrom=f.dateFrom;
-    if(f.dateTo)fp.dateTo=f.dateTo;
-    if(f.feederLine?.length)fp.feederLine=f.feederLine;
-    if(f.label?.length)fp.label=f.label;
-    if(f.weekday?.length)fp.weekday=f.weekday;
-    if(f.status?.length)fp.status=f.status;
+    if(fFeeder.dateFrom)fp.dateFrom=fFeeder.dateFrom;
+    if(fFeeder.dateTo)fp.dateTo=fFeeder.dateTo;
+    if(fFeeder.feederLine?.length)fp.feederLine=fFeeder.feederLine;
+    if(fFeeder.label?.length)fp.label=fFeeder.label;
+    if(fFeeder.weekday?.length)fp.weekday=fFeeder.weekday;
+    if(fFeeder.status?.length)fp.status=fFeeder.status;
 
     Promise.all([
       api("/api/dashboard/bus-kpis",p,token).catch(()=>({})),
@@ -547,14 +551,16 @@ function BusTab({token}){
   useEffect(()=>{applyLoad();},[token]);
 
   function resetFilters(){
-    const e={dateFrom:`${cy}-01-01`,dateTo:`${cy}-12-31`,pendel:[],region:[],label:[],feederLine:[],weekday:[],status:[],_collapsed:false};
-    setF(e);
+    const defaultDate={dateFrom:`${cy}-01-01`,dateTo:`${cy}-12-31`};
+    if(view==="pendel") setFPendel({...defaultDate,pendel:[],weekday:[],status:[],_collapsed:false});
+    else if(view==="deck") setFDeck({...defaultDate,pendel:[],region:[],label:[],weekday:[],status:[],_collapsed:false});
+    else setFFeeder({...defaultDate,feederLine:[],label:[],weekday:[],status:[],_collapsed:false});
     setLoading(true);
     Promise.all([
-      api("/api/dashboard/bus-kpis",{dateFrom:`${cy}-01-01`,dateTo:`${cy}-12-31`},token).catch(()=>({})),
-      api("/api/dashboard/pendel-overview",{dateFrom:`${cy}-01-01`,dateTo:`${cy}-12-31`},token).catch(()=>[]),
-      api("/api/dashboard/feeder-overview",{dateFrom:`${cy}-01-01`,dateTo:`${cy}-12-31`},token).catch(()=>[]),
-      api("/api/dashboard/deck-class",{dateFrom:`${cy}-01-01`,dateTo:`${cy}-12-31`},token).catch(()=>[])
+      api("/api/dashboard/bus-kpis",defaultDate,token).catch(()=>({})),
+      api("/api/dashboard/pendel-overview",defaultDate,token).catch(()=>[]),
+      api("/api/dashboard/feeder-overview",defaultDate,token).catch(()=>[]),
+      api("/api/dashboard/deck-class",defaultDate,token).catch(()=>[])
     ]).then(([k,pd,fd,dc])=>{
       setBusK(k||{});
       setPendel(Array.isArray(pd)?pd:[]);
@@ -892,7 +898,7 @@ function BusTab({token}){
                   <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:3,height:12,background:S.accent,borderRadius:2,display:"inline-block"}}/>Label</span>
                   {f.label?.length>0&&<span onClick={()=>setF({...f,label:[]})} style={{fontSize:9,color:S.danger,cursor:"pointer",fontWeight:600}}>✕ Clear</span>}
                 </div>
-                {(view==="deck"?["STANDAARD","ITB","DEU"]:view==="feeder"?(sl.feederLabels||[]):["STANDAARD","DEU"]).map(o=>{
+                {(view==="deck"?["STANDAARD","ITB","DEU"]:view==="feeder"?(sl.feederLabels?.length?sl.feederLabels:["Solmar","Interbus","Solmar DE"]):["STANDAARD","DEU"]).map(o=>{
                   const active=f.label?.includes(o);
                   return<div key={o} onClick={()=>setF({...f,label:active?f.label.filter(x=>x!==o):[...(f.label||[]),o]})} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 6px",borderRadius:5,cursor:"pointer",background:active?`${S.purple}12`:"transparent",marginBottom:2}}>
                     <div style={{width:13,height:13,borderRadius:3,border:`1.5px solid ${active?S.purple:S.border2}`,background:active?S.purple:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
@@ -976,7 +982,27 @@ function BusTab({token}){
                 </div>
               )}
 
-              {/* FEEDER LINE + WEEKDAY — Feeder view only */}
+              {/* LABEL — Feeder view only */}
+              {view==="feeder"&&(
+                <div style={{background:S.bg,borderRadius:8,padding:"10px 10px",border:`1px solid ${S.border}`}}>
+                  <div style={{fontSize:10,fontWeight:700,color:S.accent,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                    <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:3,height:12,background:S.accent,borderRadius:2,display:"inline-block"}}/>Label</span>
+                    {f.label?.length>0&&<span onClick={()=>setF({...f,label:[]})} style={{fontSize:9,color:S.danger,cursor:"pointer",fontWeight:600}}>✕ Clear</span>}
+                  </div>
+                  <div style={{maxHeight:100,overflowY:"auto",border:`1px solid ${S.border2}`,borderRadius:6,background:S.card}}>
+                    {(sl.feederLabels?.length?sl.feederLabels:["Solmar","Interbus","Solmar DE"]).map(o=>{
+                      const active=f.label?.includes(o);
+                      return<div key={o} onClick={()=>setF({...f,label:active?f.label.filter(x=>x!==o):[...(f.label||[]),o]})} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",cursor:"pointer",background:active?`${S.purple}10`:"transparent",borderBottom:`1px solid ${S.border}`}}>
+                        <div style={{width:12,height:12,borderRadius:3,border:`1.5px solid ${active?S.purple:S.border2}`,background:active?S.purple:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                          {active&&<span style={{color:"#fff",fontSize:8,lineHeight:1}}>✓</span>}
+                        </div>
+                        <span style={{fontSize:10,color:active?S.purple:S.textLight,fontWeight:active?600:400}}>{o}</span>
+                      </div>;
+                    })}
+                  </div>
+                </div>
+              )}
+              {/* FEEDER LINE + WEEKDAY + STATUS — Feeder view only */}
               {view==="feeder"&&(
                 <div style={{background:S.bg,borderRadius:8,padding:"10px 10px",border:`1px solid ${S.border}`}}>
                   <div style={{fontSize:10,fontWeight:700,color:S.accent,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8,display:"flex",alignItems:"center",gap:4}}>
