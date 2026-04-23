@@ -568,13 +568,22 @@ function BusTab({token}){
       setPendel(Array.isArray(pd)&&pd.length>0?pd:[]);
       setFeeder(Array.isArray(fd)?fd:[]);
       setDeck(Array.isArray(dc)?dc:[]);
-      // If pendel empty, retry once after 8s (ETL might still be running on startup)
+      // ETL runs on first request — retry up to 3x with increasing delays
       if(!Array.isArray(pd)||pd.length===0){
-        setTimeout(()=>{
-          api("/api/dashboard/pendel-overview",defaultDate,token)
-            .then(d=>{if(Array.isArray(d)&&d.length>0)setPendel(d);})
-            .catch(()=>{});
-        },8000);
+        let attempts=0;
+        const retry=()=>{
+          if(attempts>=3)return;
+          attempts++;
+          setTimeout(()=>{
+            api("/api/dashboard/pendel-overview",defaultDate,token)
+              .then(d=>{
+                if(Array.isArray(d)&&d.length>0)setPendel(d);
+                else retry();
+              })
+              .catch(()=>retry());
+          }, attempts*12000); // 12s, 24s, 36s
+        };
+        retry();
       }
     }).finally(()=>setLoading(false));
   },[token]);
@@ -703,7 +712,7 @@ function BusTab({token}){
                     </tr>
                   </thead>
                   <tbody>
-                    {pendel.length===0&&<tr><td colSpan={13} style={{padding:28,textAlign:"center",color:S.muted}}>No data — click Apply Filters</td></tr>}
+                    {pendel.length===0&&<tr><td colSpan={13} style={{padding:28,textAlign:"center",color:S.muted}}>{loading?"⏳ Loading data… ETL is rebuilding BUStrips, this may take up to 30s":"No data — click Apply Filters"}</td></tr>}
                     {[...pendel].sort((a,b)=>{const pa=a.StartDate.split('-'),pb=b.StartDate.split('-');return new Date(pa[2],pa[1]-1,pa[0])-new Date(pb[2],pb[1]-1,pb[0]);}).map((r,i)=>(
                       <tr key={i} style={{borderBottom:"1px solid #dbeafe",background:i%2===0?"#ffffff":"#f0f7ff"}}>
                         <td style={{padding:"8px 12px",fontWeight:600,color:S.accent,whiteSpace:"nowrap",borderRight:"1px solid #bfdbfe"}}>{r.StartDate}</td>
