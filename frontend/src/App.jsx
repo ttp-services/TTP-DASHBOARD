@@ -778,13 +778,22 @@ function BusTab({token}){
                       <thead style={{position:"sticky",top:0,background:"#f8faff",zIndex:5}}>
                         <tr>
                           <th style={{...THL,borderRight:"2px solid #2563eb"}} rowSpan={2}>Date</th>
-                          <th style={{...TH,textAlign:"center",borderRight:`1px solid ${S.border2}`,color:"#ffffff"}} colSpan={4}>Total</th>
-                          <th style={{...TH,textAlign:"center",borderRight:`1px solid ${S.border2}`,color:"#ffffff"}} colSpan={4}>Royal Class</th>
-                          <th style={{...TH,textAlign:"center",borderRight:`1px solid ${S.border2}`,color:"#ffffff"}} colSpan={4}>First Class</th>
-                          <th style={{...TH,textAlign:"center",borderRight:`1px solid ${S.border2}`,color:"#ffffff"}} colSpan={4}>Premium Class</th>
-                          </tr>
+                          <th style={{...TH,textAlign:"center",borderRight:`2px solid #fff`}} colSpan={2}>Total</th>
+                          <th style={{...TH,textAlign:"center",borderRight:`1px solid ${S.border2}`}} colSpan={2}>Deck</th>
+                          <th style={{...TH,textAlign:"center",borderRight:`2px solid #fff`,color:"#fbbf24"}} colSpan={2}>Royal Class</th>
+                          <th style={{...TH,textAlign:"center",borderRight:`1px solid ${S.border2}`,color:"#fbbf24"}} colSpan={2}>Deck</th>
+                          <th style={{...TH,textAlign:"center",borderRight:`2px solid #fff`,color:"#86efac"}} colSpan={2}>First Class</th>
+                          <th style={{...TH,textAlign:"center",borderRight:`1px solid ${S.border2}`,color:"#86efac"}} colSpan={2}>Deck</th>
+                          <th style={{...TH,textAlign:"center",borderRight:`2px solid #fff`,color:"#c4b5fd"}} colSpan={2}>Premium Class</th>
+                          <th style={{...TH,textAlign:"center",color:"#c4b5fd"}} colSpan={2}>Deck</th>
+                        </tr>
                         <tr>
-                          {["Total","Lower","Upper","No Deck","Total","Lower","Upper","No Deck","Total","Lower","Upper","No Deck","Total","Lower","Upper","No Deck"].map((h,i)=>(
+                          {[
+                            "Out","In","Lower","Upper",
+                            "Out","In","Lower","Upper",
+                            "Out","In","Lower","Upper",
+                            "Out","In","Lower","Upper",
+                          ].map((h,i)=>(
                             <th key={i} style={{...TH,fontSize:9,borderRight:i===3||i===7||i===11?"2px solid #2563eb":"1px solid #2563eb"}}>{h}</th>
                           ))}
                         </tr>
@@ -793,22 +802,22 @@ function BusTab({token}){
                         {[...deck].sort((a,b)=>{const pa=(a.BusStartDate||'').split('-'),pb=(b.BusStartDate||'').split('-');return new Date(pa[2],pa[1]-1,pa[0])-new Date(pb[2],pb[1]-1,pb[0]);}).map((r,i)=>(
                           <tr key={i} style={{borderBottom:"1px solid #dbeafe",background:i%2===0?"#ffffff":"#f0f7ff"}}>
                             <td style={{...TDL,fontSize:11,fontWeight:600,borderRight:`2px solid ${S.border2}`}}>{r.BusStartDate||''}</td>
-                            <td style={{...TD,fontWeight:700}}>{fmtN(r.Total)}</td>
+                            <td style={{...TD,fontWeight:700,color:S.accent}}>{fmtN(r.Outbound_Total)}</td>
+                            <td style={{...TD,fontWeight:700,color:S.success,borderRight:`1px solid ${S.border2}`}}>{fmtN(r.Inbound_Total)}</td>
                             <td style={{...TD,color:S.accent}}>{fmtN(r.Total_Lower)}</td>
-                            <td style={{...TD,color:S.success}}>{fmtN(r.Total_Upper)}</td>
-                            <td style={{...TD,color:S.muted,borderRight:`1px solid ${S.border2}`}}>{fmtN(r.Total_NoDeck)}</td>
-                            <td style={{...TD,fontWeight:600,color:S.warn}}>{fmtN(r.Royal_Total)}</td>
+                            <td style={{...TD,color:S.success,borderRight:`2px solid #2563eb`}}>{fmtN(r.Total_Upper)}</td>
+                            <td style={{...TD,color:S.warn}}>{fmtN(r.Royal_Outbound)}</td>
+                            <td style={{...TD,color:S.warn,borderRight:`1px solid ${S.border2}`}}>{fmtN(r.Royal_Inbound)}</td>
                             <td style={TD}>{fmtN(r.Royal_Lower)}</td>
-                            <td style={TD}>{fmtN(r.Royal_Upper)}</td>
-                            <td style={{...TD,borderRight:`1px solid ${S.border2}`}}>{fmtN(r.Royal_NoDeck)}</td>
-                            <td style={{...TD,fontWeight:600,color:S.success}}>{fmtN(r.First_Total)}</td>
+                            <td style={{...TD,borderRight:`2px solid #2563eb`}}>{fmtN(r.Royal_Upper)}</td>
+                            <td style={{...TD,color:S.success}}>{fmtN(r.First_Outbound)}</td>
+                            <td style={{...TD,color:S.success,borderRight:`1px solid ${S.border2}`}}>{fmtN(r.First_Inbound)}</td>
                             <td style={TD}>{fmtN(r.First_Lower)}</td>
-                            <td style={TD}>{fmtN(r.First_Upper)}</td>
-                            <td style={{...TD,borderRight:`1px solid ${S.border2}`}}>{fmtN(r.First_NoDeck)}</td>
-                            <td style={{...TD,fontWeight:600,color:S.purple}}>{fmtN(r.Premium_Total)}</td>
+                            <td style={{...TD,borderRight:`2px solid #2563eb`}}>{fmtN(r.First_Upper)}</td>
+                            <td style={{...TD,color:S.purple}}>{fmtN(r.Premium_Outbound)}</td>
+                            <td style={{...TD,color:S.purple,borderRight:`1px solid ${S.border2}`}}>{fmtN(r.Premium_Inbound)}</td>
                             <td style={TD}>{fmtN(r.Premium_Lower)}</td>
-                            <td style={TD}>{fmtN(r.Premium_Upper)}</td>
-                            <td style={{...TD,borderRight:`1px solid ${S.border2}`}}>{fmtN(r.Premium_NoDeck)}</td> 
+                            <td style={{...TD,borderRight:`1px solid ${S.border2}`}}>{fmtN(r.Premium_Upper)}</td> 
                           </tr>
                         ))}
                       </tbody>
