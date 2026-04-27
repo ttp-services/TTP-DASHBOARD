@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { LayoutDashboard, Bus, Briefcase, Settings, Users, BarChart2, TrendingUp, Package, Star, ArrowDown, ArrowUp, CircleDot, ChevronDown, ChevronUp, RotateCcw, Play, Filter, AlertCircle, CheckCircle, XCircle, Download, Search, Layers, Map, Table2, PieChart, CreditCard, Percent, FileText, Plane } from "lucide-react";
+import { LayoutDashboard, Bus, Briefcase, Settings, Users, BarChart2, TrendingUp, Package, Star, ArrowDown, ArrowUp, CircleDot, ChevronDown, ChevronUp, RotateCcw, Play, Filter, AlertCircle, CheckCircle, XCircle, Download, Search, Layers, Map, Table2, PieChart, CreditCard, Percent, FileText, Plane, Tag, Car, Calendar, Shield, Bell, Database, RefreshCw, Activity, LogOut, Lock, Eye, EyeOff, UserCircle, Edit3 } from "lucide-react";
 
 const BASE = import.meta.env?.VITE_API_URL || "https://ttp-dashboard-api.azurewebsites.net";
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -1409,7 +1409,7 @@ function PurchaseTab({token}){
         ))}
         <div style={{width:1,height:32,background:S.border2}}/>
         <div>
-          <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:4,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>✅ Status</label>
+          <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:4,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",display:"flex",alignItems:"center",gap:4}}><CheckCircle size={11}/>Status</label>
           <div style={{display:"flex",gap:4}}>
             {[{v:"ok",l:"DEF"},{v:"cancelled",l:"DEF-GEANNULEERD"}].map(({v,l})=>{
               const active=f.status.includes(v);
@@ -1419,7 +1419,7 @@ function PurchaseTab({token}){
         </div>
         <div style={{width:1,height:32,background:S.border2}}/>
         <div>
-          <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:4,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>🏷 Label</label>
+          <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:4,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",display:"flex",alignItems:"center",gap:4}}><Tag size={11}/>Label</label>
           <div style={{display:"flex",gap:4}}>
             {[{v:"STANDAARD",l:"STANDAARD"},{v:"ITB",l:"ITB"},{v:"DEU",l:"DEU"}].map(({v,l})=>{
               const active=f.label.includes(v);
@@ -1430,7 +1430,7 @@ function PurchaseTab({token}){
         <div style={{width:1,height:32,background:S.border2}}/>
         {subTab==="summary"&&(
           <div>
-            <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:4,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>🚗 Travel Type</label>
+            <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:4,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",display:"flex",alignItems:"center",gap:4}}><Car size={11}/>Travel Type</label>
             <div style={{display:"flex",gap:4}}>
               {["BUS","OWN TRANSPORT","FLIGHT","ENKEL"].map(v=>{
                 const active=f.travelType.includes(v);
@@ -1441,7 +1441,7 @@ function PurchaseTab({token}){
         )}
         {subTab==="elements"&&(
           <div>
-            <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:4,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>📅 Year</label>
+            <label style={{fontSize:10,color:S.muted,display:"block",marginBottom:4,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em",display:"flex",alignItems:"center",gap:4}}><Calendar size={11}/>Year</label>
             <div style={{display:"flex",gap:4}}>
               {[2022,2023,2024,2025,2026].map(y=>{
                 const active=f.year.includes(y);
@@ -1457,11 +1457,11 @@ function PurchaseTab({token}){
       </div>
       {activeCount>0&&(
         <div style={{padding:"4px 16px 8px",display:"flex",gap:5,flexWrap:"wrap"}}>
-          {f.status.map(v=><span key={v} style={{background:S.successBg,color:S.success,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>✓ {v==="ok"?"DEF":"DEF-GEANNULEERD"}</span>)}
-          {f.label.map(v=><span key={v} style={{background:`${S.purple}15`,color:S.purple,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>🏷 {v}</span>)}
-          {f.travelType.map(v=><span key={v} style={{background:`${S.orange}15`,color:S.orange,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>🚗 {v}</span>)}
-          {f.year.map(v=><span key={v} style={{background:S.accentLight,color:S.accent,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>📅 {v}</span>)}
-          {(f.departureFrom||f.departureTo)&&<span style={{background:S.warnBg,color:S.warn,borderRadius:10,padding:"2px 8px",fontSize:10,fontWeight:600}}>📆 {f.departureFrom||"…"} → {f.departureTo||"…"}</span>}
+          {f.status.map(v=><span key={v} style={{background:S.successBg,color:S.success,borderRadius:20,padding:"3px 10px",fontSize:10,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4,border:`1px solid ${S.success}33`}}><CheckCircle size={9}/>{v==="ok"?"DEF":"DEF-GEANNULEERD"}</span>)}
+          {f.label.map(v=><span key={v} style={{background:`${S.purple}12`,color:S.purple,borderRadius:20,padding:"3px 10px",fontSize:10,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4,border:`1px solid ${S.purple}33`}}><Tag size={9}/>{v}</span>)}
+          {f.travelType.map(v=><span key={v} style={{background:`${S.orange}12`,color:S.orange,borderRadius:20,padding:"3px 10px",fontSize:10,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4,border:`1px solid ${S.orange}33`}}><Car size={9}/>{v}</span>)}
+          {f.year.map(v=><span key={v} style={{background:S.accentLight,color:S.accent,borderRadius:20,padding:"3px 10px",fontSize:10,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4,border:`1px solid ${S.accent}33`}}><Calendar size={9}/>{v}</span>)}
+          {(f.departureFrom||f.departureTo)&&<span style={{background:S.warnBg,color:S.warn,borderRadius:20,padding:"3px 10px",fontSize:10,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4,border:`1px solid ${S.warn}33`}}><Calendar size={9}/>{f.departureFrom||"…"} → {f.departureTo||"…"}</span>}
         </div>
       )}
     </div>
@@ -2795,13 +2795,13 @@ function SettingsTab({token,session,onLogout}){
 
   // ── Data Refresh state ──
   const TABLES=[
-    {key:"CustomerOverview",label:"Customer Overview",desc:"Solmar · Interbus · Solmar DE bookings",icon:"📋",endpoint:"/api/dashboard/kpis"},
-    {key:"ST_Bookings",label:"Snowtravel Bookings",desc:"Snowtravel dataset",icon:"❄️",endpoint:"/api/dashboard/kpis"},
-    {key:"BUStrips",label:"Bus Pendel (BUStrips)",desc:"Pendel overview data — Samir's ETL",icon:"🚌",endpoint:"/api/dashboard/pendel-overview"},
-    {key:"FeederOverview",label:"Feeder Routes",desc:"Pickup stop data per route",icon:"🗺️",endpoint:"/api/dashboard/feeder-overview"},
-    {key:"HotelOverview",label:"Hotel Overview",desc:"Hotel performance table",icon:"🏨",endpoint:"/api/dashboard/hotel-overview"},
-    {key:"solmar_bus_deck_choice",label:"Bus Deck & Class",desc:"Deck and class distribution",icon:"🪑",endpoint:"/api/dashboard/bus-kpis"},
-    {key:"MarginOverview",label:"Purchase Obligations",desc:"Margins, commissions, obligations",icon:"💶",endpoint:"/api/dashboard/margin-overview"},
+    {key:"CustomerOverview",label:"Customer Overview",desc:"Solmar · Interbus · Solmar DE bookings",icon:<FileText size={18} color={S.accent}/>,endpoint:"/api/dashboard/kpis"},
+    {key:"ST_Bookings",label:"Snowtravel Bookings",desc:"Snowtravel dataset",icon:<Star size={18} color={S.purple}/>,endpoint:"/api/dashboard/kpis"},
+    {key:"BUStrips",label:"Bus Pendel (BUStrips)",desc:"Pendel overview data — Samir's ETL",icon:<Bus size={18} color={S.success}/>,endpoint:"/api/dashboard/pendel-overview"},
+    {key:"FeederOverview",label:"Feeder Routes",desc:"Pickup stop data per route",icon:<Map size={18} color={S.warn}/>,endpoint:"/api/dashboard/feeder-overview"},
+    {key:"HotelOverview",label:"Hotel Overview",desc:"Hotel performance table",icon:<Star size={18} color={S.orange}/>,endpoint:"/api/dashboard/hotel-overview"},
+    {key:"solmar_bus_deck_choice",label:"Bus Deck & Class",desc:"Deck and class distribution",icon:<Layers size={18} color={S.accent}/>,endpoint:"/api/dashboard/bus-kpis"},
+    {key:"MarginOverview",label:"Purchase Obligations",desc:"Margins, commissions, obligations",icon:<CreditCard size={18} color={S.success}/>,endpoint:"/api/dashboard/margin-overview"},
   ];
   const INTERVALS=[
     {v:0,l:"Manual only"},
@@ -3114,7 +3114,7 @@ function SettingsTab({token,session,onLogout}){
                 return(
                   <div key={t.key} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 18px",borderBottom:i<TABLES.length-1?`1px solid ${S.border}`:"none",flexWrap:"wrap"}}>
                     {/* Icon + info */}
-                    <div style={{fontSize:22,flexShrink:0}}>{t.icon}</div>
+                    <div style={{width:36,height:36,borderRadius:9,background:`${S.accent}10`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{t.icon}</div>
                     <div style={{flex:1,minWidth:180}}>
                       <div style={{fontSize:13,fontWeight:700,color:S.text}}>{t.label}</div>
                       <div style={{fontSize:11,color:S.muted,marginTop:1}}>{t.desc}</div>
@@ -3420,17 +3420,25 @@ export default function App(){
           ))}
         </div>
         <div style={{padding:"10px 12px",borderTop:`1px solid ${S.border}`,display:"flex",alignItems:"center",gap:9,justifyContent:navCollapsed?"center":"flex-start"}}>
-          <div style={{width:28,height:28,borderRadius:"50%",background:`${S.accent}18`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:S.accent,flexShrink:0}}>{(session.username||"U")[0].toUpperCase()}</div>
+          <div style={{width:32,height:32,borderRadius:"50%",background:`linear-gradient(135deg,${S.accent},#3b82f6)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:"#fff",flexShrink:0,boxShadow:"0 2px 6px rgba(26,86,219,0.3)"}}>{(session.name||session.username||"U")[0].toUpperCase()}</div>
           {!navCollapsed&&(
             <>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:12,fontWeight:600,color:S.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{session.name||session.username}</div>
-                <div style={{fontSize:10,color:S.muted,textTransform:"capitalize"}}>{session.role||"viewer"}</div>
+                <div style={{fontSize:12,fontWeight:700,color:S.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{session.name||session.username}</div>
+                <div style={{fontSize:10,color:S.muted,textTransform:"capitalize",display:"flex",alignItems:"center",gap:3}}>
+                  <Shield size={9}/>{session.role||"viewer"}
+                </div>
               </div>
-              <button onClick={()=>setShowPwModal(true)} title="Change password" style={{background:"none",border:"none",color:S.muted2,cursor:"pointer",padding:4,flexShrink:0,display:"flex",alignItems:"center"}}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+              <button onClick={()=>setShowPwModal(true)} title="Change password" style={{background:"none",border:"none",color:S.muted2,cursor:"pointer",padding:4,flexShrink:0,display:"flex",alignItems:"center",borderRadius:5,transition:"all 0.15s"}}
+                onMouseEnter={e=>e.currentTarget.style.background=S.bg}
+                onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                <Lock size={13}/>
               </button>
-              <button onClick={()=>{clearAuth();setSession(null);}} title="Sign out" style={{background:"none",border:"none",color:S.muted2,cursor:"pointer",padding:4,flexShrink:0,fontSize:14}}>→</button>
+              <button onClick={()=>{clearAuth();setSession(null);}} title="Sign out" style={{background:"none",border:"none",color:S.muted2,cursor:"pointer",padding:4,flexShrink:0,display:"flex",alignItems:"center",borderRadius:5,transition:"all 0.15s"}}
+                onMouseEnter={e=>e.currentTarget.style.background=S.dangerBg}
+                onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                <LogOut size={13}/>
+              </button>
             </>
           )}
         </div>
@@ -3444,8 +3452,14 @@ export default function App(){
         <div style={{height:52,padding:"0 20px",borderBottom:`1px solid ${S.border}`,background:S.card,display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0,boxShadow:S.shadow}}>
           <div style={{fontSize:15,fontWeight:800,color:S.text,letterSpacing:"-0.01em"}}>{NAV.find(n=>n.id===tab)?.l}</div>
           <div style={{display:"flex",alignItems:"center",gap:12,fontSize:11,color:S.muted}}>
-            <span>{new Date().toLocaleDateString("nl-BE",{weekday:"short",year:"numeric",month:"short",day:"numeric"})}</span>
-            <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:7,height:7,borderRadius:"50%",background:S.success,display:"inline-block"}}/>Live</span>
+            <span style={{display:"flex",alignItems:"center",gap:5}}>
+              <Calendar size={12}/>
+              {new Date().toLocaleDateString("nl-BE",{weekday:"short",year:"numeric",month:"short",day:"numeric"})}
+            </span>
+            <div style={{width:1,height:14,background:S.border2}}/>
+            <span style={{display:"flex",alignItems:"center",gap:5,background:S.successBg,color:S.success,padding:"3px 8px",borderRadius:20,fontWeight:600,fontSize:10}}>
+              <Activity size={10}/>Live
+            </span>
           </div>
         </div>
         <div style={{flex:1,overflow:"hidden"}}>
