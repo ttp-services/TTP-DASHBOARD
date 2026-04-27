@@ -2952,106 +2952,168 @@ function SettingsTab({token,session,onLogout}){
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
         {tab==="users"&&(
-          <div style={{maxWidth:900}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div style={{maxWidth:1000}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
               <div>
-                <div style={{fontSize:16,fontWeight:800,color:S.text}}>User Accounts</div>
-                <div style={{fontSize:12,color:S.muted,marginTop:2}}>{users.length} users registered</div>
+                <div style={{fontSize:16,fontWeight:700,color:S.text}}>User accounts</div>
+                <div style={{fontSize:12,color:S.muted,marginTop:3}}>{users.length} users registered</div>
               </div>
-              <div style={{display:"flex",gap:8}}>
-                <Btn onClick={loadUsers} variant="secondary" size="sm">↻ Refresh</Btn>
-                <Btn onClick={()=>setShowAdd(p=>!p)} variant="primary" size="sm">+ Add New User</Btn>
-              </div>
+              <button onClick={()=>setShowAdd(p=>!p)} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",background:S.accent,border:"none",borderRadius:8,color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer"}}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add user
+              </button>
             </div>
             {userMsg.text&&(
-              <div style={{background:userMsg.type==="error"?S.dangerBg:S.successBg,border:`1px solid ${userMsg.type==="error"?S.danger:S.success}33`,borderRadius:8,padding:"10px 14px",fontSize:12,color:userMsg.type==="error"?S.danger:S.success,fontWeight:500,marginBottom:14}}>
-                <span style={{display:"flex",alignItems:"center",gap:6}}>{userMsg.type==="success"?<CheckCircle size={12}/>:<AlertCircle size={12}/>}{userMsg.text}</span>
+              <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",borderRadius:8,background:userMsg.type==="error"?S.dangerBg:S.successBg,border:`1px solid ${userMsg.type==="error"?S.danger:S.success}33`,fontSize:12,color:userMsg.type==="error"?S.danger:S.success,fontWeight:500,marginBottom:16}}>
+                {userMsg.type==="success"?<CheckCircle size={13}/>:<AlertCircle size={13}/>}
+                {userMsg.text}
               </div>
             )}
             {showAdd&&(
-              <Card style={{marginBottom:16,border:`1.5px solid ${S.border2}`}}>
-                <div style={{fontSize:14,fontWeight:700,color:S.text,marginBottom:14,display:"flex",alignItems:"center",gap:6}}><Users size={14}/>Add New User</div>
-                <form onSubmit={addUser} style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-                  {inp2("Full Name",newUser.name,v=>setNewUser({...newUser,name:v}),"text","Full name")}
-                  {inp2("Username",newUser.username,v=>setNewUser({...newUser,username:v}),"text","Username")}
-                  {inp2("Email",newUser.email,v=>setNewUser({...newUser,email:v}),"email","email@example.com")}
-                  {inp2("Password",newUser.password,v=>setNewUser({...newUser,password:v}),"password","Password")}
+              <div style={{background:S.card,border:`1.5px solid ${S.accent}33`,borderRadius:12,padding:20,marginBottom:20}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                  <div style={{fontSize:13,fontWeight:700,color:S.text,display:"flex",alignItems:"center",gap:6}}><Users size={14} color={S.accent}/>New user</div>
+                  <button onClick={()=>setShowAdd(false)} style={{background:"none",border:"none",cursor:"pointer",color:S.muted2,display:"flex"}}><XCircle size={16}/></button>
+                </div>
+                <form onSubmit={addUser} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
+                  {[["Full Name","name","text","Full name"],["Username","username","text","username"],["Email","email","email","email@example.com"],["Password","password","password","Password"]].map(([label,field,type,ph])=>(
+                    <div key={field}>
+                      <label style={{fontSize:10,fontWeight:700,color:S.muted,display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em"}}>{label}</label>
+                      <input type={type} value={newUser[field]} onChange={e=>setNewUser({...newUser,[field]:e.target.value})} placeholder={ph}
+                        style={{width:"100%",padding:"8px 10px",border:`1.5px solid ${S.border2}`,borderRadius:7,background:S.bg,color:S.text,fontSize:12,outline:"none",boxSizing:"border-box"}}/>
+                    </div>
+                  ))}
                   <div>
-                    <label style={{fontSize:11,fontWeight:600,color:S.muted,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.05em"}}>Role</label>
-                    <select value={newUser.role} onChange={e=>setNewUser({...newUser,role:e.target.value})} style={{background:S.bg,border:`1.5px solid ${S.border2}`,borderRadius:7,padding:"8px 12px",color:S.text,fontSize:13,width:"100%",outline:"none"}}>
+                    <label style={{fontSize:10,fontWeight:700,color:S.muted,display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em"}}>Role</label>
+                    <select value={newUser.role} onChange={e=>setNewUser({...newUser,role:e.target.value})}
+                      style={{width:"100%",padding:"8px 10px",border:`1.5px solid ${S.border2}`,borderRadius:7,background:S.bg,color:S.text,fontSize:12,outline:"none"}}>
                       <option value="viewer">Viewer</option>
                       <option value="admin">Admin</option>
                     </select>
                   </div>
-                  <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
-                    <Btn onClick={()=>setShowAdd(false)} variant="secondary" size="sm" style={{flex:1,justifyContent:"center"}}>Cancel</Btn>
-                    <button type="submit" disabled={busy||!newUser.username||!newUser.password} style={{flex:1,padding:"8px",background:S.accent,border:"none",borderRadius:7,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",opacity:busy?0.7:1}}>
-                      {busy?"Creating…":"Create User"}
+                  <div style={{display:"flex",alignItems:"flex-end",gap:8}}>
+                    <button type="button" onClick={()=>setShowAdd(false)} style={{flex:1,padding:"8px",border:`1.5px solid ${S.border2}`,borderRadius:7,background:"transparent",color:S.muted,fontSize:12,cursor:"pointer",fontWeight:600}}>Cancel</button>
+                    <button type="submit" disabled={busy||!newUser.username||!newUser.password} style={{flex:2,padding:"8px",border:"none",borderRadius:7,background:S.accent,color:"#fff",fontSize:12,cursor:"pointer",fontWeight:600,opacity:busy?0.7:1}}>
+                      {busy?"Creating…":"Create user"}
                     </button>
                   </div>
                 </form>
-              </Card>
+              </div>
             )}
-            <Card p="0">
-              {loading&&<div style={{padding:20,textAlign:"center",color:S.muted}}>Loading users…</div>}
-              {!loading&&(
-                <table style={{width:"100%",borderCollapse:"collapse"}}>
-                  <thead>
-                    <tr style={{background:"#f8faff"}}>
-                      {["Name","Username","Email","Role","Status","Actions"].map((h,i)=>(
-                        <th key={i} style={{padding:"10px 16px",textAlign:i===5?"right":"left",color:S.muted,fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:`1px solid ${S.border}`}}>{h}</th>
+            {(()=>{
+              const[umSearch,setUmSearch]=React.useState("");
+              const[umRole,setUmRole]=React.useState("all");
+              const filtered=users.filter(u=>{
+                const q=umSearch.toLowerCase();
+                const matchQ=!q||(u.name||"").toLowerCase().includes(q)||(u.username||"").toLowerCase().includes(q)||(u.email||"").toLowerCase().includes(q);
+                const matchR=umRole==="all"||u.role===umRole;
+                return matchQ&&matchR;
+              });
+              const ACOLORS=[{bg:"#eff6ff",c:"#1a56db"},{bg:"#fef3c7",c:"#92400e"},{bg:"#f0fdf4",c:"#166534"},{bg:"#fdf4ff",c:"#7e22ce"},{bg:"#fef2f2",c:"#991b1b"},{bg:"#ecfdf5",c:"#065f46"},{bg:"#fff7ed",c:"#9a3412"},{bg:"#f5f3ff",c:"#5b21b6"}];
+              const ac=i=>ACOLORS[i%ACOLORS.length];
+              return(
+                <>
+                  <div style={{display:"flex",gap:10,marginBottom:14,alignItems:"center"}}>
+                    <div style={{position:"relative",flex:1}}>
+                      <Search size={13} style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",color:S.muted2,pointerEvents:"none"}}/>
+                      <input value={umSearch} onChange={e=>setUmSearch(e.target.value)} placeholder="Search by name, username or email…"
+                        style={{width:"100%",padding:"7px 12px 7px 32px",border:`1.5px solid ${S.border2}`,borderRadius:8,background:S.card,color:S.text,fontSize:12,outline:"none",boxSizing:"border-box"}}/>
+                    </div>
+                    <select value={umRole} onChange={e=>setUmRole(e.target.value)}
+                      style={{padding:"7px 12px",border:`1.5px solid ${S.border2}`,borderRadius:8,background:S.card,color:S.textLight,fontSize:12,outline:"none",cursor:"pointer"}}>
+                      <option value="all">All roles</option>
+                      <option value="admin">Admin</option>
+                      <option value="viewer">Viewer</option>
+                    </select>
+                    <button onClick={loadUsers} style={{display:"flex",alignItems:"center",gap:5,padding:"7px 14px",border:`1.5px solid ${S.border2}`,borderRadius:8,background:S.card,color:S.textLight,fontSize:12,cursor:"pointer",fontWeight:500,whiteSpace:"nowrap"}}>
+                      <RotateCcw size={12}/>Refresh
+                    </button>
+                  </div>
+                  <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,overflow:"hidden"}}>
+                    <div style={{display:"grid",gridTemplateColumns:"2fr 1.4fr 2fr 1fr 1fr 0.8fr 90px",padding:"9px 16px",background:S.bg,borderBottom:`1px solid ${S.border}`}}>
+                      {["User","Username","Email","Role","Status","2FA",""].map((h,i)=>(
+                        <div key={i} style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.06em",textAlign:i===6?"right":"left"}}>{h}</div>
                       ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.length===0&&(
-                      <tr><td colSpan={6} style={{padding:28,textAlign:"center",color:S.muted}}>No users found</td></tr>
-                    )}
-                    {users.map((u,i)=>{
-                      const rc=roleColor(u.role);
+                    </div>
+                    {loading&&<div style={{padding:28,textAlign:"center",color:S.muted,fontSize:12}}>Loading users…</div>}
+                    {!loading&&filtered.length===0&&<div style={{padding:40,textAlign:"center",color:S.muted,fontSize:12}}>No users match your search</div>}
+                    {!loading&&filtered.map((u,i)=>{
                       const isSelf=u.id===session?.id||u.username===session?.username;
+                      const col=ac(i);
+                      const isAdm=u.role==="admin";
                       return(
-                        <tr key={u.id} style={{borderBottom:`1px solid ${S.border}`,background:i%2===0?"transparent":"#f8faff"}}>
-                          <td style={{padding:"12px 16px"}}>
-                            <div style={{display:"flex",alignItems:"center",gap:10}}>
-                              <div style={{width:34,height:34,borderRadius:"50%",background:`${S.accent}18`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:S.accent,flexShrink:0}}>{(u.name||u.username||"?")[0].toUpperCase()}</div>
-                              <div style={{fontSize:13,fontWeight:600,color:S.text}}>{u.name||u.username}</div>
+                        <div key={u.id} style={{display:"grid",gridTemplateColumns:"2fr 1.4fr 2fr 1fr 1fr 0.8fr 90px",padding:"11px 16px",borderBottom:i<filtered.length-1?`1px solid ${S.border}`:"none",alignItems:"center",transition:"background 0.1s"}}
+                          onMouseEnter={e=>e.currentTarget.style.background=S.bg}
+                          onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                          <div style={{display:"flex",alignItems:"center",gap:10}}>
+                            <div style={{width:32,height:32,borderRadius:"50%",background:col.bg,color:col.c,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,flexShrink:0}}>
+                              {(u.name||u.username||"?")[0].toUpperCase()}
                             </div>
-                          </td>
-                          <td style={{padding:"12px 16px",fontSize:12,color:S.textLight,fontFamily:"monospace"}}>{u.username}</td>
-                          <td style={{padding:"12px 16px",fontSize:12,color:S.muted}}>{u.email||"—"}</td>
-                          <td style={{padding:"12px 16px"}}>
-                            <select value={u.role||"viewer"} onChange={e=>updateUserRole(u.id,e.target.value)} disabled={isSelf} style={{background:rc.bg,border:`1px solid ${rc.c}44`,borderRadius:6,padding:"3px 8px",color:rc.c,fontSize:11,fontWeight:700,outline:"none",cursor:isSelf?"default":"pointer"}}>
+                            <div>
+                              <div style={{fontSize:13,fontWeight:600,color:S.text}}>{u.name||u.username}</div>
+                              {isSelf&&<div style={{fontSize:10,color:S.accent,fontWeight:600}}>You</div>}
+                            </div>
+                          </div>
+                          <div style={{fontSize:11,color:S.muted,fontFamily:"monospace"}}>{u.username}</div>
+                          <div style={{fontSize:12,color:S.textLight,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.email||"—"}</div>
+                          <div>
+                            <select value={u.role||"viewer"} onChange={e=>updateUserRole(u.id,e.target.value)} disabled={isSelf}
+                              style={{padding:"3px 8px",borderRadius:20,fontSize:11,fontWeight:600,outline:"none",cursor:isSelf?"default":"pointer",border:`1px solid ${isAdm?"#bfdbfe":"#bbf7d0"}`,background:isAdm?"#eff6ff":"#f0fdf4",color:isAdm?S.accent:S.success}}>
                               <option value="viewer">Viewer</option>
                               <option value="admin">Admin</option>
                             </select>
-                          </td>
-                          <td style={{padding:"12px 16px"}}>
-                            <span style={{background:S.successBg,color:S.success,padding:"2px 8px",borderRadius:5,fontSize:11,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4}}><CheckCircle size={9}/>Active</span>
-                          </td>
-                          <td style={{padding:"12px 16px",textAlign:"right",display:"flex",gap:6,justifyContent:"flex-end"}}>
-                            <Btn onClick={()=>openEdit(u)} variant="secondary" size="sm"><Edit3 size={11}/>Edit</Btn>
-                            {!isSelf&&<Btn onClick={()=>deleteUser(u.id,u.username)} variant="danger" size="sm"><XCircle size={11}/>Delete</Btn>}
-                            {isSelf&&<span style={{fontSize:11,color:S.muted,fontStyle:"italic",alignSelf:"center"}}>You</span>}
-                          </td>
-                        </tr>
+                          </div>
+                          <div style={{display:"flex",alignItems:"center",gap:5,fontSize:11,fontWeight:600,color:S.success}}>
+                            <div style={{width:6,height:6,borderRadius:"50%",background:S.success,flexShrink:0}}/>Active
+                          </div>
+                          <div>
+                            <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:20,fontSize:10,fontWeight:600,background:"#eff6ff",color:S.accent,border:"1px solid #bfdbfe"}}>
+                              <Shield size={9}/>On
+                            </span>
+                          </div>
+                          <div style={{display:"flex",gap:5,justifyContent:"flex-end"}}>
+                            <button onClick={()=>openEdit(u)} title="Edit"
+                              style={{width:28,height:28,borderRadius:7,border:`1px solid ${S.border2}`,background:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:S.muted,transition:"all 0.15s"}}
+                              onMouseEnter={e=>{e.currentTarget.style.background=S.accentLight;e.currentTarget.style.color=S.accent;e.currentTarget.style.borderColor=`${S.accent}66`;}}
+                              onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=S.muted;e.currentTarget.style.borderColor=S.border2;}}>
+                              <Edit3 size={12}/>
+                            </button>
+                            {!isSelf&&(
+                              <button onClick={()=>deleteUser(u.id,u.username)} title="Delete"
+                                style={{width:28,height:28,borderRadius:7,border:"1px solid #fecaca",background:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#dc2626",transition:"all 0.15s"}}
+                                onMouseEnter={e=>e.currentTarget.style.background="#fef2f2"}
+                                onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       );
                     })}
-                  </tbody>
-                </table>
-              )}
-            </Card>
-            <Card style={{marginTop:16}}>
-              <div style={{fontSize:13,fontWeight:700,color:S.text,marginBottom:12}}>Current Session</div>
-              <div style={{display:"flex",alignItems:"center",gap:14}}>
-                <div style={{width:44,height:44,borderRadius:"50%",background:`${S.accent}18`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:800,color:S.accent}}>{(session?.username||"U")[0].toUpperCase()}</div>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:14,fontWeight:700,color:S.text}}>{session?.username}</div>
-                  <div style={{fontSize:12,color:S.muted}}>Role: {session?.role||"viewer"}</div>
-                </div>
-                <Btn onClick={onLogout} variant="danger" size="sm">Sign Out</Btn>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 16px",borderTop:`1px solid ${S.border}`,background:S.bg}}>
+                      <div style={{fontSize:11,color:S.muted}}>Showing {filtered.length} of {users.length} users</div>
+                      <div style={{display:"flex",gap:6}}>
+                        {[{l:"Admin",c:S.accent,bg:"#eff6ff",n:users.filter(u=>u.role==="admin").length},{l:"Viewer",c:S.success,bg:"#f0fdf4",n:users.filter(u=>u.role==="viewer").length}].map(b=>(
+                          <span key={b.l} style={{padding:"2px 10px",borderRadius:20,fontSize:10,fontWeight:600,background:b.bg,color:b.c}}>{b.n} {b.l}{b.n!==1?"s":""}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
+            <div style={{marginTop:16,background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:"14px 18px",display:"flex",alignItems:"center",gap:14}}>
+              <div style={{width:40,height:40,borderRadius:"50%",background:`${S.accent}15`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:S.accent,flexShrink:0}}>
+                {(session?.username||"U")[0].toUpperCase()}
               </div>
-            </Card>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:700,color:S.text}}>{session?.name||session?.username}</div>
+                <div style={{fontSize:11,color:S.muted,marginTop:1,display:"flex",alignItems:"center",gap:4}}><Shield size={10}/>{session?.role||"viewer"} · Current session</div>
+              </div>
+              <button onClick={onLogout} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",border:"1px solid #fecaca",borderRadius:8,background:"transparent",color:"#dc2626",fontSize:12,cursor:"pointer",fontWeight:600}}>
+                <LogOut size={12}/>Sign out
+              </button>
+            </div>
           </div>
         )}
         {tab==="api"&&(
