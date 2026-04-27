@@ -3662,24 +3662,12 @@ export default function App(){
             onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}
           >{(session.name||session.username||"U")[0].toUpperCase()}</div>
           {!navCollapsed&&(
-            <>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:12,fontWeight:700,color:S.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{session.name||session.username}</div>
-                <div style={{fontSize:10,color:S.muted,textTransform:"capitalize",display:"flex",alignItems:"center",gap:3}}>
-                  <Shield size={9}/>{session.role||"viewer"}
-                </div>
+            <div onClick={()=>setShowProfile(true)} style={{flex:1,minWidth:0,cursor:"pointer"}}>
+              <div style={{fontSize:12,fontWeight:700,color:S.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{session.name||session.username}</div>
+              <div style={{fontSize:10,color:S.muted,textTransform:"capitalize",display:"flex",alignItems:"center",gap:3}}>
+                <Shield size={9}/>{session.role||"viewer"}
               </div>
-              <button onClick={()=>setShowPwModal(true)} title="Change password" style={{background:"none",border:"none",color:S.muted2,cursor:"pointer",padding:4,flexShrink:0,display:"flex",alignItems:"center",borderRadius:5,transition:"all 0.15s"}}
-                onMouseEnter={e=>e.currentTarget.style.background=S.bg}
-                onMouseLeave={e=>e.currentTarget.style.background="none"}>
-                <Lock size={13}/>
-              </button>
-              <button onClick={()=>{clearAuth();setSession(null);}} title="Sign out" style={{background:"none",border:"none",color:S.muted2,cursor:"pointer",padding:4,flexShrink:0,display:"flex",alignItems:"center",borderRadius:5,transition:"all 0.15s"}}
-                onMouseEnter={e=>e.currentTarget.style.background=S.dangerBg}
-                onMouseLeave={e=>e.currentTarget.style.background="none"}>
-                <LogOut size={13}/>
-              </button>
-            </>
+            </div>
           )}
         </div>
         {navCollapsed&&(
