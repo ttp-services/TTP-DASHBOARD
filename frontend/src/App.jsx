@@ -2785,7 +2785,7 @@ function UserTable({users,loading,session,loadUsers,openEdit,deleteUser,updateUs
 }
 
 function SettingsTab({token,session,onLogout}){
-  const[tab,setTab]=useState("users");
+  const[stab,setStab]=useState("users");
   const[users,setUsers]=useState([]);
   const[loading,setLoading]=useState(false);
   const[userMsg,setUserMsg]=useState({text:"",type:""});
@@ -2898,7 +2898,7 @@ function SettingsTab({token,session,onLogout}){
   );
 
   const sTabBtn=(id,label,icon)=>(
-    <button onClick={()=>setTab(id)} style={{padding:"8px 16px",borderRadius:7,fontSize:12,cursor:"pointer",border:`1.5px solid ${tab===id?S.accent:S.border2}`,background:tab===id?S.accentLight:"transparent",color:tab===id?S.accent:S.textLight,fontWeight:600,display:"flex",alignItems:"center",gap:5}}>
+    <button onClick={()=>setStab(id)} style={{padding:"8px 16px",borderRadius:7,fontSize:12,cursor:"pointer",border:`1.5px solid ${stab===id?S.accent:S.border2}`,background:stab===id?S.accentLight:"transparent",color:stab===id?S.accent:S.textLight,fontWeight:600,display:"flex",alignItems:"center",gap:5}}>
       {icon&&icon}{label}
     </button>
   );
@@ -3053,14 +3053,14 @@ function SettingsTab({token,session,onLogout}){
         {sTabBtn("refresh","Data Refresh",<RefreshCw size={13}/>)}
         {sTabBtn("ai","AI Prompts",<Shield size={13}/>)}
         {sTabBtn("alerts","Email Alerts",<Bell size={13}/>)}
-        <div style={{marginLeft:"auto",display:"flex",alignItems:"center"}}>
+        <div style={{marginLeft:"auto"}}>
           <button onClick={onLogout} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",border:"1px solid #fecaca",borderRadius:8,background:"transparent",color:"#dc2626",fontSize:12,cursor:"pointer",fontWeight:600}}>
             <LogOut size={13}/>Sign out
           </button>
         </div>
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
-        {tab==="users"&&(
+        {stab==="users"&&(
           <div style={{maxWidth:1000}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
               <div>
@@ -3119,112 +3119,10 @@ function SettingsTab({token,session,onLogout}){
                 </form>
               </div>
             )}
-            return UserTable;
-            })()}
-                const filtered=users.filter(u=>{
-                  const q=umSearch.toLowerCase();
-                  const matchQ=!q||(u.name||"").toLowerCase().includes(q)||(u.username||"").toLowerCase().includes(q)||(u.email||"").toLowerCase().includes(q);
-                  const matchR=umRole==="all"||u.role===umRole;
-                  return matchQ&&matchR;
-                });
-                const ACOLORS=[{bg:"#eff6ff",c:"#1a56db"},{bg:"#fef3c7",c:"#92400e"},{bg:"#f0fdf4",c:"#166534"},{bg:"#fdf4ff",c:"#7e22ce"},{bg:"#fef2f2",c:"#991b1b"},{bg:"#ecfdf5",c:"#065f46"},{bg:"#fff7ed",c:"#9a3412"},{bg:"#f5f3ff",c:"#5b21b6"}];
-                const ac=i=>ACOLORS[i%ACOLORS.length];
-                return(
-                  <>
-                    <div style={{display:"flex",gap:10,marginBottom:14,alignItems:"center"}}>
-                      <div style={{position:"relative",flex:1}}>
-                        <Search size={13} style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",color:S.muted2,pointerEvents:"none"}}/>
-                        <input value={umSearch} onChange={e=>setUmSearch(e.target.value)} placeholder="Search by name, username or email…"
-                          style={{width:"100%",padding:"7px 12px 7px 32px",border:`1.5px solid ${S.border2}`,borderRadius:8,background:S.card,color:S.text,fontSize:12,outline:"none",boxSizing:"border-box"}}/>
-                      </div>
-                      <select value={umRole} onChange={e=>setUmRole(e.target.value)}
-                        style={{padding:"7px 12px",border:`1.5px solid ${S.border2}`,borderRadius:8,background:S.card,color:S.textLight,fontSize:12,outline:"none",cursor:"pointer"}}>
-                        <option value="all">All roles</option>
-                        <option value="admin">Admin</option>
-                        <option value="viewer">Viewer</option>
-                      </select>
-                      <button onClick={loadUsers} style={{display:"flex",alignItems:"center",gap:5,padding:"7px 14px",border:`1.5px solid ${S.border2}`,borderRadius:8,background:S.card,color:S.textLight,fontSize:12,cursor:"pointer",fontWeight:500,whiteSpace:"nowrap"}}>
-                        <RotateCcw size={12}/>Refresh
-                      </button>
-                    </div>
-                    <div style={{background:S.card,border:`1px solid ${S.border}`,borderRadius:12,overflow:"hidden"}}>
-                      <div style={{display:"grid",gridTemplateColumns:"2fr 1.4fr 2fr 1fr 1fr 0.8fr 90px",padding:"9px 16px",background:S.bg,borderBottom:`1px solid ${S.border}`}}>
-                        {["User","Username","Email","Role","Status","2FA",""].map((h,i)=>(
-                          <div key={i} style={{fontSize:10,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.06em",textAlign:i===6?"right":"left"}}>{h}</div>
-                        ))}
-                      </div>
-                      {loading&&<div style={{padding:28,textAlign:"center",color:S.muted,fontSize:12}}>Loading users…</div>}
-                      {!loading&&filtered.length===0&&<div style={{padding:40,textAlign:"center",color:S.muted,fontSize:12}}>No users match your search</div>}
-                      {!loading&&filtered.map((u,i)=>{
-                        const isSelf=u.id===session?.id||u.username===session?.username;
-                        const col=ac(i);
-                        const isAdm=u.role==="admin";
-                        return(
-                          <div key={u.id} style={{display:"grid",gridTemplateColumns:"2fr 1.4fr 2fr 1fr 1fr 0.8fr 90px",padding:"11px 16px",borderBottom:i<filtered.length-1?`1px solid ${S.border}`:"none",alignItems:"center",transition:"background 0.1s"}}
-                            onMouseEnter={e=>e.currentTarget.style.background=S.bg}
-                            onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                            <div style={{display:"flex",alignItems:"center",gap:10}}>
-                              <div style={{width:32,height:32,borderRadius:"50%",background:col.bg,color:col.c,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,flexShrink:0}}>
-                                {(u.name||u.username||"?")[0].toUpperCase()}
-                              </div>
-                              <div>
-                                <div style={{fontSize:13,fontWeight:600,color:S.text}}>{u.name||u.username}</div>
-                                {isSelf&&<div style={{fontSize:10,color:S.accent,fontWeight:600}}>You</div>}
-                              </div>
-                            </div>
-                            <div style={{fontSize:11,color:S.muted,fontFamily:"monospace"}}>{u.username}</div>
-                            <div style={{fontSize:12,color:S.textLight,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.email||"—"}</div>
-                            <div>
-                              <select value={u.role||"viewer"} onChange={e=>updateUserRole(u.id,e.target.value)} disabled={isSelf}
-                                style={{padding:"3px 8px",borderRadius:20,fontSize:11,fontWeight:600,outline:"none",cursor:isSelf?"default":"pointer",border:`1px solid ${isAdm?"#bfdbfe":"#bbf7d0"}`,background:isAdm?"#eff6ff":"#f0fdf4",color:isAdm?S.accent:S.success}}>
-                                <option value="viewer">Viewer</option>
-                                <option value="admin">Admin</option>
-                              </select>
-                            </div>
-                            <div style={{display:"flex",alignItems:"center",gap:5,fontSize:11,fontWeight:600,color:S.success}}>
-                              <div style={{width:6,height:6,borderRadius:"50%",background:S.success,flexShrink:0}}/>Active
-                            </div>
-                            <div>
-                              <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:20,fontSize:10,fontWeight:600,background:"#eff6ff",color:S.accent,border:"1px solid #bfdbfe"}}>
-                                <Shield size={9}/>On
-                              </span>
-                            </div>
-                            <div style={{display:"flex",gap:5,justifyContent:"flex-end"}}>
-                              <button onClick={()=>openEdit(u)} title="Edit"
-                                style={{width:28,height:28,borderRadius:7,border:`1px solid ${S.border2}`,background:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:S.muted,transition:"all 0.15s"}}
-                                onMouseEnter={e=>{e.currentTarget.style.background=S.accentLight;e.currentTarget.style.color=S.accent;e.currentTarget.style.borderColor=`${S.accent}66`;}}
-                                onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=S.muted;e.currentTarget.style.borderColor=S.border2;}}>
-                                <Edit3 size={12}/>
-                              </button>
-                              {!isSelf&&(
-                                <button onClick={()=>deleteUser(u.id,u.username)} title="Delete"
-                                  style={{width:28,height:28,borderRadius:7,border:"1px solid #fecaca",background:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#dc2626",transition:"all 0.15s"}}
-                                  onMouseEnter={e=>e.currentTarget.style.background="#fef2f2"}
-                                  onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 16px",borderTop:`1px solid ${S.border}`,background:S.bg}}>
-                        <div style={{fontSize:11,color:S.muted}}>Showing {filtered.length} of {users.length} users</div>
-                        <div style={{display:"flex",gap:6}}>
-                          {[{l:"Admin",c:S.accent,bg:"#eff6ff",n:users.filter(u=>u.role==="admin").length},{l:"Viewer",c:S.success,bg:"#f0fdf4",n:users.filter(u=>u.role==="viewer").length}].map(b=>(
-                            <span key={b.l} style={{padding:"2px 10px",borderRadius:20,fontSize:10,fontWeight:600,background:b.bg,color:b.c}}>{b.n} {b.l}{b.n!==1?"s":""}</span>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                );
-              })();
-              return UserTable;
-            })()}
+            <UserTable users={users} loading={loading} session={session} loadUsers={loadUsers} openEdit={openEdit} deleteUser={deleteUser} updateUserRole={updateUserRole}/>
           </div>
         )}
-        {tab==="api"&&(
+        {stab==="api"&&(
           <div style={{maxWidth:700}}>
             <div style={{fontSize:16,fontWeight:800,color:S.text,marginBottom:16}}>API Status</div>
             <Card p="0">
@@ -3254,7 +3152,7 @@ function SettingsTab({token,session,onLogout}){
             </Card>
           </div>
         )}
-        {tab==="ai"&&(
+        {stab==="ai"&&(
           <div style={{maxWidth:600}}>
             <div style={{fontSize:16,fontWeight:800,color:S.text,marginBottom:16}}>AI Prompt Settings</div>
             {settingsMsg&&<div style={{background:settingsMsg.startsWith("Error")?S.dangerBg:S.successBg,border:`1px solid ${settingsMsg.startsWith("Error")?S.danger:S.success}33`,borderRadius:8,padding:"10px 14px",fontSize:12,color:settingsMsg.startsWith("Error")?S.danger:S.success,marginBottom:14}}>{settingsMsg}</div>}
@@ -3265,7 +3163,7 @@ function SettingsTab({token,session,onLogout}){
             </Card>
           </div>
         )}
-        {tab==="refresh"&&(
+        {stab==="refresh"&&(
           <div style={{maxWidth:860}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
               <div>
@@ -3347,7 +3245,7 @@ function SettingsTab({token,session,onLogout}){
             </div>
           </div>
         )}
-        {tab==="alerts"&&(
+        {stab==="alerts"&&(
           <div style={{maxWidth:600}}>
             <div style={{fontSize:16,fontWeight:800,color:S.text,marginBottom:16}}>Email Alert Settings</div>
             {settingsMsg&&<div style={{background:settingsMsg.startsWith("Error")?S.dangerBg:S.successBg,border:`1px solid ${settingsMsg.startsWith("Error")?S.danger:S.success}33`,borderRadius:8,padding:"10px 14px",fontSize:12,color:settingsMsg.startsWith("Error")?S.danger:S.success,marginBottom:14}}>{settingsMsg}</div>}
