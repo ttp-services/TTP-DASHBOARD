@@ -986,8 +986,11 @@ function BusTab({token}){
                         {lbl("Pendel")}
                         {f.pendel?.length>0&&<span onClick={()=>setF({...f,pendel:[]})} style={{fontSize:9,color:S.danger,cursor:"pointer",fontWeight:600}}>✕ Clear</span>}
                       </div>
+                      {filteredDeckPendels?.length===0&&f.label?.length>0&&(
+                        <div style={{padding:"6px 8px",fontSize:10,color:S.muted2,fontStyle:"italic"}}>No pendels for selected label</div>
+                      )}
                       <div style={{maxHeight:120,overflowY:"auto",border:`1px solid ${S.border2}`,borderRadius:6,background:S.card}}>
-                        {(view==="deck"?filteredDeckPendels:(filteredPendels?.length?filteredPendels:["ACB","BEN","CBL","CBR","CLP","COB","CSE","KRO","LES","LLO","PEN","SAL","SSE"])).map(o=>{
+                        {(view==="deck"?filteredDeckPendels:filteredPendels).map(o=>{
                           const active=f.pendel?.includes(o);
                           return<div key={o} onClick={()=>setF({...f,pendel:active?f.pendel.filter(x=>x!==o):[...(f.pendel||[]),o]})} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",cursor:"pointer",background:active?`${S.success}10`:"transparent",borderBottom:`1px solid ${S.border}`}}>
                             <div style={{width:12,height:12,borderRadius:3,border:`1.5px solid ${active?S.success:S.border2}`,background:active?S.success:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
