@@ -485,7 +485,7 @@ function OverviewTab({token}){
 
 function BusTab({token}){
   const[view,setView]=useState("pendel");
-  const[sl,setSl]=useState({pendels:[],deckPendels:[],regions:[],statuses:[],feederLines:[],feederLabels:[],statusesEnglish:[]});
+  const[sl,setSl]=useState({pendels:[],deckPendels:[],regions:[],statuses:[],feederLines:[],feederLabels:[],statusesEnglish:[],pendelByLabel:{}});
   const[busK,setBusK]=useState(null);
   const[pendel,setPendel]=useState([]);
   const[feeder,setFeeder]=useState([]);
@@ -636,7 +636,19 @@ function BusTab({token}){
   const sel=(val,set,opts)=><select value={val} onChange={e=>set(e.target.value)} style={{width:"100%",background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"6px 8px",color:S.text,fontSize:11,outline:"none"}}><option value="">All</option>{opts.map(o=><option key={o} value={o}>{o}</option>)}</select>;
   const di=(val,set)=><input type="date" value={val} onChange={e=>set(e.target.value)} style={{width:"100%",background:S.bg,border:`1px solid ${S.border2}`,borderRadius:6,padding:"6px 8px",color:S.text,fontSize:11,boxSizing:"border-box",outline:"none"}}/>;
   const WEEKDAYS=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
-  const deckTotals=deck.reduce((acc,r)=>{["Total","Total_Lower","Total_Upper","Total_NoDeck","Royal_Total","Royal_Lower","Royal_Upper","Royal_NoDeck","First_Total","First_Lower","First_Upper","First_NoDeck","Premium_Total","Premium_Lower","Premium_Upper","Premium_NoDeck"].forEach(k=>{acc[k]=(acc[k]||0)+(r[k]||0);});return acc;},{});
+  const filteredPendels=(()=>{
+    if(!f.label?.length)return sl.pendels;
+    return [...new Set(f.label.flatMap(lbl=>sl.pendelByLabel[lbl]||[]))].sort();
+  })();
+  const filteredDeckPendels=(()=>{
+    if(!f.label?.length)return sl.deckPendels;
+    return [...new Set(f.label.flatMap(lbl=>sl.pendelByLabel[lbl]||[]))].sort();
+  })();
+
+  const deckTotals=deck.reduce((acc,r)=>{
+    ["Total","Total_Lower","Total_Upper","Total_NoDeck","Royal_Total","Royal_Outbound","Royal_Inbound","Royal_Lower","Royal_Upper","Royal_NoDeck","First_Total","First_Outbound","First_Inbound","First_Lower","First_Upper","First_NoDeck","Premium_Total","Premium_Outbound","Premium_Inbound","Premium_Lower","Premium_Upper","Premium_NoDeck","Outbound_Total","Inbound_Total"].forEach(k=>{acc[k]=(acc[k]||0)+(r[k]||0);});
+    return acc;
+  },{});
   const pct=(a,b)=>b>0?`${((a/b)*100).toFixed(1)}%`:"—";
 
   return(
@@ -947,7 +959,12 @@ function BusTab({token}){
                 </div>
                 {(view==="deck"?["STANDAARD","ITB","DEU"]:view==="feeder"?(sl.feederLabels?.length?sl.feederLabels:["Solmar","Interbus","Solmar DE"]):["STANDAARD","DEU"]).map(o=>{
                   const active=f.label?.includes(o);
-                  return<div key={o} onClick={()=>setF({...f,label:active?f.label.filter(x=>x!==o):[...(f.label||[]),o]})} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 6px",borderRadius:5,cursor:"pointer",background:active?`${S.purple}12`:"transparent",marginBottom:2}}>
+                  return<div key={o} onClick={()=>{
+                    const newLabel=active?f.label.filter(x=>x!==o):[...(f.label||[]),o];
+                    const validPendels=newLabel.length===0?sl.pendels:[...new Set(newLabel.flatMap(lbl=>sl.pendelByLabel[lbl]||[]))];
+                    const cleanedPendels=(f.pendel||[]).filter(p=>validPendels.includes(p));
+                    setF({...f,label:newLabel,pendel:cleanedPendels});
+                  }} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 6px",borderRadius:5,cursor:"pointer",background:active?`${S.purple}12`:"transparent",marginBottom:2}}>
                     <div style={{width:13,height:13,borderRadius:3,border:`1.5px solid ${active?S.purple:S.border2}`,background:active?S.purple:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                       {active&&<span style={{color:"#fff",fontSize:9,lineHeight:1}}>✓</span>}
                     </div>
@@ -970,7 +987,7 @@ function BusTab({token}){
                         {f.pendel?.length>0&&<span onClick={()=>setF({...f,pendel:[]})} style={{fontSize:9,color:S.danger,cursor:"pointer",fontWeight:600}}>✕ Clear</span>}
                       </div>
                       <div style={{maxHeight:120,overflowY:"auto",border:`1px solid ${S.border2}`,borderRadius:6,background:S.card}}>
-                        {(view==="deck"?sl.deckPendels:(sl.pendels?.length?sl.pendels:["ACB","BEN","CBL","CBR","CLP","COB","CSE","KRO","LES","LLO","PEN","SAL","SSE"])).map(o=>{
+                        {(view==="deck"?filteredDeckPendels:(filteredPendels?.length?filteredPendels:["ACB","BEN","CBL","CBR","CLP","COB","CSE","KRO","LES","LLO","PEN","SAL","SSE"])).map(o=>{
                           const active=f.pendel?.includes(o);
                           return<div key={o} onClick={()=>setF({...f,pendel:active?f.pendel.filter(x=>x!==o):[...(f.pendel||[]),o]})} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 8px",cursor:"pointer",background:active?`${S.success}10`:"transparent",borderBottom:`1px solid ${S.border}`}}>
                             <div style={{width:12,height:12,borderRadius:3,border:`1.5px solid ${active?S.success:S.border2}`,background:active?S.success:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
