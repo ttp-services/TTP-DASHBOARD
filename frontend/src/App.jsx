@@ -2796,7 +2796,7 @@ function SettingsTab({token,session,onLogout}){
 
   const sTabBtn=(id,label,icon)=>(
     <button onClick={()=>setTab(id)} style={{padding:"8px 16px",borderRadius:7,fontSize:12,cursor:"pointer",border:`1.5px solid ${tab===id?S.accent:S.border2}`,background:tab===id?S.accentLight:"transparent",color:tab===id?S.accent:S.textLight,fontWeight:600,display:"flex",alignItems:"center",gap:5}}>
-      {icon&&<span>{icon}</span>}{label}
+      {icon&&icon}{label}
     </button>
   );
 
@@ -2945,11 +2945,16 @@ function SettingsTab({token,session,onLogout}){
     <div style={{display:"flex",flexDirection:"column",height:"100%",overflow:"hidden",background:S.bg}}>
       {EditModal}
       <div style={{background:S.card,borderBottom:`1px solid ${S.border}`,padding:"10px 20px",display:"flex",gap:8,flexShrink:0,boxShadow:S.shadow}}>
-        {sTabBtn("users","User Management",<Users size={14}/>)}
-        {sTabBtn("api","API Status",<CircleDot size={14}/>)}
-        {sTabBtn("refresh","Data Refresh",<RotateCcw size={14}/>)}
-        {sTabBtn("ai","AI Prompts",<Layers size={14}/>)}
-        {sTabBtn("alerts","Email Alerts",<AlertCircle size={14}/>)}
+        {sTabBtn("users","User Management",<Users size={13}/>)}
+        {sTabBtn("api","API Status",<Activity size={13}/>)}
+        {sTabBtn("refresh","Data Refresh",<RefreshCw size={13}/>)}
+        {sTabBtn("ai","AI Prompts",<Shield size={13}/>)}
+        {sTabBtn("alerts","Email Alerts",<Bell size={13}/>)}
+        <div style={{marginLeft:"auto",display:"flex",alignItems:"center"}}>
+          <button onClick={onLogout} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",border:"1px solid #fecaca",borderRadius:8,background:"transparent",color:"#dc2626",fontSize:12,cursor:"pointer",fontWeight:600}}>
+            <LogOut size={13}/>Sign out
+          </button>
+        </div>
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
         {tab==="users"&&(
@@ -3116,18 +3121,6 @@ function SettingsTab({token,session,onLogout}){
               })();
               return UserTable;
             })()}
-            <div style={{marginTop:16,background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:"14px 18px",display:"flex",alignItems:"center",gap:14}}>
-              <div style={{width:40,height:40,borderRadius:"50%",background:`${S.accent}15`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:S.accent,flexShrink:0}}>
-                {(session?.username||"U")[0].toUpperCase()}
-              </div>
-              <div style={{flex:1}}>
-                <div style={{fontSize:13,fontWeight:700,color:S.text}}>{session?.name||session?.username}</div>
-                <div style={{fontSize:11,color:S.muted,marginTop:1,display:"flex",alignItems:"center",gap:4}}><Shield size={10}/>{session?.role||"viewer"} · Current session</div>
-              </div>
-              <button onClick={onLogout} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",border:"1px solid #fecaca",borderRadius:8,background:"transparent",color:"#dc2626",fontSize:12,cursor:"pointer",fontWeight:600}}>
-                <LogOut size={12}/>Sign out
-              </button>
-            </div>
           </div>
         )}
         {tab==="api"&&(
