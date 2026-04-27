@@ -8,9 +8,9 @@ const YEARS = [2023,2024,2025,2026];
 const YC = {2023:"#10b981",2024:"#8b5cf6",2025:"#f97316",2026:"#3b82f6"};
 const AUTH_KEY = "ttp_auth_v3";
 
-function saveAuth(t,u){try{const d=JSON.stringify({token:t,user:u,ts:Date.now()});localStorage.setItem(AUTH_KEY,d);sessionStorage.setItem(AUTH_KEY,d);}catch{}}
-function loadAuth(){try{const raw=localStorage.getItem(AUTH_KEY)||sessionStorage.getItem(AUTH_KEY);if(!raw)return null;const{token,user,ts}=JSON.parse(raw);if(Date.now()-ts>30*24*60*60*1000){clearAuth();return null;}return{token,...user};}catch{return null;}}
-function clearAuth(){try{localStorage.removeItem(AUTH_KEY);sessionStorage.removeItem(AUTH_KEY);}catch{}}
+function saveAuth(t,u){try{const d=JSON.stringify({token:t,user:u,ts:Date.now()});sessionStorage.setItem(AUTH_KEY,d);}catch{}}
+function loadAuth(){try{const raw=sessionStorage.getItem(AUTH_KEY);if(!raw)return null;const{token,user,ts}=JSON.parse(raw);if(Date.now()-ts>8*60*60*1000){clearAuth();return null;}return{token,...user};}catch{return null;}}
+function clearAuth(){try{sessionStorage.removeItem(AUTH_KEY);}catch{}}
 
 async function api(path,params={},token){
   const qs=new URLSearchParams();
@@ -220,46 +220,141 @@ function KpiCard({label,current,previous,pct,fmt="num",color=S.accent,icon}){
 }
 
 function Login({onLogin}){
-  const[u,setU]=useState(""),[ pw,setPw]=useState(""),[ show,setShow]=useState(false),[err,setErr]=useState(""),[busy,setBusy]=useState(false);
+  const[u,setU]=useState("");
+  const[pw,setPw]=useState("");
+  const[show,setShow]=useState(false);
+  const[err,setErr]=useState("");
+  const[busy,setBusy]=useState(false);
+  const[step,setStep]=useState("login"); // login | setup | verify
+  const[tempToken,setTempToken]=useState("");
+  const[code,setCode]=useState("");
+  const[qrCode,setQrCode]=useState("");
+  const[secret,setSecret]=useState("");
+
   async function submit(e){
     e.preventDefault();setBusy(true);setErr("");
     try{
       const r=await fetch(`${BASE}/api/auth/login`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:u,password:pw})});
       const d=await r.json();
-      if(!r.ok||!d.token){setErr(d.error||"Invalid credentials");return;}
-      saveAuth(d.token,d.user||{username:u,role:"user"});
-      onLogin({token:d.token,...(d.user||{username:u,role:"user"})});
+      if(!r.ok){setErr(d.error||"Invalid credentials");return;}
+      if(d.needsSetup){
+        // First time — get QR code
+        setTempToken(d.tempToken);
+        const r2=await fetch(`${BASE}/api/auth/setup-2fa`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({tempToken:d.tempToken})});
+        const d2=await r2.json();
+        if(!r2.ok){setErr(d2.error||"Setup failed");return;}
+        setQrCode(d2.qrCode);
+        setSecret(d2.secret);
+        setStep("setup");
+        return;
+      }
+      if(d.needs2FA){
+        setTempToken(d.tempToken);
+        setStep("verify");
+        return;
+      }
+      setErr("Unexpected response");
     }catch{setErr("Connection failed — check your connection.");}
+    finally{setBusy(false);}
+  }
+
+  async function submitCode(e){
+    e.preventDefault();setBusy(true);setErr("");
+    try{
+      const endpoint = step==="setup" ? "/api/auth/confirm-2fa" : "/api/auth/verify-2fa";
+      const r=await fetch(`${BASE}${endpoint}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({tempToken,code})});
+      const d=await r.json();
+      if(!r.ok){setErr(d.error||"Invalid code");return;}
+      saveAuth(d.token,d.user);
+      onLogin({token:d.token,...d.user});
+    }catch{setErr("Connection failed.");}
     finally{setBusy(false);}
   }
   const inpStyle={width:"100%",background:S.bg,border:`1.5px solid ${S.border2}`,borderRadius:8,padding:"10px 14px",color:S.text,fontSize:13,boxSizing:"border-box",outline:"none",fontFamily:"inherit"};
   return(
-    <div style={{display:"flex",height:"100vh",background:`linear-gradient(135deg, #e0f0ff 0%, #f0f5ff 40%, #e8f4ff 100%)`,alignItems:"center",justifyContent:"center",fontFamily:"system-ui,sans-serif",position:"relative",overflow:"hidden"}}>
+    <div style={{display:"flex",height:"100vh",background:`linear-gradient(135deg,#e0f0ff 0%,#f0f5ff 40%,#e8f4ff 100%)`,alignItems:"center",justifyContent:"center",fontFamily:"system-ui,sans-serif",position:"relative",overflow:"hidden"}}>
       <div style={{position:"absolute",top:-80,left:-80,width:300,height:300,borderRadius:"50%",background:"rgba(26,86,219,0.06)",pointerEvents:"none"}}/>
       <div style={{position:"absolute",bottom:-60,right:-60,width:250,height:250,borderRadius:"50%",background:"rgba(26,86,219,0.04)",pointerEvents:"none"}}/>
-      <div style={{width:400,background:S.card,borderRadius:20,padding:40,boxShadow:"0 20px 60px rgba(0,0,0,0.1)",border:`1px solid ${S.border}`,position:"relative",zIndex:1}}>
-        <div style={{textAlign:"center",marginBottom:32}}>
+      <div style={{width:step==="setup"?460:400,background:S.card,borderRadius:20,padding:40,boxShadow:"0 20px 60px rgba(0,0,0,0.1)",border:`1px solid ${S.border}`,position:"relative",zIndex:1,transition:"width 0.3s"}}>
+        <div style={{textAlign:"center",marginBottom:28}}>
           <div style={{width:64,height:64,background:`linear-gradient(135deg,${S.accent},#3b82f6)`,borderRadius:16,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:22,fontWeight:900,color:"#fff",marginBottom:16,boxShadow:"0 8px 24px rgba(26,86,219,0.35)"}}>TTP</div>
           <div style={{fontSize:22,fontWeight:800,color:S.text,letterSpacing:"-0.02em"}}>TTP Analytics</div>
-          <div style={{fontSize:13,color:S.muted,marginTop:4}}>Internal Dashboard · TTP Services</div>
+          <div style={{fontSize:13,color:S.muted,marginTop:4}}>
+            {step==="login"&&"Internal Dashboard · TTP Services"}
+            {step==="setup"&&"🔐 Set Up Two-Factor Authentication"}
+            {step==="verify"&&"🔐 Enter Authenticator Code"}
+          </div>
         </div>
-        <form onSubmit={submit} style={{display:"flex",flexDirection:"column",gap:16}}>
-          <div>
-            <label style={{fontSize:11,color:S.muted,display:"block",marginBottom:6,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Username</label>
-            <input value={u} onChange={e=>setU(e.target.value)} autoFocus placeholder="Enter username" style={inpStyle}/>
-          </div>
-          <div>
-            <label style={{fontSize:11,color:S.muted,display:"block",marginBottom:6,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Password</label>
-            <div style={{position:"relative"}}>
-              <input value={pw} onChange={e=>setPw(e.target.value)} type={show?"text":"password"} placeholder="Enter password" style={{...inpStyle,paddingRight:50}}/>
-              <button type="button" onClick={()=>setShow(!show)} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:S.muted,fontSize:12,fontWeight:600}}>{show?"Hide":"Show"}</button>
+
+        {/* ── STEP 1: Login form ── */}
+        {step==="login"&&(
+          <form onSubmit={submit} style={{display:"flex",flexDirection:"column",gap:16}}>
+            <div>
+              <label style={{fontSize:11,color:S.muted,display:"block",marginBottom:6,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Username</label>
+              <input value={u} onChange={e=>setU(e.target.value)} autoFocus placeholder="Enter username" style={inpStyle}/>
             </div>
+            <div>
+              <label style={{fontSize:11,color:S.muted,display:"block",marginBottom:6,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Password</label>
+              <div style={{position:"relative"}}>
+                <input value={pw} onChange={e=>setPw(e.target.value)} type={show?"text":"password"} placeholder="Enter password" style={{...inpStyle,paddingRight:50}}/>
+                <button type="button" onClick={()=>setShow(!show)} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:S.muted,fontSize:12,fontWeight:600}}>{show?"Hide":"Show"}</button>
+              </div>
+            </div>
+            {err&&<div style={{background:S.dangerBg,border:`1px solid ${S.danger}33`,borderRadius:8,padding:"10px 14px",fontSize:12,color:S.danger,fontWeight:500}}>⚠ {err}</div>}
+            <button type="submit" disabled={busy||!u||!pw} style={{background:`linear-gradient(135deg,${S.accent},#3b82f6)`,color:"#fff",border:"none",borderRadius:9,padding:"12px",fontSize:14,fontWeight:700,cursor:busy?"wait":"pointer",opacity:(!u||!pw)?0.5:1,marginTop:4,boxShadow:"0 4px 12px rgba(26,86,219,0.3)"}}>
+              {busy?"Checking…":"Sign In"}
+            </button>
+          </form>
+        )}
+
+        {/* ── STEP 2: Setup QR ── */}
+        {step==="setup"&&(
+          <div style={{display:"flex",flexDirection:"column",gap:16}}>
+            <div style={{background:S.bg,borderRadius:10,padding:"14px 16px",border:`1px solid ${S.border}`,fontSize:12,color:S.textLight,lineHeight:1.6}}>
+              <div style={{fontWeight:700,color:S.text,marginBottom:6}}>📱 Open Microsoft Authenticator</div>
+              <div>1. Open the app → tap <strong>+</strong> → <strong>Work or school account</strong></div>
+              <div>2. Scan the QR code below</div>
+              <div>3. Enter the 6-digit code shown in the app</div>
+            </div>
+            {qrCode&&(
+              <div style={{textAlign:"center",padding:"16px",background:"#fff",borderRadius:10,border:`1px solid ${S.border}`}}>
+                <img src={qrCode} alt="QR Code" style={{width:200,height:200}}/>
+                <div style={{fontSize:10,color:S.muted,marginTop:8}}>Can't scan? Manual code:</div>
+                <div style={{fontSize:11,fontFamily:"monospace",color:S.accent,wordBreak:"break-all",marginTop:4,background:S.bg,padding:"6px 10px",borderRadius:6}}>{secret}</div>
+              </div>
+            )}
+            <form onSubmit={submitCode} style={{display:"flex",flexDirection:"column",gap:12}}>
+              <div>
+                <label style={{fontSize:11,color:S.muted,display:"block",marginBottom:6,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>6-Digit Code</label>
+                <input value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="000000" maxLength={6} autoFocus style={{...inpStyle,textAlign:"center",fontSize:24,fontWeight:800,letterSpacing:"0.3em"}}/>
+              </div>
+              {err&&<div style={{background:S.dangerBg,border:`1px solid ${S.danger}33`,borderRadius:8,padding:"10px 14px",fontSize:12,color:S.danger,fontWeight:500}}>⚠ {err}</div>}
+              <button type="submit" disabled={busy||code.length!==6} style={{background:`linear-gradient(135deg,${S.accent},#3b82f6)`,color:"#fff",border:"none",borderRadius:9,padding:"12px",fontSize:14,fontWeight:700,cursor:busy?"wait":"pointer",opacity:code.length!==6?0.5:1,boxShadow:"0 4px 12px rgba(26,86,219,0.3)"}}>
+                {busy?"Verifying…":"Activate & Sign In"}
+              </button>
+            </form>
           </div>
-          {err&&<div style={{background:S.dangerBg,border:`1px solid ${S.danger}33`,borderRadius:8,padding:"10px 14px",fontSize:12,color:S.danger,fontWeight:500}}>⚠ {err}</div>}
-          <button type="submit" disabled={busy||!u||!pw} style={{background:`linear-gradient(135deg,${S.accent},#3b82f6)`,color:"#fff",border:"none",borderRadius:9,padding:"12px",fontSize:14,fontWeight:700,cursor:busy?"wait":"pointer",opacity:(!u||!pw)?0.5:1,marginTop:4,boxShadow:"0 4px 12px rgba(26,86,219,0.3)",letterSpacing:"0.01em"}}>
-            {busy?"Signing in…":"Sign In"}
-          </button>
-        </form>
+        )}
+
+        {/* ── STEP 3: Verify code ── */}
+        {step==="verify"&&(
+          <form onSubmit={submitCode} style={{display:"flex",flexDirection:"column",gap:16}}>
+            <div style={{background:S.bg,borderRadius:10,padding:"14px 16px",border:`1px solid ${S.border}`,fontSize:12,color:S.textLight,lineHeight:1.6,textAlign:"center"}}>
+              <div style={{fontSize:32,marginBottom:8}}>📱</div>
+              <div>Open <strong>Microsoft Authenticator</strong> and enter the 6-digit code for <strong>TTP Analytics</strong></div>
+            </div>
+            <div>
+              <label style={{fontSize:11,color:S.muted,display:"block",marginBottom:6,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.06em"}}>Authenticator Code</label>
+              <input value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="000000" maxLength={6} autoFocus style={{...inpStyle,textAlign:"center",fontSize:28,fontWeight:800,letterSpacing:"0.3em"}}/>
+            </div>
+            {err&&<div style={{background:S.dangerBg,border:`1px solid ${S.danger}33`,borderRadius:8,padding:"10px 14px",fontSize:12,color:S.danger,fontWeight:500}}>⚠ {err}</div>}
+            <button type="submit" disabled={busy||code.length!==6} style={{background:`linear-gradient(135deg,${S.accent},#3b82f6)`,color:"#fff",border:"none",borderRadius:9,padding:"12px",fontSize:14,fontWeight:700,cursor:busy?"wait":"pointer",opacity:code.length!==6?0.5:1,boxShadow:"0 4px 12px rgba(26,86,219,0.3)"}}>
+              {busy?"Verifying…":"Sign In"}
+            </button>
+            <button type="button" onClick={()=>{setStep("login");setCode("");setErr("");}} style={{background:"transparent",border:"none",color:S.muted,cursor:"pointer",fontSize:12,textDecoration:"underline"}}>← Back to login</button>
+          </form>
+        )}
+
         <div style={{textAlign:"center",marginTop:20,fontSize:11,color:S.muted2}}>© 2024 TTP Services Middle East · Dubai</div>
       </div>
     </div>
