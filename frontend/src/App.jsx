@@ -281,8 +281,8 @@ function Login({onLogin}){
           <div style={{fontSize:22,fontWeight:800,color:S.text,letterSpacing:"-0.02em"}}>TTP Analytics</div>
           <div style={{fontSize:13,color:S.muted,marginTop:4}}>
             {step==="login"&&"Internal Dashboard · TTP Services"}
-            {step==="setup"&&"🔐 Set Up Two-Factor Authentication"}
-            {step==="verify"&&"🔐 Enter Authenticator Code"}
+            {step==="setup"&&<span style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6}}><Shield size={14}/>Set Up Two-Factor Authentication</span>}
+            {step==="verify"&&<span style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6}}><Shield size={14}/>Enter Authenticator Code</span>}
           </div>
         </div>
 
@@ -311,7 +311,7 @@ function Login({onLogin}){
         {step==="setup"&&(
           <div style={{display:"flex",flexDirection:"column",gap:16}}>
             <div style={{background:S.bg,borderRadius:10,padding:"14px 16px",border:`1px solid ${S.border}`,fontSize:12,color:S.textLight,lineHeight:1.6}}>
-              <div style={{fontWeight:700,color:S.text,marginBottom:6}}>📱 Open Microsoft Authenticator</div>
+              <div style={{fontWeight:700,color:S.text,marginBottom:6,display:"flex",alignItems:"center",gap:6}}><Shield size={14} color={S.accent}/>Open Microsoft Authenticator</div>
               <div>1. Open the app → tap <strong>+</strong> → <strong>Work or school account</strong></div>
               <div>2. Scan the QR code below</div>
               <div>3. Enter the 6-digit code shown in the app</div>
@@ -340,7 +340,7 @@ function Login({onLogin}){
         {step==="verify"&&(
           <form onSubmit={submitCode} style={{display:"flex",flexDirection:"column",gap:16}}>
             <div style={{background:S.bg,borderRadius:10,padding:"14px 16px",border:`1px solid ${S.border}`,fontSize:12,color:S.textLight,lineHeight:1.6,textAlign:"center"}}>
-              <div style={{fontSize:32,marginBottom:8}}>📱</div>
+              <div style={{width:52,height:52,borderRadius:14,background:`${S.accent}10`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px"}}><Shield size={24} color={S.accent}/></div>
               <div>Open <strong>Microsoft Authenticator</strong> and enter the 6-digit code for <strong>TTP Analytics</strong></div>
             </div>
             <div>
@@ -1253,8 +1253,14 @@ const CAT_COLORS={
   "Other":"#8b5cf6",
   "Service Line":"#10b981",
 };
+const CAT_ICON_MAP={
+  "Coach":<Bus size={13}/>,
+  "Hotel":<Star size={13}/>,
+  "Other":<Package size={13}/>,
+  "Service Line":<BarChart2 size={13}/>,
+};
 const CAT_ICONS={
-  "Coach":"🚌","Hotel":"🏨","Other":"📦","Service Line":"🛎",
+  "Coach":"Coach","Hotel":"Hotel","Other":"Other","Service Line":"Service Line",
 };
 
 function ElementMarginChart({trend}){
@@ -1507,7 +1513,7 @@ function PurchaseTab({token}){
           {sumErr&&<div style={{background:S.dangerBg,border:`1px solid ${S.danger}33`,borderRadius:10,padding:"10px 14px",fontSize:12,color:S.danger}}>⚠ {sumErr}</div>}
           {!sumKpis&&!sumLoading&&sumData.length===0&&(
             <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"60px 20px",color:S.muted}}>
-              <div style={{fontSize:48,marginBottom:16}}>📋</div>
+              <div style={{width:64,height:64,borderRadius:16,background:`${S.accent}10`,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:16}}><FileText size={28} color={S.accent} opacity={0.4}/></div>
               <div style={{fontSize:16,fontWeight:600,color:S.textLight,marginBottom:8}}>Booking Summary</div>
               <div style={{fontSize:13,color:S.muted,textAlign:"center",maxWidth:360}}>Select filters and click <strong>Apply Filters</strong> to load booking data from <code>solmar.MarginOverview</code>.</div>
             </div>
@@ -1591,7 +1597,7 @@ function PurchaseTab({token}){
           {elErr&&<div style={{background:S.dangerBg,border:`1px solid ${S.danger}33`,borderRadius:10,padding:"10px 14px",fontSize:12,color:S.danger}}>⚠ {elErr}</div>}
           {!elKpis&&!elLoading&&elData.length===0&&(
             <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"60px 20px",color:S.muted}}>
-              <div style={{fontSize:48,marginBottom:16}}>🔍</div>
+              <div style={{width:64,height:64,borderRadius:16,background:`${S.accent}10`,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:16}}><Search size={28} color={S.accent} opacity={0.4}/></div>
               <div style={{fontSize:16,fontWeight:600,color:S.textLight,marginBottom:8}}>Element Breakdown</div>
               <div style={{fontSize:13,color:S.muted,textAlign:"center",maxWidth:400}}>
                 Breaks down each booking by element category: <strong style={{color:CAT_COLORS["Coach"]}}>Coach</strong>, <strong style={{color:CAT_COLORS["Hotel"]}}>Hotel</strong>, <strong style={{color:CAT_COLORS["Other"]}}>Other</strong>, <strong style={{color:CAT_COLORS["Service Line"]}}>Service Line</strong>.<br/><br/>
@@ -1631,7 +1637,7 @@ function PurchaseTab({token}){
                     return(
                       <Card key={cat.MarginCategory} style={{borderTop:`3px solid ${cc}`,borderRadius:12}}>
                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                          <div style={{fontSize:13,fontWeight:800,color:cc}}>{ci} {cat.MarginCategory}</div>
+                          <div style={{fontSize:13,fontWeight:800,color:cc,display:"flex",alignItems:"center",gap:6}}>{CAT_ICON_MAP[cat.MarginCategory]||<Package size={13}/>}{cat.MarginCategory}</div>
                           <span style={{background:`${cc}15`,color:cc,padding:"2px 8px",borderRadius:6,fontSize:10,fontWeight:700}}>{fmtN(cat.bookings)} bookings</span>
                         </div>
                         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,fontSize:11}}>
@@ -1762,7 +1768,7 @@ function PurchaseTab({token}){
                           return(
                             <tr key={i} style={{borderBottom:"1px solid #dbeafe",background:i%2===0?"#ffffff":"#f0f7ff"}}>
                               <td style={{...TDL,color:S.accent,fontWeight:600,fontFamily:"monospace",fontSize:11}}>{r.BookingId||"—"}</td>
-                              <td style={TDL}><span style={{background:`${cc}15`,color:cc,padding:"2px 8px",borderRadius:5,fontSize:11,fontWeight:700,display:"inline-flex",alignItems:"center",gap:3}}>{CAT_ICONS[r.MarginCategory]||"📦"} {r.MarginCategory||"—"}</span></td>
+                              <td style={TDL}><span style={{background:`${cc}15`,color:cc,padding:"2px 8px",borderRadius:5,fontSize:11,fontWeight:700,display:"inline-flex",alignItems:"center",gap:3}}>{CAT_ICON_MAP[r.MarginCategory]||<Package size={11}/>}{r.MarginCategory||"—"}</span></td>
                               <td style={{...TDL,color:S.textLight,fontSize:11}}>{r.Dataset||"—"}</td>
                               <td style={TDL}><span style={{background:confirmed?S.successBg:S.dangerBg,color:confirmed?S.success:S.danger,padding:"2px 7px",borderRadius:5,fontSize:10,fontWeight:700}}>{confirmed?"DEF":"DEF-GEANNULEERD"}</span></td>
                               <td style={{...TDL,color:S.textLight,fontSize:11}}>{r.LabelCode||"—"}</td>
@@ -2292,7 +2298,7 @@ function HotelTab({token}){
                           {/* Recommend % */}
                           <td style={{...TD2}}>
                             {r.recommendation_pct
-                              ? <span style={{color:S.success,fontWeight:700}}>👍 {parseFloat(r.recommendation_pct).toFixed(0)}%</span>
+                              ? <span style={{color:S.success,fontWeight:700,display:"inline-flex",alignItems:"center",gap:3}}><CheckCircle size={10}/>{parseFloat(r.recommendation_pct).toFixed(0)}%</span>
                               : <span style={{color:S.muted2}}>—</span>
                             }
                           </td>
@@ -2881,8 +2887,8 @@ function SettingsTab({token,session,onLogout}){
               {["viewer","admin"].map(r=>{
                 const active=editForm.role===r;
                 const c=r==="admin"?S.accent:S.success;
-                return<button key={r} onClick={()=>setEditForm(p=>({...p,role:r}))} style={{flex:1,padding:"8px",borderRadius:8,border:`1.5px solid ${active?c:S.border2}`,background:active?`${c}15`:"transparent",color:active?c:S.textLight,fontWeight:active?700:400,cursor:"pointer",fontSize:13,transition:"all 0.15s"}}>
-                  {r==="admin"?"🔑 Admin":"👁 Viewer"}
+                return<button key={r} onClick={()=>setEditForm(p=>({...p,role:r}))} style={{flex:1,padding:"8px",borderRadius:8,border:`1.5px solid ${active?c:S.border2}`,background:active?`${c}15`:"transparent",color:active?c:S.textLight,fontWeight:active?700:400,cursor:"pointer",fontSize:13,transition:"all 0.15s",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
+                  {r==="admin"?<><Shield size={12}/>Admin</>:<><Eye size={12}/>Viewer</>}
                 </button>;
               })}
             </div>
@@ -2959,12 +2965,12 @@ function SettingsTab({token,session,onLogout}){
             </div>
             {userMsg.text&&(
               <div style={{background:userMsg.type==="error"?S.dangerBg:S.successBg,border:`1px solid ${userMsg.type==="error"?S.danger:S.success}33`,borderRadius:8,padding:"10px 14px",fontSize:12,color:userMsg.type==="error"?S.danger:S.success,fontWeight:500,marginBottom:14}}>
-                {userMsg.type==="success"?"✓":"⚠"} {userMsg.text}
+                <span style={{display:"flex",alignItems:"center",gap:6}}>{userMsg.type==="success"?<CheckCircle size={12}/>:<AlertCircle size={12}/>}{userMsg.text}</span>
               </div>
             )}
             {showAdd&&(
               <Card style={{marginBottom:16,border:`1.5px solid ${S.border2}`}}>
-                <div style={{fontSize:14,fontWeight:700,color:S.text,marginBottom:14}}>➕ Add New User</div>
+                <div style={{fontSize:14,fontWeight:700,color:S.text,marginBottom:14,display:"flex",alignItems:"center",gap:6}}><Users size={14}/>Add New User</div>
                 <form onSubmit={addUser} style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
                   {inp2("Full Name",newUser.name,v=>setNewUser({...newUser,name:v}),"text","Full name")}
                   {inp2("Username",newUser.username,v=>setNewUser({...newUser,username:v}),"text","Username")}
@@ -3021,11 +3027,11 @@ function SettingsTab({token,session,onLogout}){
                             </select>
                           </td>
                           <td style={{padding:"12px 16px"}}>
-                            <span style={{background:S.successBg,color:S.success,padding:"2px 8px",borderRadius:5,fontSize:11,fontWeight:600}}>● Active</span>
+                            <span style={{background:S.successBg,color:S.success,padding:"2px 8px",borderRadius:5,fontSize:11,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4}}><CheckCircle size={9}/>Active</span>
                           </td>
                           <td style={{padding:"12px 16px",textAlign:"right",display:"flex",gap:6,justifyContent:"flex-end"}}>
-                            <Btn onClick={()=>openEdit(u)} variant="secondary" size="sm">✏ Edit</Btn>
-                            {!isSelf&&<Btn onClick={()=>deleteUser(u.id,u.username)} variant="danger" size="sm">🗑 Delete</Btn>}
+                            <Btn onClick={()=>openEdit(u)} variant="secondary" size="sm"><Edit3 size={11}/>Edit</Btn>
+                            {!isSelf&&<Btn onClick={()=>deleteUser(u.id,u.username)} variant="danger" size="sm"><XCircle size={11}/>Delete</Btn>}
                             {isSelf&&<span style={{fontSize:11,color:S.muted,fontStyle:"italic",alignSelf:"center"}}>You</span>}
                           </td>
                         </tr>
@@ -3103,7 +3109,7 @@ function SettingsTab({token,session,onLogout}){
 
             {/* Schedule legend */}
             <div style={{background:S.accentLight,border:`1px solid ${S.accent}33`,borderRadius:10,padding:"10px 16px",marginBottom:16,display:"flex",alignItems:"center",gap:8,fontSize:12}}>
-              <span style={{fontSize:16}}>ℹ️</span>
+              <AlertCircle size={16} color={S.accent}/>
               <span style={{color:S.accent,fontWeight:500}}>Automatic refresh pings the API endpoint to verify data is live. Set interval per table below. Timers reset when you reload the page.</span>
             </div>
 
@@ -3125,7 +3131,7 @@ function SettingsTab({token,session,onLogout}){
                       <div style={{width:9,height:9,borderRadius:"50%",background:st.loading?S.warn:st.ok===null?S.muted2:st.ok?S.success:S.danger,flexShrink:0}}/>
                       <div>
                         <div style={{fontSize:11,fontWeight:600,color:st.loading?S.warn:st.ok===null?S.muted:st.ok?S.success:S.danger}}>
-                          {st.loading?"Checking…":st.ok===null?"Not checked":st.ok?"✅ Online":"❌ Error"}
+                          {st.loading?"Checking…":st.ok===null?"Not checked":st.ok?<span style={{display:"flex",alignItems:"center",gap:4}}><CheckCircle size={10}/>Online</span>:<span style={{display:"flex",alignItems:"center",gap:4}}><XCircle size={10}/>Error</span>}
                         </div>
                         {st.lastSync&&<div style={{fontSize:10,color:S.muted2}}>Last: {st.lastSync}{st.ms?` · ${st.ms}ms`:""}</div>}
                         {sch>0&&!st.lastSync&&<div style={{fontSize:10,color:S.accent}}>⏱ Auto every {sch}h</div>}
@@ -3213,6 +3219,11 @@ export default function App(){
   const[showCur,setShowCur]=useState(false);
   const[showNext,setShowNext]=useState(false);
   const[showConf,setShowConf]=useState(false);
+  const[showProfile,setShowProfile]=useState(false);
+  const[profileTab,setProfileTab]=useState("info");
+  const[profileForm,setProfileForm]=useState({name:"",email:""});
+  const[profileMsg,setProfileMsg]=useState(null);
+  const[profileBusy,setProfileBusy]=useState(false);
   const[idleWarning,setIdleWarning]=useState(false);
   const[idleCountdown,setIdleCountdown]=useState(120);
   const idleTimer=React.useRef(null);
@@ -3259,7 +3270,25 @@ export default function App(){
     };
   },[session?.token]);
 
-  async function changePassword(){
+  async function saveProfile(){
+    setProfileBusy(true);setProfileMsg(null);
+    try{
+      const r=await fetch(`${BASE}/api/dashboard/users/${session.id}`,{
+        method:"PUT",
+        headers:{"Content-Type":"application/json",Authorization:`Bearer ${session.token}`},
+        body:JSON.stringify({name:profileForm.name,email:profileForm.email})
+      });
+      const d=await r.json();
+      if(!r.ok){setProfileMsg({err:true,t:d.error||"Failed to save"});return;}
+      // Update session
+      const updated={...session,name:profileForm.name,email:profileForm.email};
+      saveAuth(session.token,updated);
+      setSession(updated);
+      setProfileMsg({err:false,t:"Profile updated successfully"});
+    }catch{setProfileMsg({err:true,t:"Network error"});}
+    finally{setProfileBusy(false);}
+  }
+    async function changePassword(){
     setPwMsg(null);
     if(pwForm.next!==pwForm.confirm){setPwMsg({err:true,t:'New passwords do not match'});return;}
     if(pwForm.next.length<6){setPwMsg({err:true,t:'Password must be at least 6 characters'});return;}
@@ -3272,9 +3301,20 @@ export default function App(){
     }catch{setPwMsg({err:true,t:'Network error'});}
     finally{setPwBusy(false);}
   }
-  useEffect(()=>{if(tab==="settings"&&session?.role!=="admin")setTab("overview");},[tab,session]);
+  useEffect(()=>{
+    document.body.style.background=S.bg;
+    const style=document.createElement('style');
+    style.textContent=`@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}`;
+    document.head.appendChild(style);
+  },[]);
 
-  useEffect(()=>{document.body.style.background=S.bg;},[]);
+  useEffect(()=>{
+    if(showProfile){
+      setProfileForm({name:session?.name||"",email:session?.email||""});
+      setProfileMsg(null);
+      setProfileTab("info");
+    }
+  },[showProfile]);
 
   if(!session?.token){
     return<Login onLogin={d=>{saveAuth(d.token,d);setSession(d);}}/>;
@@ -3302,6 +3342,202 @@ export default function App(){
 
   const token=session.token;
   const isAdmin = session?.role === "admin";
+
+  const ProfileModal = showProfile&&(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",zIndex:2500,display:"flex",alignItems:"stretch",justifyContent:"flex-end",backdropFilter:"blur(2px)"}}
+      onClick={e=>{if(e.target===e.currentTarget){setShowProfile(false);}}}>
+      <div style={{width:420,background:S.card,display:"flex",flexDirection:"column",boxShadow:"-8px 0 40px rgba(0,0,0,0.15)",animation:"slideIn 0.25s ease"}}>
+
+        {/* Header */}
+        <div style={{padding:"24px 24px 20px",borderBottom:`1px solid ${S.border}`,background:`linear-gradient(135deg,${S.accent}08,${S.accentLight})`}}>
+          <div style={{display:"flex",alignItems:"center",gap:14}}>
+            <div style={{width:56,height:56,borderRadius:"50%",background:`linear-gradient(135deg,${S.accent},#3b82f6)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,fontWeight:800,color:"#fff",boxShadow:"0 4px 12px rgba(26,86,219,0.35)",flexShrink:0}}>
+              {(session.name||session.username||"U")[0].toUpperCase()}
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:16,fontWeight:800,color:S.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{session.name||session.username}</div>
+              <div style={{fontSize:12,color:S.muted,marginTop:2,display:"flex",alignItems:"center",gap:5}}>
+                <Shield size={11}/>{session.role||"viewer"}
+                <span style={{width:1,height:10,background:S.border2,display:"inline-block"}}/>
+                <span style={{fontFamily:"monospace"}}>{session.username}</span>
+              </div>
+            </div>
+            <button onClick={()=>setShowProfile(false)} style={{background:"none",border:"none",cursor:"pointer",color:S.muted2,display:"flex",alignItems:"center",padding:6,borderRadius:7,transition:"all 0.15s"}}
+              onMouseEnter={e=>e.currentTarget.style.background=S.bg}
+              onMouseLeave={e=>e.currentTarget.style.background="none"}>
+              <XCircle size={18}/>
+            </button>
+          </div>
+
+          {/* Sub tabs */}
+          <div style={{display:"flex",gap:4,marginTop:16,background:S.bg,padding:3,borderRadius:8,border:`1px solid ${S.border}`}}>
+            {[["info","Profile","UserCircle"],["password","Password","Lock"],["security","Security","Shield"]].map(([id,label,ic])=>{
+              const Icon = ic==="UserCircle"?UserCircle:ic==="Lock"?Lock:Shield;
+              return(
+                <button key={id} onClick={()=>{setProfileTab(id);setProfileMsg(null);}} style={{flex:1,padding:"6px",borderRadius:6,fontSize:11,cursor:"pointer",border:"none",background:profileTab===id?S.card:"transparent",color:profileTab===id?S.accent:S.muted,fontWeight:profileTab===id?700:400,transition:"all 0.15s",display:"flex",alignItems:"center",justifyContent:"center",gap:4,boxShadow:profileTab===id?S.shadow:"none"}}>
+                  <Icon size={12}/>{label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Body */}
+        <div style={{flex:1,overflowY:"auto",padding:24}}>
+
+          {/* ── PROFILE INFO ── */}
+          {profileTab==="info"&&(
+            <div style={{display:"flex",flexDirection:"column",gap:16}}>
+              <div style={{fontSize:13,fontWeight:700,color:S.text,marginBottom:4}}>Personal Information</div>
+              {[["Full Name","name","text","Your full name"],["Email","email","email","your@email.com"]].map(([label,field,type,ph])=>(
+                <div key={field}>
+                  <label style={{fontSize:11,fontWeight:700,color:S.muted,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.05em"}}>{label}</label>
+                  <input type={type} value={profileForm[field]} onChange={e=>setProfileForm(p=>({...p,[field]:e.target.value}))}
+                    placeholder={ph}
+                    style={{width:"100%",padding:"9px 12px",borderRadius:8,border:`1.5px solid ${S.border2}`,background:S.bg,color:S.text,fontSize:13,boxSizing:"border-box",outline:"none",fontFamily:"inherit",transition:"border 0.15s"}}
+                    onFocus={e=>e.target.style.borderColor=S.accent}
+                    onBlur={e=>e.target.style.borderColor=S.border2}
+                  />
+                </div>
+              ))}
+              <div>
+                <label style={{fontSize:11,fontWeight:700,color:S.muted,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.05em"}}>Username</label>
+                <input value={session.username||""} disabled style={{width:"100%",padding:"9px 12px",borderRadius:8,border:`1.5px solid ${S.border}`,background:"#f8faff",color:S.muted,fontSize:13,boxSizing:"border-box",outline:"none",fontFamily:"monospace",cursor:"not-allowed"}}/>
+                <div style={{fontSize:10,color:S.muted2,marginTop:4}}>Username cannot be changed</div>
+              </div>
+              <div style={{borderTop:`1px solid ${S.border}`,paddingTop:14}}>
+                <div style={{fontSize:11,fontWeight:700,color:S.muted,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:10}}>Account Details</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                  {[
+                    {l:"Role",v:session.role||"viewer",icon:<Shield size={12}/>},
+                    {l:"Account ID",v:`#${session.id||"—"}`,icon:<UserCircle size={12}/>},
+                  ].map(k=>(
+                    <div key={k.l} style={{background:S.bg,borderRadius:8,padding:"10px 12px",border:`1px solid ${S.border}`}}>
+                      <div style={{fontSize:10,color:S.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:4,display:"flex",alignItems:"center",gap:4}}>{k.icon}{k.l}</div>
+                      <div style={{fontSize:13,fontWeight:700,color:S.text,textTransform:"capitalize"}}>{k.v}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {profileMsg&&(
+                <div style={{padding:"10px 12px",borderRadius:8,background:profileMsg.err?S.dangerBg:S.successBg,color:profileMsg.err?S.danger:S.success,fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:6,border:`1px solid ${profileMsg.err?S.danger:S.success}33`}}>
+                  {profileMsg.err?<AlertCircle size={13}/>:<CheckCircle size={13}/>}{profileMsg.t}
+                </div>
+              )}
+              <button onClick={saveProfile} disabled={profileBusy} style={{padding:"10px",borderRadius:9,border:"none",background:`linear-gradient(135deg,${S.accent},#3b82f6)`,color:"#fff",fontSize:13,fontWeight:700,cursor:profileBusy?"wait":"pointer",opacity:profileBusy?0.7:1,display:"flex",alignItems:"center",justifyContent:"center",gap:6,boxShadow:"0 2px 8px rgba(26,86,219,0.25)"}}>
+                {profileBusy?<><RotateCcw size={13}/>Saving…</>:<><Edit3 size={13}/>Save Changes</>}
+              </button>
+            </div>
+          )}
+
+          {/* ── PASSWORD ── */}
+          {profileTab==="password"&&(
+            <div style={{display:"flex",flexDirection:"column",gap:16}}>
+              <div style={{fontSize:13,fontWeight:700,color:S.text,marginBottom:4}}>Change Password</div>
+              {[["Current Password","current",showCur,setShowCur],["New Password","next",showNext,setShowNext],["Confirm New Password","confirm",showConf,setShowConf]].map(([label,field,show,setShow])=>(
+                <div key={field}>
+                  <label style={{fontSize:11,fontWeight:700,color:S.muted,display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.05em"}}>{label}</label>
+                  <div style={{position:"relative"}}>
+                    <input type={show?"text":"password"} value={pwForm[field]} onChange={e=>setPwForm(p=>({...p,[field]:e.target.value}))}
+                      style={{width:"100%",padding:"9px 40px 9px 12px",borderRadius:8,border:`1.5px solid ${S.border2}`,background:S.bg,color:S.text,fontSize:13,boxSizing:"border-box",outline:"none",fontFamily:"inherit"}}
+                      onFocus={e=>e.target.style.borderColor=S.accent}
+                      onBlur={e=>e.target.style.borderColor=S.border2}
+                    />
+                    <button type="button" onClick={()=>setShow(p=>!p)} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:S.muted2,display:"flex",alignItems:"center"}}>
+                      {show?<EyeOff size={14}/>:<Eye size={14}/>}
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {pwForm.next&&(()=>{
+                const p=pwForm.next;
+                const checks=[p.length>=8,/[A-Z]/.test(p),/[0-9]/.test(p),/[^A-Za-z0-9]/.test(p)];
+                const score=checks.filter(Boolean).length;
+                const colors=["#ef4444","#f97316","#eab308","#22c55e"];
+                const labels=["Weak","Fair","Good","Strong"];
+                return(
+                  <div>
+                    <div style={{display:"flex",gap:4,marginBottom:6}}>
+                      {[0,1,2,3].map(i=>(
+                        <div key={i} style={{flex:1,height:3,borderRadius:4,background:i<score?colors[score-1]:S.border2,transition:"background 0.2s"}}/>
+                      ))}
+                    </div>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:10,flexWrap:"wrap",gap:4}}>
+                      {[["8+ chars",p.length>=8],["Uppercase",/[A-Z]/.test(p)],["Number",/[0-9]/.test(p)],["Symbol",/[^A-Za-z0-9]/.test(p)]].map(([l,ok])=>(
+                        <span key={l} style={{color:ok?S.success:S.muted2,fontWeight:600,display:"flex",alignItems:"center",gap:3}}>
+                          {ok?<CheckCircle size={9}/>:<CircleDot size={9}/>}{l}
+                        </span>
+                      ))}
+                      <span style={{fontWeight:700,color:score>0?colors[score-1]:S.muted2}}>{score>0?labels[score-1]:""}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+              {pwMsg&&(
+                <div style={{padding:"10px 12px",borderRadius:8,background:pwMsg.err?S.dangerBg:S.successBg,color:pwMsg.err?S.danger:S.success,fontSize:12,fontWeight:600,display:"flex",alignItems:"center",gap:6}}>
+                  {pwMsg.err?<AlertCircle size={13}/>:<CheckCircle size={13}/>}{pwMsg.t}
+                </div>
+              )}
+              <button onClick={changePassword} disabled={pwBusy||!pwForm.current||!pwForm.next||!pwForm.confirm} style={{padding:"10px",borderRadius:9,border:"none",background:`linear-gradient(135deg,${S.accent},#3b82f6)`,color:"#fff",fontSize:13,fontWeight:700,cursor:pwBusy?"wait":"pointer",opacity:pwBusy||!pwForm.current||!pwForm.next||!pwForm.confirm?0.5:1,display:"flex",alignItems:"center",justifyContent:"center",gap:6,boxShadow:"0 2px 8px rgba(26,86,219,0.25)"}}>
+                {pwBusy?<><RotateCcw size={13}/>Changing…</>:<><Lock size={13}/>Change Password</>}
+              </button>
+            </div>
+          )}
+
+          {/* ── SECURITY ── */}
+          {profileTab==="security"&&(
+            <div style={{display:"flex",flexDirection:"column",gap:14}}>
+              <div style={{fontSize:13,fontWeight:700,color:S.text,marginBottom:4}}>Security Settings</div>
+
+              {/* 2FA Status */}
+              <div style={{background:S.bg,borderRadius:10,padding:"14px 16px",border:`1px solid ${S.border}`}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <div style={{width:36,height:36,borderRadius:9,background:`${S.success}12`,display:"flex",alignItems:"center",justifyContent:"center"}}><Shield size={16} color={S.success}/></div>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:700,color:S.text}}>Two-Factor Authentication</div>
+                      <div style={{fontSize:11,color:S.muted}}>Microsoft Authenticator</div>
+                    </div>
+                  </div>
+                  <span style={{background:S.successBg,color:S.success,padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700,border:`1px solid ${S.success}33`,display:"flex",alignItems:"center",gap:4}}>
+                    <CheckCircle size={10}/>Active
+                  </span>
+                </div>
+                <div style={{fontSize:11,color:S.muted,lineHeight:1.5}}>Your account is protected with 2FA. Every login requires a code from your authenticator app.</div>
+              </div>
+
+              {/* Session info */}
+              <div style={{background:S.bg,borderRadius:10,padding:"14px 16px",border:`1px solid ${S.border}`}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                  <div style={{width:36,height:36,borderRadius:9,background:`${S.accent}12`,display:"flex",alignItems:"center",justifyContent:"center"}}><Activity size={16} color={S.accent}/></div>
+                  <div style={{fontSize:13,fontWeight:700,color:S.text}}>Current Session</div>
+                </div>
+                {[
+                  {l:"Role",v:session.role||"viewer"},
+                  {l:"Session expires",v:"8 hours from login"},
+                  {l:"Auto-logout",v:"30 min inactivity"},
+                ].map(k=>(
+                  <div key={k.l} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:`1px solid ${S.border}`,fontSize:12}}>
+                    <span style={{color:S.muted,fontWeight:500}}>{k.l}</span>
+                    <span style={{color:S.text,fontWeight:600}}>{k.v}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Danger zone */}
+              <div style={{background:S.dangerBg,borderRadius:10,padding:"14px 16px",border:`1px solid ${S.danger}22`}}>
+                <div style={{fontSize:13,fontWeight:700,color:S.danger,marginBottom:6,display:"flex",alignItems:"center",gap:6}}><AlertCircle size={14}/>Sign Out</div>
+                <div style={{fontSize:11,color:S.muted,marginBottom:12}}>Sign out from all devices and clear your session.</div>
+                <button onClick={()=>{setShowProfile(false);clearAuth();setSession(null);}} style={{padding:"8px 16px",borderRadius:8,border:`1.5px solid ${S.danger}`,background:"transparent",color:S.danger,fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:6}}>
+                  <LogOut size={13}/>Sign Out Now
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 
   const IdleWarningModal = idleWarning&&(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:3000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
@@ -3394,6 +3630,7 @@ export default function App(){
 
   return(
     <div style={{display:"flex",height:"100vh",background:S.bg,color:S.text,fontFamily:"system-ui,-apple-system,sans-serif",letterSpacing:"0.01em",overflow:"hidden"}}>
+      {ProfileModal}
       {IdleWarningModal}
       {PwModal}
       <div style={{width:navW,background:S.side,borderRight:`1px solid ${S.border}`,display:"flex",flexDirection:"column",flexShrink:0,transition:"width 0.2s",boxShadow:"2px 0 8px rgba(0,0,0,0.04)"}}>
@@ -3420,7 +3657,10 @@ export default function App(){
           ))}
         </div>
         <div style={{padding:"10px 12px",borderTop:`1px solid ${S.border}`,display:"flex",alignItems:"center",gap:9,justifyContent:navCollapsed?"center":"flex-start"}}>
-          <div style={{width:32,height:32,borderRadius:"50%",background:`linear-gradient(135deg,${S.accent},#3b82f6)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:"#fff",flexShrink:0,boxShadow:"0 2px 6px rgba(26,86,219,0.3)"}}>{(session.name||session.username||"U")[0].toUpperCase()}</div>
+          <div onClick={()=>setShowProfile(true)} style={{width:32,height:32,borderRadius:"50%",background:`linear-gradient(135deg,${S.accent},#3b82f6)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:"#fff",flexShrink:0,boxShadow:"0 2px 6px rgba(26,86,219,0.3)",cursor:"pointer",transition:"transform 0.15s"}}
+            onMouseEnter={e=>e.currentTarget.style.transform="scale(1.1)"}
+            onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}
+          >{(session.name||session.username||"U")[0].toUpperCase()}</div>
           {!navCollapsed&&(
             <>
               <div style={{flex:1,minWidth:0}}>
